@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  firstName       String?
+  lastName        String?
+  password        String
+  role            String         @default("STUDENT")
+  bio             String?        @db.Text
+  image           String?        // URL de la photo de profil
+  xp              Int            @default(0)
+  level           Int            @default(1)
+  streak          Int            @default(0)
+  lastActive      DateTime       @default(now())
+  aiBonusRequests Int            @default(0) // Requêtes bonus gagnées via pub
+  dailyAIUsages   DailyAIUsage[]
+  personalSchedules PersonalSchedule[]
+  badges          UserBadge[]
+  questions       Question[]
+  answers         Answer[]
+  resources       Resource[]
+  quizAttempts    QuizAttempt[]
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  slug        String      @unique
+  name        String
+  description String
+  icon        String
+  xpCost      Int         @default(0)
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId      String
+  badgeId     String
+  obtainedAt  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  badge       Badge    @relation(fields: [badgeId], references: [id])
+
+  @@id([userId, badgeId])
+}
+
+model Quiz {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  subject     String
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  xpReward    Int            @default(100)
+  resourceId  String?        // Lien vers le PDF d'origine
+  resource    Resource?      @relation(fields: [resourceId], references: [id])
+  createdAt   DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id        String   @id @default(uuid())
+  question  String
+  options   String   // JSON stringified array of options
+  answer    Int      // Index de la bonne réponse
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  score     Int      // Score en %
+  xpGained  Int
+  createdAt DateTime @default(now())
+}
+
+model DailyAIUsage {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  date         DateTime @default(now()) // SQLite stocke ceci comme un ISO string
+  requestCount Int      @default(0)
+  quizRequestCount Int  @default(0)
+
+  @@unique([userId, date]) // Un seul enregistrement par utilisateur par jour
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  answers   Answer[]
+  tags      String?
+}
+
+model Answer {
+  id         String   @id @default(uuid())
+  content    String
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  createdAt  DateTime @default(now())
+  isAccepted Boolean  @default(false)
+}
+
+model Resource {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  type        String   // "PDF", "VIDEO", "AUDIO", "OTHER"
+  url         String
+  subject     String?
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  size        String?
+  quizzes     Quiz[]
+}
+
+model PersonalSchedule {
+  id          String    @id @default(uuid())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  day         String
+  time        String
+  subject     String
+  credits     String?
+  teacher     String?
+  type        String?
+  isAcademic  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

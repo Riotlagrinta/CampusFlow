@@ -1,0 +1,372 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  BookOpen, 
+  User, 
+  Plus, 
+  Trash2, 
+  Loader2, 
+} from 'lucide-react';
+import { useSound } from '@/hooks/useSound';
+
+// --- Types ---
+
+type Course = {
+  time: string;
+  subject: string;
+  credits?: string;
+  teacher?: string;
+  type?: string;
+  isPersonal?: boolean;
+  id?: string;
+};
+
+type DaySchedule = {
+  day: string;
+  courses: Course[];
+};
+
+type PersonalEvent = {
+  id: string;
+  day: string;
+  time: string;
+  subject: string;
+  type: string;
+  isAcademic: boolean;
+  createdAt: string;
+};
+
+// --- Constants ---
+
+const DAYS_ORDER = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+// --- Components ---
+
+export default function PlanningPage() {
+  const { play } = useSound();
+  const [activeTab, setActiveTab] = useState<'academic' | 'personal' | 'combined'>('combined');
+  const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Form State
+  const [newEvent, setNewEvent] = useState({
+    day: 'Lundi',
+    time: '',
+    subject: '',
+    type: 'Personnel'
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initial Data Load
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setIsAdmin(user.role === 'ADMIN');
+    fetchPersonalEvents();
+  }, []);
+
+  const fetchPersonalEvents = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/planning/personal');
+      if (res.ok) {
+        const data = await res.json();
+        setPersonalEvents(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch personal events", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEvent.time || !newEvent.subject) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/planning/personal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEvent),
+      });
+
+      if (res.ok) {
+        const createdEvent = await res.json();
+        setPersonalEvents(prev => [createdEvent, ...prev]);
+        setIsModalOpen(false);
+        setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel' });
+        play('success');
+      }
+    } catch (error) {
+      console.error("Error adding event", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm('Voulez-vous supprimer ce créneau ?')) return;
+
+    try {
+      const res = await fetch(`/api/planning/personal?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        play('success');
+        fetchPersonalEvents();
+      }
+    } catch (error) {
+      console.error("Failed to delete event", error);
+    }
+  };
+
+  // --- Logic to Merge Schedules ---
+
+  const getDaySchedule = (day: string): Course[] => {
+    // Filtrer les événements de la DB pour ce jour
+    const dbEvents = personalEvents
+      .filter(e => e.day === day)
+      .map(e => ({
+        id: e.id,
+        time: e.time,
+        subject: e.subject,
+        type: e.type,
+        isPersonal: !e.isAcademic
+      }));
+
+    return dbEvents.sort((a, b) => a.time.localeCompare(b.time));
+  };
+
+  const displaySchedule: DaySchedule[] = DAYS_ORDER.map(day => ({
+    day,
+    courses: getDaySchedule(day).filter(c => {
+      if (activeTab === 'combined') return true;
+      if (activeTab === 'personal') return c.isPersonal;
+      if (activeTab === 'academic') return !c.isPersonal;
+      return true;
+    })
+  }));
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 pb-20">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Planning Hebdomadaire</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-2">
+            Gérez votre temps entre les cours officiels et votre travail personnel.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <div className="bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 flex">
+             {(['academic', 'combined', 'personal'] as const).map((tab) => (
+               <button
+                 key={tab}
+                 onClick={() => setActiveTab(tab)}
+                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                   activeTab === tab 
+                     ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
+                     : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                 }`}
+               >
+                 {tab === 'academic' ? 'Académique' : tab === 'personal' ? 'Personnel' : 'Combiné'}
+               </button>
+             ))}
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Ajouter</span>
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 size={40} className="animate-spin text-blue-600" />
+        </div>
+      ) : (
+      /* Schedule Grid */
+      <div className="grid grid-cols-1 gap-8">
+        {displaySchedule.map((daySchedule) => (
+          <motion.div 
+            key={daySchedule.day}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-4">
+               <h2 className="text-2xl font-bold text-zinc-400 uppercase tracking-tight w-32">{daySchedule.day}</h2>
+               <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {daySchedule.courses.map((course, idx) => (
+                <div 
+                  key={idx} 
+                  className={`relative overflow-hidden group p-6 rounded-2xl border transition-all hover:shadow-md ${
+                    course.isPersonal 
+                      ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/30' 
+                      : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
+                      course.isPersonal 
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' 
+                        : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                    }`}>
+                      {course.time}
+                    </div>
+                    {(course.isPersonal || isAdmin) && course.id && (
+                       <button 
+                         onClick={() => handleDeleteEvent(course.id!)}
+                         className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-500 transition-all"
+                       >
+                         <Trash2 size={16} />
+                       </button>
+                    )}
+                  </div>
+                  
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-2">
+                    {course.subject}
+                  </h3>
+                  
+                  <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mt-3">
+                     {course.isPersonal ? <User size={14} /> : <BookOpen size={14} />}
+                     <span>{course.teacher || 'Auto-formation'}</span>
+                     {course.credits && course.credits !== '-' && (
+                       <>
+                        <span className="w-1 h-1 bg-zinc-300 rounded-full" />
+                        <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{course.credits}</span>
+                       </>
+                     )}
+                  </div>
+                  
+                  {course.isPersonal && (
+                    <div className="absolute right-0 top-0 h-full w-1 bg-emerald-500" />
+                  )}
+                </div>
+              ))}
+              
+              {daySchedule.courses.length === 0 && (
+                <div className="col-span-full py-8 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
+                   <p className="text-zinc-400 text-sm">Aucun événement prévu pour ce jour.</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      )}
+
+      {/* Add Event Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+            >
+              <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
+                <h3 className="text-xl font-bold">Ajouter un créneau personnel</h3>
+                <p className="text-sm text-zinc-500 mt-1">Organisez vos révisions et temps libre.</p>
+              </div>
+              
+              <form onSubmit={handleAddEvent} className="p-6 space-y-4">
+                <div className="space-y-2">
+                   <label className="text-xs font-bold uppercase text-zinc-500">Jour</label>
+                   <select 
+                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                     value={newEvent.day}
+                     onChange={(e) => setNewEvent({...newEvent, day: e.target.value})}
+                   >
+                      {DAYS_ORDER.map(day => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                   </select>
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-xs font-bold uppercase text-zinc-500">Créneau Horaire</label>
+                   <input 
+                     type="text" 
+                     placeholder="Ex: 18h00 - 20h00"
+                     required
+                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                     value={newEvent.time}
+                     onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
+                   />
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-xs font-bold uppercase text-zinc-500">Activité / Matière</label>
+                   <input 
+                     type="text" 
+                     placeholder="Ex: Révision Java, Sport..."
+                     required
+                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                     value={newEvent.subject}
+                     onChange={(e) => setNewEvent({...newEvent, subject: e.target.value})}
+                   />
+                </div>
+
+                {isAdmin && (
+                  <div className="space-y-2">
+                     <label className="text-xs font-bold uppercase text-zinc-500">Type de créneau</label>
+                     <select 
+                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                       value={newEvent.type}
+                       onChange={(e) => setNewEvent({...newEvent, type: e.target.value})}
+                     >
+                        <option value="Personnel">Personnel (Privé)</option>
+                        <option value="Académique">Académique (Public - Visible par tous)</option>
+                     </select>
+                  </div>
+                )}
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="flex-1 px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                    {isSubmitting ? 'Ajout...' : 'Confirmer'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}

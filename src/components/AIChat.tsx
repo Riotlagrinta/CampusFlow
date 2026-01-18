@@ -154,43 +154,83 @@ export default function AIChat() {
 
 
 
-    const handleWatchAd = async () => {
+      const handleWatchAd = async () => {
 
 
 
-      setWatchingAd(true);
+        // 1. Vérifier si le SDK de pub est chargé
 
 
 
-      // Simuler le visionnage d'une pub pendant 5 secondes
+        // @ts-ignore
 
 
 
-      setTimeout(async () => {
+        if (typeof window !== 'undefined' && window.showRewardedAd) {
 
 
 
-        try {
+          setWatchingAd(true);
 
 
 
-          const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+          try {
 
 
 
-          if (res.ok) {
+            // @ts-ignore (Appel imaginaire dépendant de la régie, prêt pour Monetag/AdSense)
 
 
 
-            await fetchQuota();
+            const success = await window.showRewardedAd(); 
 
 
 
-            setShowAdModal(false);
+            if (success) {
 
 
 
-            play('success');
+              const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+
+
+
+              if (res.ok) {
+
+
+
+                await fetchQuota();
+
+
+
+                setShowAdModal(false);
+
+
+
+                play('success');
+
+
+
+              }
+
+
+
+            }
+
+
+
+          } catch (e) {
+
+
+
+            console.error("Erreur Ad SDK:", e);
+
+
+
+          } finally {
+
+
+
+            setWatchingAd(false);
 
 
 
@@ -198,19 +238,51 @@ export default function AIChat() {
 
 
 
-        } catch (e) {
+        } else {
 
 
 
-          console.error(e);
+          // Fallback si pas encore de SDK : simulation pro
 
 
 
-        } finally {
+          setWatchingAd(true);
 
 
 
-          setWatchingAd(false);
+          setTimeout(async () => {
+
+
+
+            const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+
+
+
+            if (res.ok) {
+
+
+
+              await fetchQuota();
+
+
+
+              setShowAdModal(false);
+
+
+
+              play('success');
+
+
+
+            }
+
+
+
+            setWatchingAd(false);
+
+
+
+          }, 10000); // 10 secondes pour simuler une vraie pub
 
 
 
@@ -218,11 +290,7 @@ export default function AIChat() {
 
 
 
-      }, 5000);
-
-
-
-    };
+      };
 
 
 

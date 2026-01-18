@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import AIChat from "@/components/AIChat";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/../auth";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,9 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* Script Publicitaire Réel (À configurer avec votre zone ID) */}
+        {/* <Script src="https://alwingulla.com/act/checkpoint.js" strategy="lazyOnload" /> */}
+        
         <SessionProvider session={session}>
           <ThemeProvider
             attribute="class"

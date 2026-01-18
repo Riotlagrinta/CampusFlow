@@ -154,57 +154,155 @@ export default function AIChat() {
 
 
 
-  const handleWatchAd = async () => {
-
-    setWatchingAd(true);
-
-    // Simulation de pub (5 secondes)
-
-    await new Promise(resolve => setTimeout(resolve, 5000)); 
+    const handleWatchAd = async () => {
 
 
 
-    try {
+      setWatchingAd(true);
 
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-      const res = await fetch('/api/user/ai-quota/grant-bonus', {
 
-        method: 'POST',
+      // Simuler le visionnage d'une pub pendant 5 secondes
 
-        headers: { 'Content-Type': 'application/json' },
 
-        body: JSON.stringify({ email: user.email }),
 
-      });
+      setTimeout(async () => {
 
-      if (res.ok) {
 
-        play('success');
 
-        setShowAdModal(false);
+        try {
 
-        fetchQuota(); // Rafraîchir le quota
 
-      } else {
 
-        alert("Erreur lors de l'obtention du bonus.");
+          const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+
+
+
+          if (res.ok) {
+
+
+
+            await fetchQuota();
+
+
+
+            setShowAdModal(false);
+
+
+
+            play('success');
+
+
+
+          }
+
+
+
+        } catch (e) {
+
+
+
+          console.error(e);
+
+
+
+        } finally {
+
+
+
+          setWatchingAd(false);
+
+
+
+        }
+
+
+
+      }, 5000);
+
+
+
+    };
+
+
+
+  
+
+
+
+    const handleBuyPack = async (packId: string) => {
+
+
+
+      setIsLoading(true);
+
+
+
+      try {
+
+
+
+        const res = await fetch('/api/payment/create', {
+
+
+
+          method: 'POST',
+
+
+
+          headers: { 'Content-Type': 'application/json' },
+
+
+
+          body: JSON.stringify({ packId }),
+
+
+
+        });
+
+
+
+        const data = await res.json();
+
+
+
+        if (data.url) {
+
+
+
+          window.location.href = data.url; // Rediriger vers FedaPay
+
+
+
+        }
+
+
+
+      } catch (err) {
+
+
+
+        console.error(err);
+
+
+
+        alert('Erreur lors de la création du paiement');
+
+
+
+      } finally {
+
+
+
+        setIsLoading(false);
+
+
 
       }
 
-    } catch (error) {
 
-      console.error("Erreur pub:", error);
 
-      alert("Erreur lors de l'obtention du bonus.");
-
-    } finally {
-
-      setWatchingAd(false);
-
-    }
-
-  };
+    };
 
   return (
     <div className={clsx(
@@ -380,42 +478,37 @@ export default function AIChat() {
               className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 text-center space-y-6"
             >
               <Youtube size={48} className="mx-auto text-red-500" />
-              <h3 className="text-xl font-bold">Quota IA journalier atteint !</h3>
-              <p className="text-zinc-500 text-sm">Regardez une courte publicité pour obtenir {quotaInfo?.bonus || 5} requêtes supplémentaires.</p>
+              <h3 className="text-xl font-bold">Plus de jetons IA ?</h3>
+              <p className="text-zinc-500 text-sm">Votre quota gratuit est épuisé. Choisissez une option pour continuer :</p>
               
-              {/* --- DÉBUT INTÉGRATION PUB RÉMUNÉRATRICE (POST-DÉPLOIEMENT) --- */}
-              {/* 
-                Ici, vous inséreriez le code pour charger et afficher une publicité réelle 
-                fournie par une régie (ex: Google AdSense, AdMob, etc.).
+              <div className="space-y-3">
+                <button 
+                  onClick={handleWatchAd}
+                  disabled={watchingAd}
+                  className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all"
+                >
+                  {watchingAd ? <Loader2 className="animate-spin" size={16} /> : <Youtube size={16} />}
+                  {watchingAd ? 'Publicité en cours...' : 'Regarder une pub (+2 jetons)'}
+                </button>
 
-                Étapes typiques :
-                1. Initialiser le SDK publicitaire (souvent dans layout.tsx ou page.tsx).
-                2. Charger une publicité (vidéo récompensée, interstitielle) ici.
-                3. Attendre la confirmation que la pub a été visionnée ou ignorée.
-                4. Appeler handleWatchAd() UNIQUEMENT si la pub a été visionnée avec succès.
+                <div className="relative py-2">
+                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100 dark:border-zinc-800"></div></div>
+                   <div className="relative flex justify-center text-[10px] uppercase font-black text-zinc-400"><span className="bg-white dark:bg-zinc-900 px-2">À venir</span></div>
+                </div>
 
-                Exemple (conceptuel, dépend de la régie) :
-                <YourAdSdkComponent 
-                  adUnitId="ca-app-pub-XXX" 
-                  onAdWatched={handleWatchAd} 
-                  onAdFailed={() => alert("La pub n'a pas pu être chargée. Réessayez.")}
-                />
-              */}
-              {/* --- FIN INTÉGRATION PUB RÉMUNÉRATRICE --- */}
+                <div className="p-4 bg-blue-500/5 border border-dashed border-blue-500/20 rounded-2xl space-y-2">
+                   <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Pass Premium</p>
+                   <p className="text-[10px] text-zinc-500 leading-relaxed">
+                     Bientôt : Achetez des jetons illimités via T-Money & Flooz pour booster votre productivité. 
+                   </p>
+                </div>
+              </div>
 
-              <button 
-                onClick={handleWatchAd} 
-                disabled={watchingAd}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                {watchingAd && <Loader2 className="animate-spin" size={20} />}
-                {watchingAd ? 'Chargement de la pub...' : 'Regarder la publicité'}
-              </button>
               <button 
                 onClick={() => setShowAdModal(false)}
-                className="w-full py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
               >
-                Non merci, attendre demain
+                Plus tard
               </button>
             </motion.div>
           </motion.div>

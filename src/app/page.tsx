@@ -139,10 +139,10 @@ export default function Home() {
 
   // --- RENDU DASHBOARD (Connecté) ---
   return (
-    <div className="max-w-6xl mx-auto space-y-12 py-4">
+    <div className="max-w-6xl mx-auto space-y-8 md:space-y-12 py-4 px-2 md:px-0">
       
       {/* Top Navigation / Breadcrumbs Style */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <span className="text-zinc-400">Dashboard</span>
           <span className="text-zinc-300 dark:text-zinc-700">/</span>
@@ -154,30 +154,30 @@ export default function Home() {
       </div>
 
       {/* Hero Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-2">
         <div className="md:col-span-2 space-y-2">
-            <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Bienvenue, {session.user?.name?.split(' ')[0] || 'Étudiant'}.
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-lg">
+            <p className="text-zinc-500 dark:text-zinc-400 text-base md:text-lg">
               Voici l&apos;état actuel de votre progression académique en temps réel.
             </p>
         </div>
       </div>
 
       {/* Stats Cards - Réelles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 px-2">
         {data?.stats.map((stat: any, i: number) => {
           const Icon = ICON_MAP[stat.icon] || Activity;
           return (
-            <div key={i} className="card-pro p-6 space-y-3">
+            <div key={i} className="card-pro p-4 md:p-6 space-y-3">
               <div className="flex items-center justify-between text-zinc-400">
-                  <Icon size={18} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">{stat.trend}</span>
+                  <Icon size={16} className="md:w-[18px] md:h-[18px]" />
+                  <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-wider text-blue-500">{stat.trend}</span>
               </div>
               <div>
-                  <p className="text-xs font-medium text-zinc-500 uppercase tracking-tight">{stat.label}</p>
-                  <h3 className="text-2xl font-bold tracking-tight mt-1">{stat.value}</h3>
+                  <p className="text-[10px] md:text-xs font-medium text-zinc-500 uppercase tracking-tight">{stat.label}</p>
+                  <h3 className="text-lg md:text-2xl font-bold tracking-tight mt-1">{stat.value}</h3>
               </div>
             </div>
           );

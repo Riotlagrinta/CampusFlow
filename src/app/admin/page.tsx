@@ -71,18 +71,18 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center gap-4">
+    <div className="max-w-6xl mx-auto space-y-8 pb-20 px-2">
+      <div className="flex items-center gap-4 px-2">
         <div className="p-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl shadow-xl">
-           <Shield size={32} />
+           <Shield size={24} className="md:w-8 md:h-8" />
         </div>
         <div>
-           <h1 className="text-3xl font-black">Console Administrateur</h1>
-           <p className="text-zinc-500">Suivi des utilisateurs en temps réel.</p>
+           <h1 className="text-2xl md:text-3xl font-black">Console Administrateur</h1>
+           <p className="text-zinc-500 text-sm">Suivi des utilisateurs en temps réel.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 px-2">
         <div className="card-pro p-6 flex items-center gap-4">
            <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 rounded-full flex items-center justify-center">
               <Activity size={24} />
@@ -124,82 +124,133 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="card-pro overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
-            <tr>
-              <th className="px-6 py-4">Utilisateur</th>
-              <th className="px-6 py-4">Classe (Filière / Niveau)</th>
-              <th className="px-6 py-4">Progression</th>
-              <th className="px-6 py-4">Badges</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {users.map((u) => (
-              <tr key={u.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-500">
-                      {u.firstName?.[0]}{u.lastName?.[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold flex items-center gap-2">
-                        {u.firstName} {u.lastName}
-                        {u.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
-                      </p>
-                      <p className="text-[10px] text-zinc-500">{u.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold">{u.field?.name || 'Non défini'}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{u.academicLevel?.name || '-'}</p>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold">LVL {u.level}</p>
-                    <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex -space-x-2">
-                    {u.badges.map((b, i) => (
-                      <div key={i} title={b.badge.name} className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px]">
-                        {b.badge.icon.length > 2 ? '🏅' : b.badge.icon}
-                      </div>
-                    ))}
-                    {u.badges.length === 0 && <span className="text-[10px] text-zinc-400">Aucun</span>}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <Circle size={8} fill={isOnline(u.lastActive) ? "#10b981" : "#d1d5db"} className={isOnline(u.lastActive) ? "text-emerald-500 animate-pulse" : "text-zinc-300"} />
-                    <span className="text-xs font-medium">{isOnline(u.lastActive) ? 'En ligne' : 'Hors ligne'}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-xs text-zinc-500 font-medium">
-                  {new Date(u.lastActive).toLocaleTimeString()}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  {u.role !== 'ADMIN' && (
-                    <button 
-                      onClick={() => handleDeleteUser(u.id)}
-                      className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                      title="Supprimer l'utilisateur"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </td>
+      <div className="px-2">
+        <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4 ml-2">Liste des Étudiants</h2>
+        
+        {/* Vue Desktop : Tableau */}
+        <div className="hidden md:block card-pro overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+              <tr>
+                <th className="px-6 py-4">Utilisateur</th>
+                <th className="px-6 py-4">Classe (Filière / Niveau)</th>
+                <th className="px-6 py-4">Progression</th>
+                <th className="px-6 py-4">Badges</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Dernière activité</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {users.map((u) => (
+                <tr key={u.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-500">
+                        {u.firstName?.[0]}{u.lastName?.[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold flex items-center gap-2">
+                          {u.firstName} {u.lastName}
+                          {u.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
+                        </p>
+                        <p className="text-[10px] text-zinc-500">{u.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold">{u.field?.name || 'Non défini'}</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{u.academicLevel?.name || '-'}</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold">LVL {u.level}</p>
+                      <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex -space-x-2">
+                      {u.badges.map((b, i) => (
+                        <div key={i} title={b.badge.name} className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px]">
+                          {b.badge.icon.length > 2 ? '🏅' : b.badge.icon}
+                        </div>
+                      ))}
+                      {u.badges.length === 0 && <span className="text-[10px] text-zinc-400">Aucun</span>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <Circle size={8} fill={isOnline(u.lastActive) ? "#10b981" : "#d1d5db"} className={isOnline(u.lastActive) ? "text-emerald-500 animate-pulse" : "text-zinc-300"} />
+                      <span className="text-xs font-medium">{isOnline(u.lastActive) ? 'En ligne' : 'Hors ligne'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-zinc-500 font-medium">
+                    {new Date(u.lastActive).toLocaleTimeString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {u.role !== 'ADMIN' && (
+                      <button 
+                        onClick={() => handleDeleteUser(u.id)}
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                        title="Supprimer l'utilisateur"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Vue Mobile : Cartes */}
+        <div className="md:hidden space-y-4">
+          {users.map((u) => (
+            <div key={u.id} className="card-pro p-4 space-y-4 relative">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-sm text-zinc-500">
+                    {u.firstName?.[0]}{u.lastName?.[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate flex items-center gap-2">
+                      {u.firstName} {u.lastName}
+                      {u.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <Circle size={6} fill={isOnline(u.lastActive) ? "#10b981" : "#d1d5db"} className={isOnline(u.lastActive) ? "text-emerald-500" : "text-zinc-300"} />
+                    <span className="text-[8px] font-black uppercase tracking-widest">{isOnline(u.lastActive) ? 'Live' : 'Off'}</span>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-50 dark:border-zinc-900">
+                  <div>
+                    <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Classe</p>
+                    <p className="text-[10px] font-bold truncate">{u.field?.code || 'N/A'} - {u.academicLevel?.name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Progression</p>
+                    <p className="text-[10px] font-bold">LVL {u.level} • {u.xp.toLocaleString()} XP</p>
+                  </div>
+               </div>
+
+               {u.role !== 'ADMIN' && (
+                 <button 
+                   onClick={() => handleDeleteUser(u.id)}
+                   className="absolute top-2 right-2 p-2 text-zinc-300 hover:text-red-500"
+                 >
+                   <Trash2 size={14} />
+                 </button>
+               )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
+}
 }

@@ -35,8 +35,14 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Script Publicitaire Réel (À configurer avec votre zone ID) */}
-        {/* <Script src="https://alwingulla.com/act/checkpoint.js" strategy="lazyOnload" /> */}
+        {/* Script Publicitaire Monetag (Multitag) */}
+        <Script 
+          src="https://quge5.com/88/tag.min.js" 
+          data-zone="203183" 
+          async 
+          data-cfasync="false" 
+          strategy="lazyOnload"
+        />
         
         <SessionProvider session={session}>
           <ThemeProvider

@@ -154,19 +154,7 @@ export default function AIChat() {
 
 
 
-      const handleWatchAd = async () => {
-
-
-
-        // 1. Vérifier si le SDK de pub est chargé
-
-
-
-        // @ts-ignore
-
-
-
-        if (typeof window !== 'undefined' && window.showRewardedAd) {
+        const handleWatchAd = async () => {
 
 
 
@@ -174,19 +162,23 @@ export default function AIChat() {
 
 
 
-          try {
+          
 
 
 
-            // @ts-ignore (Appel imaginaire dépendant de la régie, prêt pour Monetag/AdSense)
+          // Monetag Multitag se déclenche automatiquement au clic ou via des popunders/vignettes.
 
 
 
-            const success = await window.showRewardedAd(); 
+          // Nous simulons un délai de visionnage pour garantir que l'impression a eu lieu.
 
 
 
-            if (success) {
+          setTimeout(async () => {
+
+
+
+            try {
 
 
 
@@ -214,63 +206,19 @@ export default function AIChat() {
 
 
 
-            }
+            } catch (e) {
 
 
 
-          } catch (e) {
+              console.error("Erreur lors de la récompense pub:", e);
 
 
 
-            console.error("Erreur Ad SDK:", e);
+            } finally {
 
 
 
-          } finally {
-
-
-
-            setWatchingAd(false);
-
-
-
-          }
-
-
-
-        } else {
-
-
-
-          // Fallback si pas encore de SDK : simulation pro
-
-
-
-          setWatchingAd(true);
-
-
-
-          setTimeout(async () => {
-
-
-
-            const res = await fetch('/api/user/ad-reward', { method: 'POST' });
-
-
-
-            if (res.ok) {
-
-
-
-              await fetchQuota();
-
-
-
-              setShowAdModal(false);
-
-
-
-              play('success');
+              setWatchingAd(false);
 
 
 
@@ -278,19 +226,11 @@ export default function AIChat() {
 
 
 
-            setWatchingAd(false);
+          }, 10000); // 10 secondes pour laisser la pub s'afficher et être rémunératrice
 
 
 
-          }, 10000); // 10 secondes pour simuler une vraie pub
-
-
-
-        }
-
-
-
-      };
+        };
 
 
 

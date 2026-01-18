@@ -83,31 +83,15 @@ export default function AIChat() {
 
 
   const fetchQuota = async () => {
-
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-    if (!user.email) return;
-
-
-
     try {
-
-      const res = await fetch(`/api/user/ai-quota?email=${user.email}`);
-
+      const res = await fetch('/api/user/ai-quota');
       if (res.ok) {
-
         const data = await res.json();
-
         setQuotaInfo(data);
-
       }
-
     } catch (error) {
-
       console.error("Failed to fetch quota:", error);
-
     }
-
   };
 
 
@@ -133,13 +117,9 @@ export default function AIChat() {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
 
       const response = await fetch('/api/chat', {
-
         method: 'POST',
-
         headers: { 'Content-Type': 'application/json' },
-
-        body: JSON.stringify({ message: userMessage, email: user.email }),
-
+        body: JSON.stringify({ message: userMessage }),
       });
 
       const data = await response.json();

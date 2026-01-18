@@ -2,43 +2,38 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addXP } from "@/lib/xp";
+import { auth } from "@/../auth";
 
-const DAILY_AI_LIMIT = 10; // Limite par défaut
-const BONUS_PER_AD = 5; // Requêtes gagnées par pub
+const DAILY_AI_LIMIT = 30; // Augmenté à 30 pour la classe
 
 export async function POST(req: Request) {
   try {
-    const { message, email } = await req.json();
-
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ reply: "Clé API manquante." }, { status: 500 });
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ reply: "Vous devez être connecté pour parler à l'IA." }, { status: 401 });
     }
 
-    // Récupérer l'utilisateur
-    const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
-    if (!user) return NextResponse.json({ reply: "Utilisateur introuvable pour le quota." }, { status: 404 });
+    const { message } = await req.json();
 
-    // --- LOGIQUE DE QUOTA ---
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ reply: "Le service IA n'est pas configuré (Clé manquante)." }, { status: 500 });
+    }
+
+    // Récupérer l'utilisateur via la session
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ reply: "Utilisateur introuvable." }, { status: 404 });
+
+    // --- LOGIQUE DE QUOTA INTERNE ---
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Début de journée
+    today.setHours(0, 0, 0, 0);
 
     let dailyUsage = await prisma.dailyAIUsage.findUnique({
-      where: {
-        userId_date: {
-          userId: user.id,
-          date: today,
-        },
-      },
+      where: { userId_date: { userId: user.id, date: today } },
     });
 
-    // Si pas d'enregistrement pour aujourd'hui, on le crée
     if (!dailyUsage) {
       dailyUsage = await prisma.dailyAIUsage.create({
-        data: {
-          userId: user.id,
-          date: today,
-          requestCount: 0,
-        },
+        data: { userId: user.id, date: today, requestCount: 0 },
       });
     }
 
@@ -46,7 +41,7 @@ export async function POST(req: Request) {
 
     if (currentQuota <= 0) {
       return NextResponse.json({ 
-        reply: "Quota IA journalier dépassé. Regardez une pub pour des requêtes supplémentaires ou attendez demain.",
+        reply: "Vous avez atteint votre limite personnelle de 30 messages aujourd'hui. Revenez demain !",
         quotaExceeded: true
       }, { status: 429 });
     }
@@ -56,11 +51,8 @@ export async function POST(req: Request) {
       where: { id: dailyUsage.id },
       data: { requestCount: { increment: 1 } },
     });
-    // --- FIN LOGIQUE DE QUOTA ---
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-    // Tentative avec un modèle Gemini
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `Tu es l'assistant IA de DEFITECH. Réponds à l'étudiant de manière pédagogique.
@@ -70,18 +62,23 @@ export async function POST(req: Request) {
     const response = await result.response;
     const text = response.text();
 
-    // Bonus XP automatique (+5 XP)
     if (user) await addXP(user.id, 5);
 
     return NextResponse.json({ reply: text });
-  } catch (error: unknown) {
-    console.error("Erreur API:", error);
+  } catch (error: any) {
+    console.error("Erreur détaillée API Chat:", error);
     
-    // Si Gemma échoue aussi, on renvoie un message clair sur le quota
-    const status = (error as { status?: number })?.status || 500;
+    // On vérifie si c'est VRAIMENT une erreur de quota Google
+    if (error?.status === 429 || error?.message?.includes('429')) {
+      return NextResponse.json(
+        { reply: "Le quota global de l'école est temporairement atteint. Réessayez dans quelques minutes." },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json(
-      { reply: "Désolé, les quotas gratuits de Google pour ta clé API sont épuisés (Error 429). Tu peux essayer de créer une nouvelle clé sur Google AI Studio ou attendre demain." },
-      { status }
+      { reply: "Une erreur technique est survenue. L'IA est peut-être surchargée ou la connexion à la base de données a échoué." },
+      { status: 500 }
     );
   }
 }

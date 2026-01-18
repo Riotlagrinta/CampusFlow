@@ -62,10 +62,10 @@ export default function AIAssistantPage() {
 
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const response = await fetch('/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage, email: user.email }),
+        body: JSON.stringify({ message: userMessage }),
       });
       const data = await response.json();
       if (data.quotaExceeded) {

@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from "@/../auth";
 
-const DAILY_AI_LIMIT = 10; // Doit être synchronisé avec les autres APIs
-const DAILY_QUIZ_LIMIT = 2; // Doit être synchronisé avec les autres APIs
+const DAILY_AI_LIMIT = 30; // Synchronisé avec chat/route.ts
+const DAILY_QUIZ_LIMIT = 2;
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email');
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email requis' }, { status: 400 });
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) {
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }

@@ -19,7 +19,7 @@ import {
   LogOut,
   Brain
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from 'next-themes';
@@ -63,6 +63,11 @@ export default function Sidebar() {
   // Fermer la sidebar après un clic sur un lien (sur mobile uniquement)
   const handleLinkClick = () => {
     if (window.innerWidth < 1024) setIsOpen(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    router.push('/login');
   };
 
   const toggleTheme = () => {

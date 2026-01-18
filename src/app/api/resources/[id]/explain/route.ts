@@ -45,7 +45,7 @@ export async function POST(
           content: `Document : ${resource.title}\n\nContenu du texte :\n${fullText}`
         }
       ],
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
     });
 
     return NextResponse.json({ explanation: completion.choices[0]?.message?.content });

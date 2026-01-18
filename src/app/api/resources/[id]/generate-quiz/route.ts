@@ -99,7 +99,7 @@ export async function POST(
           content: prompt
         }
       ],
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
       response_format: { type: "json_object" }
     });
 

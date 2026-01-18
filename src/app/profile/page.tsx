@@ -84,19 +84,19 @@ export default function ProfilePage() {
       return;
     }
 
-    // Récupérer le classement global
+    // 1. Récupérer le classement global (Sidebar)
     fetch('/api/leaderboard')
       .then(res => res.json())
       .then(data => {
         if (!data.error) setLeaderboard(data);
       });
 
+    // 2. Récupérer toutes les données utilisateur (Profil + Analytiques + Classement perso)
     fetch('/api/user/stats')
       .then(res => res.json())
       .then(data => {
         if (!data.error) {
-          setUserData(prev => ({
-            ...prev!,
+          setUserData({
             firstName: data.firstName,
             lastName: data.lastName,
             bio: data.bio,
@@ -104,8 +104,11 @@ export default function ProfilePage() {
             xp: data.xp,
             level: data.level,
             streak: data.streak,
+            rank: data.rank,
+            averageScore: data.averageScore,
+            quizAttemptsCount: data.quizAttemptsCount,
             badges: data.badges
-          }));
+          });
           setEditForm({ 
             firstName: data.firstName || '', 
             lastName: data.lastName || '', 

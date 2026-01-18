@@ -40,7 +40,29 @@ export async function GET(req: Request) {
     });
     const totalTokensToday = usages.reduce((acc: number, curr: any) => acc + (curr.tokensUsed || 0), 0);
 
-    return NextResponse.json({ users, totalTokensToday });
+    // Statistiques des 7 derniers jours pour les graphiques
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const weeklyUsages = await prisma.dailyAIUsage.findMany({
+      where: { date: { gte: sevenDaysAgo } },
+      orderBy: { date: 'asc' }
+    });
+
+    // Grouper par date pour le graphique
+    const chartData = weeklyUsages.reduce((acc: any, curr: any) => {
+      const day = curr.date.toLocaleDateString('fr-FR', { weekday: 'short' });
+      if (!acc[day]) acc[day] = { day, tokens: 0, requests: 0 };
+      acc[day].tokens += curr.tokensUsed || 0;
+      acc[day].requests += curr.requestCount || 0;
+      return acc;
+    }, {});
+
+    return NextResponse.json({ 
+      users, 
+      totalTokensToday,
+      chartData: Object.values(chartData) 
+    });
   } catch (error) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap, 
-  BookOpen, GraduationCap, Plus, Save, X 
+import {
+  Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap,
+  BookOpen, GraduationCap, Plus, Save, X, BarChart3
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -13,8 +14,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type AdminUser = {
-  id: string;
+type AdminUser = {  id: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -36,12 +36,8 @@ export default function AdminDashboard() {
   const [fields, setFields] = useState<Field[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Modal States
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newField, setNewField] = useState({ name: '', code: '', description: '' });
-  const [newLevel, setNewLevel] = useState({ name: '' });
 
   useEffect(() => {
     fetchData();
@@ -64,6 +60,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         setUsers(data.users);
         setTotalTokens(data.totalTokensToday);
+        setChartData(data.chartData);
       }
     } catch (err) { console.error(err); }
   };
@@ -197,6 +194,30 @@ export default function AdminDashboard() {
                 className={`h-full ${totalTokens > 80000 ? 'bg-red-500' : 'bg-amber-500'}`}
               />
            </div>
+        </div>
+      </div>
+
+      {/* Analytics Chart */}
+      <div className="card-pro p-6 md:p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-500/10 text-blue-600 rounded-lg">
+            <BarChart3 size={20} />
+          </div>
+          <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Activité IA (7 derniers jours)</h3>
+        </div>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} stroke="#94a3b8" />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} stroke="#94a3b8" />
+              <Tooltip 
+                cursor={{ fill: '#f8fafc' }} 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
+              />
+              <Bar dataKey="tokens" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

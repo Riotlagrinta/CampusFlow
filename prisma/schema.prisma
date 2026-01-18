@@ -71,15 +71,37 @@ model User {
 
   answers         Answer[]
 
-  resources       Resource[]
+    resources       Resource[]
 
-  quizAttempts    QuizAttempt[]
+    quizAttempts    QuizAttempt[]
 
-}
+    bookmarks       Bookmark[]
 
+  }
 
+  
 
-model Field {
+  model Bookmark {
+
+    userId     String
+
+    user       User     @relation(fields: [userId], references: [id])
+
+    resourceId String
+
+    resource   Resource @relation(fields: [resourceId], references: [id])
+
+    createdAt  DateTime @default(now())
+
+  
+
+    @@id([userId, resourceId])
+
+  }
+
+  
+
+  model Field {
 
   id          String      @id @default(uuid())
 
@@ -341,13 +363,23 @@ model Resource {
 
 
 
-  createdAt   DateTime @default(now())
+    createdAt   DateTime @default(now())
 
-  size        String?
 
-  quizzes     Quiz[]
 
-}
+    size        String?
+
+
+
+    quizzes     Quiz[]
+
+
+
+    bookmarks   Bookmark[]
+
+
+
+  }
 
 
 

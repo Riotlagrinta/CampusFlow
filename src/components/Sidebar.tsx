@@ -25,6 +25,7 @@ import { twMerge } from 'tailwind-merge';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useSession, signOut as nextSignOut } from "next-auth/react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -41,33 +42,48 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false); // Fermé par défaut sur mobile
+  const { data: session } = useSession();
+  const [isOpen, setIsOpen] = useState(false); 
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [userName, setUserName] = useState('Étudiant GL');
-  const [isAdmin, setIsAdmin] = useState(false);
+  
+  const userName = session?.user?.name || 'Étudiant';
+  const isAdmin = (session?.user as any)?.role === 'ADMIN';
+  
   const pathname = usePathname();
   const router = useRouter();
 
-  // Détecter si on est sur mobile pour adapter l'état initial
   useEffect(() => {
+    setMounted(true);
     const isMobile = window.innerWidth < 1024;
     setIsOpen(!isMobile);
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-    // ... reste de l'effet existant identique
-  }, []);
+    const sendHeartbeat = async () => {
+      if (session?.user?.email) {
+        try {
+          await fetch('/api/user/heartbeat', {
+            method: 'POST',
+            body: JSON.stringify({ email: session.user.email }),
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } catch (e) { /* silent error */ }
+      }
+    };
 
-  // Fermer la sidebar après un clic sur un lien (sur mobile uniquement)
+    sendHeartbeat(); 
+    const heartbeatInterval = setInterval(sendHeartbeat, 60000); 
+    return () => clearInterval(heartbeatInterval);
+  }, [session]);
+
   const handleLinkClick = () => {
     if (window.innerWidth < 1024) setIsOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem('user');
-    router.push('/login');
+    await nextSignOut({ callbackUrl: '/login' });
   };
 
   const toggleTheme = () => {
@@ -76,7 +92,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Overlay Mobile */}
       <AnimatePresence>
         {isOpen && (
           <motion.div 
@@ -98,7 +113,7 @@ export default function Sidebar() {
 
       <motion.aside
         initial={false}
-        animate={{ 
+        animate={{
           width: isOpen ? 260 : 72,
           x: (typeof window !== 'undefined' && window.innerWidth < 1024 && !isOpen) ? -260 : 0
         }}
@@ -107,7 +122,6 @@ export default function Sidebar() {
           !isOpen && "items-center"
         )}
       >
-        {/* Logo Section */}
         <div className="h-16 flex items-center px-5 mb-6">
           <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3">
             <div className="w-8 h-8 bg-zinc-900 dark:bg-zinc-50 rounded-lg flex items-center justify-center shrink-0">
@@ -119,7 +133,6 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        {/* Nav Items */}
         <div className="flex-1 px-3 space-y-1">
           {isOpen && <p className="px-3 mb-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Navigation</p>}
           
@@ -158,7 +171,6 @@ export default function Sidebar() {
           })}
         </div>
 
-        {/* Footer */}
         <div className="p-4 space-y-2">
             {mounted && (
                 <button
@@ -185,8 +197,12 @@ export default function Sidebar() {
                 "flex items-center gap-3 px-2 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800",
                 !isOpen && "justify-center"
             )}>
-                <div className="w-6 h-6 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-                    <UserIcon size={14} className="text-zinc-500" />
+                <div className="w-6 h-6 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+                    {(session?.user as any)?.image ? (
+                      <img src={(session?.user as any).image} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserIcon size={14} className="text-zinc-500" />
+                    )}
                 </div>
                 {isOpen && (
                     <div className="flex-1 overflow-hidden">

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
 
-const DAILY_AI_LIMIT = 30; // Synchronisé avec chat/route.ts
+const DAILY_AI_LIMIT = 10; // Synchronisé avec chat/route.ts
 const DAILY_QUIZ_LIMIT = 2;
 
 export async function GET(req: Request) {

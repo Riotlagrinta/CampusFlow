@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { addXP } from "@/lib/xp";
 import { auth } from "@/../auth";
 
-const DAILY_AI_LIMIT = 30;
+const DAILY_AI_LIMIT = 10;
 
 export async function POST(req: Request) {
   try {
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
       return NextResponse.json({ 
-        reply: "Vous avez atteint votre limite personnelle de 30 messages aujourd'hui.",
+        reply: "Vous avez atteint votre limite personnelle de 10 messages aujourd'hui.",
         quotaExceeded: true
       }, { status: 429 });
     }
@@ -60,10 +60,14 @@ export async function POST(req: Request) {
     });
 
     const text = completion.choices[0]?.message?.content || "Désolé, je ne peux pas répondre pour le moment.";
+    const tokensUsed = completion.usage?.total_tokens || 0;
 
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
-      data: { requestCount: { increment: 1 } },
+      data: { 
+        requestCount: { increment: 1 },
+        tokensUsed: { increment: tokensUsed }
+      },
     });
 
     if (user) await addXP(user.id, 5);

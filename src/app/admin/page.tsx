@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Shield, Circle, Loader2, Activity, Mail, Trash2 } from 'lucide-react';
+import { Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap } from 'lucide-react';
 
 type AdminUser = {
   id: string;
@@ -18,6 +18,7 @@ type AdminUser = {
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [totalTokens, setTotalTokens] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +31,10 @@ export default function AdminDashboard() {
     try {
       const res = await fetch('/api/admin/users');
       const data = await res.json();
-      if (res.ok) setUsers(data);
+      if (res.ok) {
+        setUsers(data.users);
+        setTotalTokens(data.totalTokensToday);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -93,6 +97,27 @@ export default function AdminDashboard() {
            <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Total Étudiants</p>
               <h3 className="text-2xl font-bold">{users.length}</h3>
+           </div>
+        </div>
+        <div className="card-pro p-6 flex flex-col gap-2">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/30 text-amber-600 rounded-full flex items-center justify-center">
+                 <Zap size={24} />
+              </div>
+              <div className="flex-1">
+                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Consommation IA (Tokens)</p>
+                 <div className="flex items-end gap-2">
+                    <h3 className="text-2xl font-bold">{totalTokens.toLocaleString()}</h3>
+                    <span className="text-[10px] text-zinc-400 mb-1">/ 100,000</span>
+                 </div>
+              </div>
+           </div>
+           <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-2">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, (totalTokens / 100000) * 100)}%` }}
+                className={`h-full ${totalTokens > 80000 ? 'bg-red-500' : 'bg-amber-500'}`}
+              />
            </div>
         </div>
       </div>

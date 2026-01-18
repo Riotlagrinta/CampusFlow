@@ -30,7 +30,15 @@ export async function GET(req: Request) {
       orderBy: { lastActive: 'desc' }
     });
 
-    return NextResponse.json(users);
+    // Calculer la consommation de tokens aujourd'hui
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const usages = await prisma.dailyAIUsage.findMany({
+      where: { date: today }
+    });
+    const totalTokensToday = usages.reduce((acc: number, curr: any) => acc + (curr.tokensUsed || 0), 0);
+
+    return NextResponse.json({ users, totalTokensToday });
   } catch (error) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

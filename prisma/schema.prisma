@@ -91,11 +91,12 @@ model DailyAIUsage {
   id           String   @id @default(uuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id])
-  date         DateTime @default(now()) // SQLite stocke ceci comme un ISO string
+  date         DateTime @default(now())
   requestCount Int      @default(0)
   quizRequestCount Int  @default(0)
+  tokensUsed   Int      @default(0)
 
-  @@unique([userId, date]) // Un seul enregistrement par utilisateur par jour
+  @@unique([userId, date])
 }
 
 model Question {

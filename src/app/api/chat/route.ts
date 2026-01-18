@@ -52,11 +52,16 @@ export async function POST(req: Request) {
       }, { status: 429 });
     }
 
-    console.log("Appel Google Gemini (Gemma 3)...");
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemma-3-27b",
-    });
+    console.log("Appel Google Gemini (v1 stable)...");
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) throw new Error("Clé API manquante");
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // On force l'utilisation de la version v1 stable de l'API
+    const model = genAI.getGenerativeModel(
+      { model: "gemini-1.5-flash" },
+      { apiVersion: "v1" }
+    );
 
     const prompt = `Tu es l'assistant IA de DEFITECH. Réponds à l'étudiant de manière pédagogique.
     Question : ${message}`;

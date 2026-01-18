@@ -35,7 +35,12 @@ export async function POST(
     const fullText = pdfData.text.substring(0, 15000); // Limite pour le prompt
 
     // 4. Utiliser Gemini pour expliquer
-    const model = genAI.getGenerativeModel({ model: "gemma-3-27b" });
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const genAI = new GoogleGenerativeAI(apiKey || "");
+    const model = genAI.getGenerativeModel(
+      { model: "gemini-1.5-flash" },
+      { apiVersion: "v1" }
+    );
     const prompt = `Tu es un professeur expert à DEFITECH. Explique de manière claire, concise et pédagogique le contenu de ce document de cours pour un étudiant en Génie Logiciel. 
     Utilise du Markdown pour structurer ta réponse (titres, listes, gras).
     Document : ${resource.title}

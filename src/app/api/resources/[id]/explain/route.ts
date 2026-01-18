@@ -37,7 +37,6 @@ export async function POST(
     // 4. Utiliser Gemini pour expliquer
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     const genAI = new GoogleGenerativeAI(apiKey || "");
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `Tu es un professeur expert à DEFITECH. Explique de manière claire, concise et pédagogique le contenu de ce document de cours pour un étudiant en Génie Logiciel. 
     Utilise du Markdown pour structurer ta réponse (titres, listes, gras).
     Document : ${resource.title}
@@ -45,9 +44,24 @@ export async function POST(
     Contenu du texte :
     ${fullText}`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const explanation = response.text();
+    let explanation = "";
+    let success = false;
+    const models = ["gemini-1.5-flash", "gemini-pro"];
+
+    for (const m of models) {
+      try {
+        const model = genAI.getGenerativeModel({ model: m });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        explanation = response.text();
+        success = true;
+        break;
+      } catch (err: any) {
+        if (err.status !== 404) break;
+      }
+    }
+
+    if (!success) throw new Error("IA indisponible");
 
     return NextResponse.json({ explanation });
   } catch (error) {

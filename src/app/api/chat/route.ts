@@ -57,14 +57,34 @@ export async function POST(req: Request) {
     if (!apiKey) throw new Error("Clé API manquante");
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // Liste des modèles à essayer par ordre de préférence
+    const modelsToTry = ["gemini-1.5-flash", "gemini-pro"];
+    let text = "";
+    let success = false;
+    let lastError = null;
 
-    const prompt = `Tu es l'assistant IA de DEFITECH. Réponds à l'étudiant de manière pédagogique.
-    Question : ${message}`;
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Tentative avec le modèle : ${modelName}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const prompt = `Tu es l'assistant IA de DEFITECH. Réponds à l'étudiant de manière pédagogique.
+        Question : ${message}`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        text = response.text();
+        success = true;
+        console.log(`Succès avec ${modelName}`);
+        break; // On sort de la boucle si ça marche
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Échec avec ${modelName}:`, err.message);
+        if (err.status !== 404) break; // Si c'est autre chose qu'un 404 (ex: quota), on arrête
+      }
+    }
+
+    if (!success) throw lastError;
 
     console.log("Réponse IA générée avec succès");
     await prisma.dailyAIUsage.update({

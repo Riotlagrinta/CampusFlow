@@ -83,7 +83,7 @@ export async function POST(
     // 4. Utiliser Gemini pour générer le Quizz
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     const genAI = new GoogleGenerativeAI(apiKey || "");
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
     const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
     Le JSON doit suivre cette structure exacte:
     {
@@ -103,9 +103,24 @@ export async function POST(
     
     ${fullText}`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    let text = "";
+    let success = false;
+    const models = ["gemini-1.5-flash", "gemini-pro"];
+
+    for (const m of models) {
+      try {
+        const model = genAI.getGenerativeModel({ model: m });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+        success = true;
+        break;
+      } catch (err: any) {
+        if (err.status !== 404) break;
+      }
+    }
+
+    if (!success) throw new Error("Aucun modèle IA disponible");
     
     const quizData = JSON.parse(text);
 

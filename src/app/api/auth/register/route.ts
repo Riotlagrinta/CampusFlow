@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Resend } from 'resend';
 
 export async function POST(req: Request) {
   try {
@@ -18,6 +19,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
     }
 
+    // Récupérer les infos de filière/niveau pour le mail
+    const [field, level] = await Promise.all([
+      prisma.field.findUnique({ where: { id: fieldId } }),
+      prisma.level.findUnique({ where: { id: levelId } })
+    ]);
+
     // Création de l'utilisateur
     const user = await prisma.user.create({
       data: {
@@ -32,6 +39,34 @@ export async function POST(req: Request) {
         streak: 1
       }
     });
+
+    // --- ENVOI DE LA NOTIFICATION MAIL ---
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'StudentHub <onboarding@resend.dev>',
+          to: 'djkeda82@gmail.com',
+          subject: '🚀 Nouvel étudiant sur le Hub !',
+          html: `
+            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+              <h2 style="color: #2563eb;">Une nouvelle inscription !</h2>
+              <p>Un nouvel étudiant vient de rejoindre la plateforme :</p>
+              <ul style="list-style: none; padding: 0;">
+                <li><strong>Nom :</strong> ${firstName} ${lastName}</li>
+                <li><strong>Email :</strong> ${email}</li>
+                <li><strong>Filière :</strong> ${field?.name || 'N/A'}</li>
+                <li><strong>Niveau :</strong> ${level?.name || 'N/A'}</li>
+              </ul>
+              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #666;">Ce message vous est envoyé automatiquement depuis la console d'administration.</p>
+            </div>
+          `
+        });
+      } catch (mailError) {
+        console.error('Erreur envoi mail notification:', mailError);
+      }
+    }
 
     // On donne le badge "Premiers Pas" automatiquement
     const firstStepBadge = await prisma.badge.findUnique({ where: { slug: 'first-step' } });

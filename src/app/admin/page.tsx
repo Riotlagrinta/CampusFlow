@@ -13,6 +13,8 @@ type AdminUser = {
   level: number;
   xp: number;
   role: string;
+  field?: { name: string, code: string };
+  academicLevel?: { name: string };
   badges: { badge: { name: string; icon: string } }[];
 };
 
@@ -127,10 +129,10 @@ export default function AdminDashboard() {
           <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
             <tr>
               <th className="px-6 py-4">Utilisateur</th>
+              <th className="px-6 py-4">Classe (Filière / Niveau)</th>
               <th className="px-6 py-4">Progression</th>
               <th className="px-6 py-4">Badges</th>
               <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Dernière activité</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -149,6 +151,12 @@ export default function AdminDashboard() {
                       </p>
                       <p className="text-[10px] text-zinc-500">{u.email}</p>
                     </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold">{u.field?.name || 'Non défini'}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{u.academicLevel?.name || '-'}</p>
                   </div>
                 </td>
                 <td className="px-6 py-4">

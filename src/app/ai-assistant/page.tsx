@@ -67,7 +67,7 @@ export default function AIAssistantPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage }),
       });
-      const data = await response.json();
+      const data = await res.json();
       if (data.quotaExceeded) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
         setShowAdModal(true);

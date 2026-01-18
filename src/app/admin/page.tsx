@@ -39,6 +39,11 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newField, setNewField] = useState({ name: '', code: '', description: '' });
+  const [newLevel, setNewLevel] = useState({ name: '' });
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(() => {

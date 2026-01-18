@@ -52,11 +52,10 @@ export async function POST(req: Request) {
       }, { status: 429 });
     }
 
-    console.log("Appel Google Gemini...");
+    console.log("Appel Google Gemini (Gemma 3)...");
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    // On utilise getGenerativeModel sans options complexes pour laisser le SDK choisir la version stable
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash-latest",
+      model: "gemma-3-27b",
     });
 
     const prompt = `Tu es l'assistant IA de DEFITECH. Réponds à l'étudiant de manière pédagogique.

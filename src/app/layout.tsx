@@ -37,8 +37,8 @@ export default async function RootLayout({
       >
         {/* Script Publicitaire Monetag (Multitag) */}
         <Script 
-          src="https://quge5.com/88/tag.min.js" 
-          data-zone="203183" 
+          src="https://5gvci.com/88/tag.min.js" 
+          data-zone="10481494" 
           async 
           data-cfasync="false" 
           strategy="lazyOnload"

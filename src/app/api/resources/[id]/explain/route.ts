@@ -1,11 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(
   req: Request,
@@ -20,50 +18,37 @@ export async function POST(
     const pdf = require('pdf-parse');
     const { id } = await params;
 
-    // 1. Récupérer la ressource
     const resource = await prisma.resource.findUnique({ where: { id } });
     if (!resource || resource.type !== 'PDF') {
       return NextResponse.json({ error: 'Fichier PDF non trouvé' }, { status: 404 });
     }
 
-    // 2. Lire le fichier
     const filePath = path.join(process.cwd(), 'public', resource.url);
     const dataBuffer = fs.readFileSync(filePath);
-
-    // 3. Extraire le texte
     const pdfData = await pdf(dataBuffer);
-    const fullText = pdfData.text.substring(0, 15000); // Limite pour le prompt
+    const fullText = pdfData.text.substring(0, 15000);
 
-    // 4. Utiliser Gemini pour expliquer
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const genAI = new GoogleGenerativeAI(apiKey || "");
-    const prompt = `Tu es un professeur expert à DEFITECH. Explique de manière claire, concise et pédagogique le contenu de ce document de cours pour un étudiant en Génie Logiciel. 
-    Utilise du Markdown pour structurer ta réponse (titres, listes, gras).
-    Document : ${resource.title}
-    
-    Contenu du texte :
-    ${fullText}`;
-
-    let explanation = "";
-    let success = false;
-    const models = ["gemini-1.5-flash", "gemini-pro"];
-
-    for (const m of models) {
-      try {
-        const model = genAI.getGenerativeModel({ model: m });
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        explanation = response.text();
-        success = true;
-        break;
-      } catch (err: any) {
-        if (err.status !== 404) break;
-      }
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY manquante");
     }
 
-    if (!success) throw new Error("IA indisponible");
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    return NextResponse.json({ explanation });
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "Tu es un professeur expert à DEFITECH. Explique de manière claire, concise et pédagogique le contenu de ce document de cours pour un étudiant en Génie Logiciel. Utilise du Markdown."
+        },
+        {
+          role: "user",
+          content: `Document : ${resource.title}\n\nContenu du texte :\n${fullText}`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+    });
+
+    return NextResponse.json({ explanation: completion.choices[0]?.message?.content });
   } catch (error) {
     console.error('Erreur Explication IA:', error);
     return NextResponse.json({ error: 'Échec de l\'explication IA' }, { status: 500 });

@@ -1,12 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const DAILY_QUIZ_LIMIT = 2; // Limite par défaut pour la génération de quizz
+const DAILY_QUIZ_LIMIT = 2;
 
 export async function POST(
   req: Request,
@@ -28,61 +27,47 @@ export async function POST(
 
     // --- LOGIQUE DE QUOTA QUIZ ---
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Début de journée
+    today.setHours(0, 0, 0, 0);
 
     let dailyUsage = await prisma.dailyAIUsage.findUnique({
-      where: {
-        userId_date: {
-          userId: user.id,
-          date: today,
-        },
-      },
+      where: { userId_date: { userId: user.id, date: today } },
     });
 
     if (!dailyUsage) {
       dailyUsage = await prisma.dailyAIUsage.create({
-        data: {
-          userId: user.id,
-          date: today,
-          requestCount: 0,
-        },
+        data: { userId: user.id, date: today, requestCount: 0 },
       });
     }
 
-    const currentQuizQuota = DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount; // Nouvelle colonne quizRequestCount
-    // Nous devons ajouter quizRequestCount au modèle DailyAIUsage
+    const currentQuizQuota = DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount;
 
     if (currentQuizQuota <= 0) {
       return NextResponse.json({ 
-        error: "Quota de génération de quiz journalier dépassé. Regardez une pub pour des requêtes supplémentaires ou attendez demain.",
+        error: "Quota de génération de quiz journalier dépassé.",
         quotaExceeded: true
       }, { status: 429 });
     }
 
-    // Incrémenter l'utilisation
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
       data: { quizRequestCount: { increment: 1 } },
     });
-    // --- FIN LOGIQUE DE QUOTA QUIZ ---
     
-    // 1. Récupérer la ressource
     const resource = await prisma.resource.findUnique({ where: { id } });
     if (!resource || resource.type !== 'PDF') {
       return NextResponse.json({ error: 'Fichier PDF non trouvé' }, { status: 404 });
     }
 
-    // 2. Lire le fichier physique
     const filePath = path.join(process.cwd(), 'public', resource.url);
     const dataBuffer = fs.readFileSync(filePath);
-
-    // 3. Extraire le texte du PDF
     const pdfData = await pdf(dataBuffer);
-    const fullText = pdfData.text.substring(0, 20000); // On augmente à 20 000 caractères pour plus de détails
+    const fullText = pdfData.text.substring(0, 20000);
 
-    // 4. Utiliser Gemini pour générer le Quizz
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    const genAI = new GoogleGenerativeAI(apiKey || "");
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY manquante");
+    }
+
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
     const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
     Le JSON doit suivre cette structure exacte:
@@ -103,28 +88,23 @@ export async function POST(
     
     ${fullText}`;
 
-    let text = "";
-    let success = false;
-    const models = ["gemini-1.5-flash", "gemini-pro"];
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "Tu es un expert en pédagogie. Réponds TOUJOURS uniquement avec du JSON valide."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      response_format: { type: "json_object" }
+    });
 
-    for (const m of models) {
-      try {
-        const model = genAI.getGenerativeModel({ model: m });
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        success = true;
-        break;
-      } catch (err: any) {
-        if (err.status !== 404) break;
-      }
-    }
+    const quizData = JSON.parse(completion.choices[0]?.message?.content || "{}");
 
-    if (!success) throw new Error("Aucun modèle IA disponible");
-    
-    const quizData = JSON.parse(text);
-
-    // 5. Enregistrer le Quizz en base de données
     const quiz = await prisma.quiz.create({
       data: {
         title: quizData.title,

@@ -27,7 +27,7 @@ model User {
 
   bio             String?        @db.Text
 
-  image           String?        // URL de la photo de profil
+  image           String?        
 
   xp              Int            @default(0)
 
@@ -38,6 +38,14 @@ model User {
   lastActive      DateTime       @default(now())
 
   aiBonusRequests Int            @default(0) 
+
+  
+
+  // Validation OTP
+
+  isActive        Boolean        @default(false)
+
+  otpCode         String?
 
   
 

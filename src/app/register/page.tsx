@@ -23,12 +23,41 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     fetch('/api/academic/options')
       .then(res => res.json())
       .then(data => setOptions(data));
   }, []);
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, code: otpCode }),
+      });
+
+      if (res.ok) {
+        setSuccess(true);
+        play('success');
+        setTimeout(() => router.push('/login'), 2000);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Code invalide');
+      }
+    } catch (err) {
+      setError('Erreur de validation');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,11 +78,8 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setSuccess(true);
+        setShowOTP(true);
         play('success');
-        setTimeout(() => {
-          router.push('/');
-        }, 2000);
       } else {
         setError(data.error || 'Une erreur est survenue');
       }
@@ -75,8 +101,58 @@ export default function RegisterPage() {
           <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 size={40} />
           </div>
-          <h2 className="text-3xl font-bold">Bienvenue, {formData.firstName} !</h2>
-          <p className="text-zinc-500">Votre compte a été créé avec succès. Redirection...</p>
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white">Compte activé !</h2>
+          <p className="text-zinc-500">Bienvenue dans la communauté DEFITECH. Redirection vers la connexion...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // --- Étape Validation OTP ---
+  if (loading === false && formData.email && !success && otpCode !== 'DONE') {
+     // Si on a déjà soumis mais pas encore validé
+  }
+
+  // Utilisons un état simple pour basculer vers l'écran OTP
+  const [showOTP, setShowOTP] = useState(false);
+
+  if (showOTP) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md space-y-8 text-center">
+          <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-xl">
+            <Mail size={32} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black tracking-tight">Vérifiez votre email</h1>
+            <p className="text-zinc-500 text-sm">Nous avons envoyé un code de validation à <br /><span className="font-bold text-zinc-900 dark:text-zinc-100">{formData.email}</span></p>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-xl space-y-6">
+            <form onSubmit={handleVerifyOTP} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Code de validation (6 chiffres)</label>
+                <input 
+                  type="text" required maxLength={6}
+                  className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-2xl px-4 py-4 text-center text-3xl font-black tracking-[1rem] outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  placeholder="000000"
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value)}
+                />
+              </div>
+              {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
+              <button 
+                type="submit" 
+                disabled={isVerifying}
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg"
+              >
+                {isVerifying ? <Loader2 className="animate-spin" size={20} /> : 'Activer mon compte'}
+              </button>
+            </form>
+            <p className="text-[10px] text-zinc-400 uppercase font-bold tracking-widest">
+              Pas reçu ? <button onClick={() => setShowOTP(false)} className="text-blue-600 hover:underline">Réessayer</button>
+            </p>
+          </div>
         </motion.div>
       </div>
     );

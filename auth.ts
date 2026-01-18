@@ -21,6 +21,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        if (!user.isActive) {
+          throw new Error("Compte non activé. Veuillez valider votre email.");
+        }
+
         return {
           id: user.id,
           email: user.email,

@@ -25,7 +25,10 @@ export async function POST(req: Request) {
       prisma.level.findUnique({ where: { id: levelId } })
     ]);
 
-    // Création de l'utilisateur
+    // Générer un code OTP à 6 chiffres
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Création de l'utilisateur (INACTIF)
     const user = await prisma.user.create({
       data: {
         email,
@@ -34,37 +37,48 @@ export async function POST(req: Request) {
         password, 
         fieldId,
         academicLevelId: levelId,
+        isActive: false, // Doit valider son mail
+        otpCode,
         xp: 0,
         level: 1,
         streak: 1
       }
     });
 
-    // --- ENVOI DE LA NOTIFICATION MAIL ---
+    // --- ENVOI DU CODE OTP À L'ÉTUDIANT ---
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
+        
+        // Mail pour l'étudiant (Code de validation)
         await resend.emails.send({
           from: 'StudentHub <onboarding@resend.dev>',
-          to: 'djkeda82@gmail.com',
-          subject: '🚀 Nouvel étudiant sur le Hub !',
+          to: email,
+          subject: `${otpCode} est votre code de validation DefiTech Hub`,
           html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #333;">
-              <h2 style="color: #2563eb;">Une nouvelle inscription !</h2>
-              <p>Un nouvel étudiant vient de rejoindre la plateforme :</p>
-              <ul style="list-style: none; padding: 0;">
-                <li><strong>Nom :</strong> ${firstName} ${lastName}</li>
-                <li><strong>Email :</strong> ${email}</li>
-                <li><strong>Filière :</strong> ${field?.name || 'N/A'}</li>
-                <li><strong>Niveau :</strong> ${level?.name || 'N/A'}</li>
-              </ul>
-              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-              <p style="font-size: 12px; color: #666;">Ce message vous est envoyé automatiquement depuis la console d'administration.</p>
+            <div style="font-family: sans-serif; padding: 20px; color: #333; text-align: center;">
+              <h1 style="color: #2563eb;">Bienvenue chez DefiTech !</h1>
+              <p>Voici votre code de validation pour activer votre compte :</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 20px; background: #f3f4f6; border-radius: 10px; display: inline-block; margin: 20px 0;">
+                ${otpCode}
+              </div>
+              <p style="font-size: 14px; color: #666;">Ce code expirera bientôt. Ne le partagez avec personne.</p>
             </div>
           `
         });
+
+        // Mail pour l'administrateur (Notification simple)
+        await resend.emails.send({
+          from: 'StudentHub <onboarding@resend.dev>',
+          to: 'djkeda82@gmail.com',
+          subject: '🚀 Nouvelle pré-inscription sur le Hub',
+          html: `
+            <p><strong>${firstName} ${lastName}</strong> (${email}) s'est inscrit en <strong>${field?.name}</strong>.</p>
+            <p>En attente de validation OTP.</p>
+          `
+        });
       } catch (mailError) {
-        console.error('Erreur envoi mail notification:', mailError);
+        console.error('Erreur envoi mail OTP:', mailError);
       }
     }
 

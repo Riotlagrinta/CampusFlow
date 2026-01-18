@@ -10,14 +10,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    const user = await prisma.user.findUnique({ 
+      where: { email: session.user.email },
+      select: { id: true, fieldId: true, academicLevelId: true, role: true }
+    });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const schedules = await prisma.personalSchedule.findMany({
       where: {
         OR: [
-          { userId: user.id },
-          { isAcademic: true }
+          { userId: user.id }, // Ses cours personnels
+          { 
+            isAcademic: true, 
+            fieldId: user.fieldId, 
+            levelId: user.academicLevelId 
+          } // Les cours de sa classe
         ]
       },
       orderBy: { createdAt: 'desc' },
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { day, time, subject, type } = body;
+    const { day, time, subject, type, fieldId, levelId } = body;
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -49,7 +56,9 @@ export async function POST(req: Request) {
         time,
         subject,
         type: type || 'Personnel',
-        isAcademic: user.role === 'ADMIN' && type === 'Académique'
+        isAcademic: user.role === 'ADMIN' && type === 'Académique',
+        fieldId: (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId,
+        levelId: (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId,
       },
     });
 

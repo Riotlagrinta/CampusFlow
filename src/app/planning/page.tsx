@@ -51,13 +51,16 @@ export default function PlanningPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
   
   // Form State
   const [newEvent, setNewEvent] = useState({
     day: 'Lundi',
     time: '',
     subject: '',
-    type: 'Personnel'
+    type: 'Personnel',
+    fieldId: '',
+    levelId: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,6 +69,12 @@ export default function PlanningPage() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setIsAdmin(user.role === 'ADMIN');
     fetchPersonalEvents();
+
+    if (user.role === 'ADMIN') {
+      fetch('/api/academic/options')
+        .then(res => res.json())
+        .then(data => setOptions(data));
+    }
   }, []);
 
   const fetchPersonalEvents = async () => {
@@ -99,7 +108,7 @@ export default function PlanningPage() {
         const createdEvent = await res.json();
         setPersonalEvents(prev => [createdEvent, ...prev]);
         setIsModalOpen(false);
-        setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel' });
+        setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel', fieldId: '', levelId: '' });
         play('success');
       }
     } catch (error) {
@@ -331,16 +340,51 @@ export default function PlanningPage() {
                 </div>
 
                 {isAdmin && (
-                  <div className="space-y-2">
-                     <label className="text-xs font-bold uppercase text-zinc-500">Type de créneau</label>
-                     <select 
-                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                       value={newEvent.type}
-                       onChange={(e) => setNewEvent({...newEvent, type: e.target.value})}
-                     >
-                        <option value="Personnel">Personnel (Privé)</option>
-                        <option value="Académique">Académique (Public - Visible par tous)</option>
-                     </select>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold uppercase text-zinc-500">Type de créneau</label>
+                       <select 
+                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                         value={newEvent.type}
+                         onChange={(e) => setNewEvent({...newEvent, type: e.target.value})}
+                       >
+                          <option value="Personnel">Personnel (Privé)</option>
+                          <option value="Académique">Académique (Public - Par classe)</option>
+                       </select>
+                    </div>
+
+                    {newEvent.type === 'Académique' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase text-zinc-500">Filière cible</label>
+                          <select 
+                            required
+                            className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            value={newEvent.fieldId}
+                            onChange={(e) => setNewEvent({...newEvent, fieldId: e.target.value})}
+                          >
+                            <option value="">Choisir...</option>
+                            {options.fields.map(f => (
+                              <option key={f.id} value={f.id}>{f.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase text-zinc-500">Niveau cible</label>
+                          <select 
+                            required
+                            className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            value={newEvent.levelId}
+                            onChange={(e) => setNewEvent({...newEvent, levelId: e.target.value})}
+                          >
+                            <option value="">Choisir...</option>
+                            {options.levels.map(l => (
+                              <option key={l.id} value={l.id}>{l.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

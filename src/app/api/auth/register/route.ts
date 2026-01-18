@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
-    const { email, firstName, lastName, password } = await req.json();
+    const { email, firstName, lastName, password, fieldId, levelId } = await req.json();
 
-    if (!email || !firstName || !lastName || !password) {
+    if (!email || !firstName || !lastName || !password || !fieldId || !levelId) {
       return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
     }
 
@@ -24,7 +24,9 @@ export async function POST(req: Request) {
         email,
         firstName,
         lastName,
-        password, // Idéalement hacher le mot de passe ici (ex: bcrypt)
+        password, 
+        fieldId,
+        academicLevelId: levelId,
         xp: 0,
         level: 1,
         streak: 1

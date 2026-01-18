@@ -5,7 +5,23 @@ import { auth } from "@/../auth";
 
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { fieldId: true, academicLevelId: true, role: true }
+    });
+
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
     const resources = await prisma.resource.findMany({
+      where: user.role === 'ADMIN' ? {} : {
+        fieldId: user.fieldId,
+        levelId: user.academicLevelId
+      },
       include: {
         author: { select: { firstName: true, lastName: true, level: true } }
       },
@@ -31,6 +47,8 @@ export async function POST(req: Request) {
     const title = formData.get('title') as string;
     const type = formData.get('type') as string;
     const subject = formData.get('subject') as string;
+    const fieldId = formData.get('fieldId') as string;
+    const levelId = formData.get('levelId') as string;
 
     if (!file || !title || !type) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
@@ -44,12 +62,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
-    // Upload vers Vercel Blob au lieu du disque local
+    // Upload vers Vercel Blob
     const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
       access: 'public',
     });
 
-    // Calcul de la taille lisible
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
     const sizeStr = `${sizeInMB} MB`;
 
@@ -60,7 +77,9 @@ export async function POST(req: Request) {
         subject: subject || 'Général',
         url: blob.url,
         size: sizeStr,
-        authorId: user.id
+        authorId: user.id,
+        fieldId: fieldId || null,
+        levelId: levelId || null
       }
     });
 

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Command } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Command, BookOpen, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
@@ -10,18 +10,32 @@ import { useSound } from '@/hooks/useSound';
 export default function RegisterPage() {
   const router = useRouter();
   const { play } = useSound();
+  
+  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
-    password: ''
+    password: '',
+    fieldId: '',
+    levelId: ''
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    fetch('/api/academic/options')
+      .then(res => res.json())
+      .then(data => setOptions(data));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.fieldId || !formData.levelId) {
+      setError('Veuillez choisir votre filière et votre niveau.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -136,6 +150,43 @@ export default function RegisterPage() {
                   value={formData.password}
                   onChange={e => setFormData({...formData, password: e.target.value})}
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-zinc-500 ml-1">Filière</label>
+                <div className="relative">
+                  <BookOpen className="absolute left-4 top-3.5 text-zinc-400" size={18} />
+                  <select 
+                    required
+                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm appearance-none"
+                    value={formData.fieldId}
+                    onChange={e => setFormData({...formData, fieldId: e.target.value})}
+                  >
+                    <option value="">Choisir...</option>
+                    {options.fields.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-zinc-500 ml-1">Niveau</label>
+                <div className="relative">
+                  <GraduationCap className="absolute left-4 top-3.5 text-zinc-400" size={18} />
+                  <select 
+                    required
+                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm appearance-none"
+                    value={formData.levelId}
+                    onChange={e => setFormData({...formData, levelId: e.target.value})}
+                  >
+                    <option value="">Choisir...</option>
+                    {options.levels.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 

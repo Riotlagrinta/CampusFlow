@@ -43,11 +43,14 @@ export default function ResourcesPage() {
   const [explainingId, setExplainingId] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
 
   // Form State
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [type, setType] = useState('PDF');
+  const [fieldId, setFieldId] = useState('');
+  const [levelId, setLevelId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -55,6 +58,10 @@ export default function ResourcesPage() {
     fetchResources();
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setIsAdmin(user.role === 'ADMIN');
+
+    fetch('/api/academic/options')
+      .then(res => res.json())
+      .then(data => setOptions(data));
   }, []);
 
   const handleGenerateQuiz = async (resourceId: string) => {
@@ -78,10 +85,10 @@ export default function ResourcesPage() {
   const handleExplain = async (resourceId: string) => {
     setExplainingId(resourceId);
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
       const res = await fetch(`/api/resources/${resourceId}/explain`, { 
         method: 'POST',
-        body: JSON.stringify({ email: user.email })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}) // Plus besoin d'email
       });
       const data = await res.json();
       if (res.ok) {
@@ -139,13 +146,13 @@ export default function ResourcesPage() {
     if (!file || !title) return;
 
     setUploading(true);
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
     formData.append('type', type);
     formData.append('subject', subject);
-    formData.append('email', user.email);
+    formData.append('fieldId', fieldId);
+    formData.append('levelId', levelId);
 
     try {
       const res = await fetch('/api/resources', {
@@ -472,6 +479,37 @@ export default function ResourcesPage() {
                       <option value="PDF">Document (PDF)</option>
                       <option value="VIDEO">Vidéo (MP4)</option>
                       <option value="AUDIO">Audio (MP3)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-zinc-500">Filière</label>
+                    <select 
+                      required
+                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      value={fieldId}
+                      onChange={e => setFieldId(e.target.value)}
+                    >
+                      <option value="">Choisir...</option>
+                      {options.fields.map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-zinc-500">Niveau</label>
+                    <select 
+                      required
+                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      value={levelId}
+                      onChange={e => setLevelId(e.target.value)}
+                    >
+                      <option value="">Choisir...</option>
+                      {options.levels.map(l => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

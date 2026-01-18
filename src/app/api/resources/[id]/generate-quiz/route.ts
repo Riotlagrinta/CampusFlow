@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
+import { auth } from "@/../auth";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const DAILY_QUIZ_LIMIT = 2; // Limite par défaut pour la génération de quizz
@@ -12,13 +13,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
     const pdf = require('pdf-parse');
     const { id } = await params;
-    const { email } = await req.json(); // Récupérer l'email du corps
 
-    const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) {
-      return NextResponse.json({ error: 'Utilisateur introuvable pour le quota.' }, { status: 404 });
+      return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
     }
 
     // --- LOGIQUE DE QUOTA QUIZ ---

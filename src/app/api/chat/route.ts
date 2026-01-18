@@ -68,16 +68,8 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("Erreur détaillée API Chat:", error);
     
-    // On vérifie si c'est VRAIMENT une erreur de quota Google
-    if (error?.status === 429 || error?.message?.includes('429')) {
-      return NextResponse.json(
-        { reply: "Le quota global de l'école est temporairement atteint. Réessayez dans quelques minutes." },
-        { status: 429 }
-      );
-    }
-
     return NextResponse.json(
-      { reply: "Une erreur technique est survenue. L'IA est peut-être surchargée ou la connexion à la base de données a échoué." },
+      { reply: "Le service IA est momentanément indisponible. Veuillez réessayer dans quelques instants." },
       { status: 500 }
     );
   }

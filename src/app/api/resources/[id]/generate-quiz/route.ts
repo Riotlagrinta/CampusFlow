@@ -21,11 +21,8 @@ export async function POST(
     const { id } = await params;
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) {
-      return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
-    }
+    if (!user) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
 
-    // --- LOGIQUE DE QUOTA QUIZ ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -39,20 +36,10 @@ export async function POST(
       });
     }
 
-    const currentQuizQuota = DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount;
-
-    if (currentQuizQuota <= 0) {
-      return NextResponse.json({ 
-        error: "Quota de génération de quiz journalier dépassé.",
-        quotaExceeded: true
-      }, { status: 429 });
+    if ((DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount) <= 0) {
+      return NextResponse.json({ error: "Quota quizz dépassé.", quotaExceeded: true }, { status: 429 });
     }
 
-    await prisma.dailyAIUsage.update({
-      where: { id: dailyUsage.id },
-      data: { quizRequestCount: { increment: 1 } },
-    });
-    
     const resource = await prisma.resource.findUnique({ where: { id } });
     if (!resource || resource.type !== 'PDF') {
       return NextResponse.json({ error: 'Fichier PDF non trouvé' }, { status: 404 });
@@ -63,45 +50,36 @@ export async function POST(
     const pdfData = await pdf(dataBuffer);
     const fullText = pdfData.text.substring(0, 20000);
 
-    if (!process.env.GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY manquante");
-    }
-
+    if (!process.env.GROQ_API_KEY) throw new Error("Clé manquante");
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
     const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
-    Le JSON doit suivre cette structure exacte:
-    {
-      "title": "Titre du Quiz",
-      "description": "Brève description",
-      "questions": [
-        {
-          "question": "Texte de la question ?",
-          "options": ["Choix 1", "Choix 2", "Choix 3", "Choix 4"],
-          "answer": 0 
-        }
-      ]
-    }
-    L'index "answer" correspond à la bonne réponse (0 à 3).
-    Assure-toi que les questions couvrent l'ensemble du texte fourni.
-    Génère exactement 15 questions basées sur ce texte:
-    
-    ${fullText}`;
+    Structure: { "title": "", "description": "", "questions": [{ "question": "", "options": [], "answer": 0 }] }`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "Tu es un expert en pédagogie. Réponds TOUJOURS uniquement avec du JSON valide."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      response_format: { type: "json_object" }
-    });
+    // ROTATION SPECIALISEE QUIZZ (Priorité Compound pour les longs textes)
+    const models = ["groq/compound", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"];
+    let completion;
+    let success = false;
+
+    for (const m of models) {
+      try {
+        completion = await groq.chat.completions.create({
+          messages: [
+            { role: "system", content: "Réponds uniquement en JSON valide." },
+            { role: "user", content: `Texte: ${fullText}\n\nInstruction: ${prompt}` }
+          ],
+          model: m,
+          response_format: { type: "json_object" }
+        });
+        success = true;
+        break;
+      } catch (err: any) {
+        if (err?.status === 429) continue;
+        break;
+      }
+    }
+
+    if (!success || !completion) throw new Error("IA Indisponible");
 
     const quizData = JSON.parse(completion.choices[0]?.message?.content || "{}");
 
@@ -111,7 +89,6 @@ export async function POST(
         description: quizData.description,
         subject: resource.subject || 'Général',
         resourceId: resource.id,
-        xpReward: 100,
         questions: {
           create: quizData.questions.map((q: any) => ({
             question: q.question,
@@ -122,9 +99,17 @@ export async function POST(
       }
     });
 
+    await prisma.dailyAIUsage.update({
+      where: { id: dailyUsage.id },
+      data: { 
+        quizRequestCount: { increment: 1 },
+        tokensUsed: { increment: completion.usage?.total_tokens || 0 }
+      },
+    });
+
     return NextResponse.json({ success: true, quizId: quiz.id });
   } catch (error) {
-    console.error('Erreur Génération Quiz:', error);
-    return NextResponse.json({ error: 'Échec de la génération automatique' }, { status: 500 });
+    console.error('Erreur Quiz IA:', error);
+    return NextResponse.json({ error: 'Échec de la génération' }, { status: 500 });
   }
 }

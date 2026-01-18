@@ -45,19 +45,41 @@ export async function POST(req: Request) {
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "Tu es l'assistant IA de DEFITECH, une école de Génie Logiciel. Réponds à l'étudiant de manière pédagogique, professionnelle et encourageante."
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-    });
+    // CHAINE DE ROTATION 2025 (Basée sur votre liste)
+    const models = [
+      "openai/gpt-oss-120b",
+      "moonshotai/kimi-k2-instruction",
+      "llama-3.3-70b-versatile",
+      "groq/compound",
+      "llama-3.1-8b-instant"
+    ];
+
+    let completion;
+    let success = false;
+    let lastError;
+
+    for (const modelId of models) {
+      try {
+        completion = await groq.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: "Tu es l'assistant IA de DEFITECH, une école de Génie Logiciel. Réponds à l'étudiant de manière pédagogique, professionnelle et encourageante."
+            },
+            { role: "user", content: message }
+          ],
+          model: modelId,
+        });
+        success = true;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        if (err?.status === 429) continue; // Si limite atteinte, on passe au suivant
+        break; 
+      }
+    }
+
+    if (!success || !completion) throw lastError;
 
     const text = completion.choices[0]?.message?.content || "Désolé, je ne peux pas répondre pour le moment.";
     const tokensUsed = completion.usage?.total_tokens || 0;
@@ -74,7 +96,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ reply: text });
   } catch (error: any) {
-    console.error("ERREUR GROQ CHAT:", error);
+    console.error("ERREUR IA ROTATION:", error);
     return NextResponse.json(
       { reply: "Le service IA est momentanément indisponible. Veuillez réessayer dans quelques instants." },
       { status: 500 }

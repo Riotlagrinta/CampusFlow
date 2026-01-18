@@ -28,29 +28,42 @@ export async function POST(
     const pdfData = await pdf(dataBuffer);
     const fullText = pdfData.text.substring(0, 15000);
 
-    if (!process.env.GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY manquante");
-    }
-
+    if (!process.env.GROQ_API_KEY) throw new Error("Clé manquante");
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "Tu es un professeur expert à DEFITECH. Explique de manière claire, concise et pédagogique le contenu de ce document de cours pour un étudiant en Génie Logiciel. Utilise du Markdown."
-        },
-        {
-          role: "user",
-          content: `Document : ${resource.title}\n\nContenu du texte :\n${fullText}`
-        }
-      ],
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-    });
+    // ROTATION EXPLICATION
+    const models = ["openai/gpt-oss-120b", "groq/compound", "moonshotai/kimi-k2-instruction"];
+    let completion;
+    let success = false;
+
+    for (const m of models) {
+      try {
+        completion = await groq.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: "Tu es un professeur expert à DEFITECH. Explique de manière claire et pédagogique. Utilise du Markdown."
+            },
+            {
+              role: "user",
+              content: `Document : ${resource.title}\n\nContenu :\n${fullText}`
+            }
+          ],
+          model: m,
+        });
+        success = true;
+        break;
+      } catch (err: any) {
+        if (err?.status === 429) continue;
+        break;
+      }
+    }
+
+    if (!success || !completion) throw new Error("IA Indisponible");
 
     return NextResponse.json({ explanation: completion.choices[0]?.message?.content });
   } catch (error) {
     console.error('Erreur Explication IA:', error);
-    return NextResponse.json({ error: 'Échec de l\'explication IA' }, { status: 500 });
+    return NextResponse.json({ error: 'Échec de l\'explication' }, { status: 500 });
   }
 }

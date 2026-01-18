@@ -81,7 +81,7 @@ export async function POST(
     const fullText = pdfData.text.substring(0, 20000); // On augmente à 20 000 caractères pour plus de détails
 
     // 4. Utiliser Gemini pour générer le Quizz
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
     Le JSON doit suivre cette structure exacte:
     {

@@ -193,20 +193,20 @@ export default function ResourcesPage() {
     : resources.filter(r => r.type === filterType);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 pb-20 px-2 md:px-0">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources Pédagogiques</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-            Cours, tutoriels vidéos et podcasts audios partagés par la communauté.
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 px-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources Pédagogiques</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base">
+            Cours, tutoriels vidéos et podcasts partagés.
           </p>
         </div>
         {isAdmin && (
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
+            className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
           >
             <Plus size={18} />
             <span>Ajouter un fichier</span>
@@ -215,15 +215,15 @@ export default function ResourcesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar px-2">
         {['ALL', 'PDF', 'VIDEO', 'AUDIO'].map((ft) => (
           <button
             key={ft}
             onClick={() => setFilterType(ft)}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
               filterType === ft 
                 ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900' 
-                : 'bg-white dark:bg-zinc-900 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                : 'bg-white dark:bg-zinc-900 text-zinc-500 border border-zinc-100 dark:border-zinc-800'
             }`}
           >
             {ft === 'ALL' ? 'Tout voir' : ft}
@@ -235,77 +235,78 @@ export default function ResourcesPage() {
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
       ) : filteredResources.length === 0 ? (
-        <div className="text-center py-20 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
+        <div className="mx-2 text-center py-20 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
            <p>Aucune ressource trouvée.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-2">
           {filteredResources.map((res) => (
             <motion.div 
               key={res.id}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              whileHover={{ y: -5 }}
-              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-xl transition-all"
+              className="group bg-white dark:bg-zinc-900 p-5 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 group-hover:scale-110 transition-transform">
+                <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
                   {getIcon(res.type)}
                 </div>
                 <div className="flex items-center gap-2">
                   {isAdmin && (
                     <button 
                       onClick={() => handleDelete(res.id)}
-                      className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Supprimer"
+                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   )}
-                  <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-widest bg-zinc-50 dark:bg-zinc-950 px-2 py-1 rounded">
+                  <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest bg-zinc-50 dark:bg-zinc-950 px-2 py-1 rounded">
                     {res.type}
                   </span>
                 </div>
               </div>
               
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-2 line-clamp-1">{res.title}</h3>
-              <p className="text-xs text-zinc-500 mb-4">{res.subject || 'Général'} • {res.size || 'Unknown'}</p>
+              <h3 className="text-base md:text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-1">{res.title}</h3>
+              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">{res.subject || 'Général'} • {res.size || 'Unknown'}</p>
               
-              <div className="flex items-center justify-between mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setPreviewFile(res)}
-                    className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
-                  >
-                    <Eye size={14} /> Aperçu
-                  </button>
-                  <a 
-                    href={res.url} 
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
-                  >
-                    <Download size={14} /> Télécharger
-                  </a>
+              <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setPreviewFile(res)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
+                    >
+                      <Eye size={14} /> <span className="hidden sm:inline">Aperçu</span>
+                    </button>
+                    <a 
+                      href={res.url} 
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
+                    >
+                      <Download size={14} /> <span className="hidden sm:inline">Télécharger</span>
+                    </a>
+                  </div>
                 </div>
+                
                 {res.type === 'PDF' && (
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button 
                       onClick={() => handleExplain(res.id)}
                       disabled={explainingId === res.id}
-                      className="p-2 bg-blue-500/10 hover:bg-blue-500 text-blue-600 hover:text-white rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
+                      className="py-2 bg-blue-500/10 text-blue-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
                     >
                       {explainingId === res.id ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
-                      {explainingId === res.id ? 'Analyse...' : 'Expliquer avec IA'}
+                      IA : Expliquer
                     </button>
                     <button 
                       onClick={() => handleGenerateQuiz(res.id)}
                       disabled={generatingId === res.id}
-                      className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
+                      className="py-2 bg-emerald-500/10 text-emerald-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
                     >
                       {generatingId === res.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                      {generatingId === res.id ? 'Génération...' : 'Créer Quiz IA'}
+                      IA : Quiz
                     </button>
                   </div>
                 )}

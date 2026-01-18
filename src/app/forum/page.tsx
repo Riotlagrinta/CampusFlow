@@ -97,31 +97,31 @@ export default function ForumPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-20 px-2 md:px-0">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Forum d&apos;Entraide</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-            Posez vos questions techniques, partagez vos découvertes.
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 px-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Forum d&apos;Entraide</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base">
+            Posez vos questions techniques à la communauté.
           </p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
+          className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
         >
           <Plus size={18} />
           <span>Poser une question</span>
         </button>
       </div>
 
-      {/* Search & Filters (Fake for UI) */}
-      <div className="relative">
-        <Search className="absolute left-4 top-3.5 text-zinc-400" size={20} />
+      {/* Search */}
+      <div className="relative px-2">
+        <Search className="absolute left-6 top-3.5 text-zinc-400" size={18} />
         <input 
           type="text" 
-          placeholder="Rechercher une discussion (ex: Java, Pointeur, ...)"
+          placeholder="Rechercher une discussion..."
           className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
         />
       </div>
@@ -130,63 +130,67 @@ export default function ForumPage() {
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
       ) : questions.length === 0 ? (
-        <div className="text-center py-20 text-zinc-400">
+        <div className="mx-2 text-center py-20 text-zinc-400 border-2 border-dashed border-zinc-100 dark:border-zinc-800 rounded-3xl">
            <MessageSquare size={48} className="mx-auto mb-4 opacity-50" />
-           <p>Aucune discussion pour le moment. Soyez le premier !</p>
+           <p>Aucune discussion pour le moment.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3 md:gap-4 px-2">
           {questions.map((q) => (
             <Link href={`/forum/${q.id}`} key={q.id}>
               <motion.div 
-                whileHover={{ scale: 1.01 }}
-                className="group p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:shadow-lg transition-all"
+                whileHover={{ scale: 1.005 }}
+                className="group p-4 md:p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl cursor-pointer hover:shadow-md transition-all"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase rounded">
+                  <div className="space-y-3 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded">
                         Question
                       </span>
                       {q.tags && q.tags.split(',').map(tag => (
-                        <span key={tag} className="flex items-center gap-1 text-[10px] text-zinc-500 font-medium bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
-                          <Tag size={10} /> {tag}
+                        <span key={tag} className="flex items-center gap-1 text-[9px] text-zinc-500 font-bold bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded uppercase tracking-tighter">
+                          <Tag size={8} /> {tag.trim()}
                         </span>
                       ))}
                     </div>
-                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 transition-colors">
-                      {q.title}
-                    </h3>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                      {q.content}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-zinc-400 mt-4">
+                    <div>
+                      <h3 className="text-base md:text-lg font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 transition-colors line-clamp-1">
+                        {q.title}
+                      </h3>
+                      <p className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2 mt-1">
+                        {q.content}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-zinc-400">
                       <div className="flex items-center gap-1.5">
-                        <User size={12} />
-                        <span className="font-semibold text-zinc-600 dark:text-zinc-300">
-                          {q.author.firstName} {q.author.lastName}
+                        <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-[8px] text-zinc-500">
+                          {q.author.firstName[0]}
+                        </div>
+                        <span className="font-bold text-zinc-600 dark:text-zinc-300 truncate max-w-[80px]">
+                          {q.author.firstName}
                         </span>
-                        <span className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px]">Lvl {q.author.level}</span>
+                        <span className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded font-black">LVL {q.author.level}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={12} />
+                      <div className="flex items-center gap-1">
+                        <Clock size={10} />
                         <span>{new Date(q.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center gap-2">
+                  <div className="flex flex-col items-center gap-2 shrink-0">
                     {isAdmin && (
                       <button 
                         onClick={(e) => handleDelete(e, q.id)}
-                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                        className="p-2 text-zinc-300 hover:text-red-500 rounded-lg transition-colors"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     )}
-                    <div className="flex flex-col items-center gap-1 px-4 py-2 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800/50">
-                      <span className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{q._count.answers}</span>
-                      <span className="text-[10px] uppercase text-zinc-400 font-bold">Rép.</span>
+                    <div className="flex flex-col items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                      <span className="text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100">{q._count.answers}</span>
+                      <span className="text-[8px] uppercase text-zinc-400 font-black">Rép.</span>
                     </div>
                   </div>
                 </div>

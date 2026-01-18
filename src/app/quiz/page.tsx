@@ -124,12 +124,12 @@ export default function QuizPage() {
   if (loading && step === 'list') return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-20 px-2 md:px-0">
       
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Centre de Quizz</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">Testez vos connaissances et gagnez de l&apos;XP bonus.</p>
+      <div className="space-y-1 px-2">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Centre de Quizz</h1>
+        <p className="text-sm md:text-base text-zinc-500 dark:text-zinc-400">Testez vos connaissances et gagnez de l&apos;XP bonus.</p>
       </div>
 
       <AnimatePresence mode="wait">
@@ -139,33 +139,32 @@ export default function QuizPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 px-2"
           >
             {quizzes.map((quiz) => (
               <div 
                 key={quiz.id}
-                className="group p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden"
+                className="group p-6 md:p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl md:rounded-[2rem] hover:shadow-xl transition-all cursor-pointer relative overflow-hidden"
                 onClick={() => startQuiz(quiz)}
               >
                 <div className="relative z-10 space-y-4">
                   <div className="flex justify-between items-start">
-                    <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-blue-600">
-                      <Brain size={24} />
+                    <div className="p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-blue-600">
+                      <Brain size={20} className="md:w-6 md:h-6" />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">+{quiz.xpReward} XP</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">+{quiz.xpReward} XP</span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">{quiz.title}</h3>
-                    <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{quiz.description}</p>
+                    <h3 className="text-lg md:text-xl font-bold">{quiz.title}</h3>
+                    <p className="text-xs md:text-sm text-zinc-500 mt-1 line-clamp-2">{quiz.description}</p>
                   </div>
                   <div className="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-zinc-800">
-                    <div className="flex items-center gap-2 text-xs text-zinc-400 font-bold uppercase">
-                      <Clock size={14} /> {quiz._count.questions} Questions
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase">
+                      <Clock size={12} /> {quiz._count.questions} Questions
                     </div>
-                    <ChevronRight size={18} className="text-zinc-300 group-hover:text-blue-600 transition-colors" />
+                    <ChevronRight size={16} className="text-zinc-300 group-hover:text-blue-600" />
                   </div>
                 </div>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
               </div>
             ))}
           </motion.div>
@@ -174,13 +173,13 @@ export default function QuizPage() {
         {step === 'playing' && activeQuiz && (
           <motion.div 
             key="playing"
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 p-8 md:p-12 rounded-[3rem] shadow-2xl border border-zinc-200 dark:border-zinc-800"
+            className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 p-6 md:p-12 rounded-3xl md:rounded-[3rem] shadow-xl border border-zinc-100 dark:border-zinc-800 mx-2"
           >
             {/* Progress Bar */}
-            <div className="mb-10 space-y-4">
-              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-400">
+            <div className="mb-8 md:mb-10 space-y-3">
+              <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
                 <span>Question {currentQuestionIdx + 1} / {activeQuiz.questions.length}</span>
                 <span>{Math.round(((currentQuestionIdx + 1) / activeQuiz.questions.length) * 100)}%</span>
               </div>
@@ -193,7 +192,7 @@ export default function QuizPage() {
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold mb-10 text-center leading-tight">
+            <h2 className="text-xl md:text-2xl font-bold mb-8 md:mb-10 text-center leading-tight">
               {activeQuiz.questions[currentQuestionIdx].question}
             </h2>
 
@@ -202,10 +201,10 @@ export default function QuizPage() {
                 <button
                   key={i}
                   onClick={() => handleAnswer(i)}
-                  className="w-full p-5 text-left bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all font-medium text-zinc-700 dark:text-zinc-300 flex items-center justify-between group"
+                  className="w-full p-4 md:p-5 text-left bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl md:rounded-2xl hover:border-blue-500 active:scale-[0.98] transition-all font-medium text-sm md:text-base text-zinc-700 dark:text-zinc-300 flex items-center justify-between group"
                 >
-                  {option}
-                  <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-all" />
+                  <span className="flex-1 pr-4">{option}</span>
+                  <ChevronRight size={16} className="text-zinc-300 shrink-0" />
                 </button>
               ))}
             </div>
@@ -217,32 +216,32 @@ export default function QuizPage() {
             key="result"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md mx-auto text-center space-y-8 bg-white dark:bg-zinc-900 p-12 rounded-[3rem] shadow-2xl border border-zinc-200 dark:border-zinc-800"
+            className="max-w-md mx-auto text-center space-y-6 md:space-y-8 bg-white dark:bg-zinc-900 p-8 md:p-12 rounded-3xl md:rounded-[3rem] shadow-xl border border-zinc-100 dark:border-zinc-800 mx-2"
           >
-            <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/30">
-              <Trophy size={48} className="text-white" />
+            <div className="w-20 h-20 md:w-24 md:h-24 bg-blue-600 rounded-2xl md:rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-500/20">
+              <Trophy size={40} className="text-white md:w-12 md:h-12" />
             </div>
             
             <div className="space-y-2">
-              <h2 className="text-3xl font-black">Terminé !</h2>
-              <p className="text-zinc-500">Vous avez obtenu un score de</p>
-              <div className="text-6xl font-black text-blue-600 tracking-tighter">
+              <h2 className="text-2xl md:text-3xl font-black">Terminé !</h2>
+              <p className="text-xs md:text-sm text-zinc-500 uppercase font-bold tracking-widest">Score obtenu</p>
+              <div className="text-5xl md:text-6xl font-black text-blue-600 tracking-tighter">
                 {Math.round((score / activeQuiz.questions.length) * 100)}%
               </div>
             </div>
 
-            <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-2xl space-y-2">
-               <div className="flex items-center justify-center gap-2 text-emerald-500 font-bold uppercase tracking-widest text-xs">
-                  <Zap size={14} fill="currentColor" /> XP Gagné
+            <div className="p-5 md:p-6 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+               <div className="flex items-center justify-center gap-2 text-emerald-500 font-black uppercase tracking-widest text-[10px]">
+                  <Zap size={12} fill="currentColor" /> XP Gagné
                </div>
-               <div className="text-2xl font-black">+{Math.round((activeQuiz.xpReward * (score / activeQuiz.questions.length)))} XP</div>
+               <div className="text-xl md:text-2xl font-black mt-1">+{Math.round((activeQuiz.xpReward * (score / activeQuiz.questions.length)))} XP</div>
             </div>
 
             <button 
               onClick={() => setStep('list')}
-              className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl font-bold flex items-center justify-center gap-2"
+              className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
             >
-              <RotateCcw size={20} /> Retour aux quizz
+              <RotateCcw size={18} /> Retour aux quizz
             </button>
           </motion.div>
         )}

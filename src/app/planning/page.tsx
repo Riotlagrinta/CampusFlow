@@ -53,6 +53,10 @@ export default function PlanningPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
   
+  // Admin Filters
+  const [filterFieldId, setFilterFieldId] = useState('');
+  const [filterLevelId, setFilterLevelId] = useState('');
+
   // Form State
   const [newEvent, setNewEvent] = useState({
     day: 'Lundi',
@@ -68,19 +72,39 @@ export default function PlanningPage() {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setIsAdmin(user.role === 'ADMIN');
-    fetchPersonalEvents();
-
+    
+    // Si Admin, on charge les options d'abord, puis les events
     if (user.role === 'ADMIN') {
       fetch('/api/academic/options')
         .then(res => res.json())
-        .then(data => setOptions(data));
+        .then(data => {
+            setOptions(data);
+            fetchPersonalEvents(data.fields?.[0]?.id, data.levels?.[0]?.id); // Charge par défaut le premier
+        });
+    } else {
+        fetchPersonalEvents();
     }
   }, []);
 
-  const fetchPersonalEvents = async () => {
+  // Recharge quand les filtres changent (manuellement)
+  useEffect(() => {
+    if (isAdmin && filterFieldId && filterLevelId) {
+        fetchPersonalEvents(filterFieldId, filterLevelId);
+    }
+  }, [filterFieldId, filterLevelId]);
+
+  const fetchPersonalEvents = async (fId?: string, lId?: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/planning/personal');
+      let url = '/api/planning/personal';
+      if (fId && lId) {
+        url += `?fieldId=${fId}&levelId=${lId}`;
+        // Mettre à jour l'état local si ce n'est pas déjà fait (pour l'UI)
+        if (fId !== filterFieldId) setFilterFieldId(fId);
+        if (lId !== filterLevelId) setFilterLevelId(lId);
+      }
+      
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setPersonalEvents(data);
@@ -172,6 +196,28 @@ export default function PlanningPage() {
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
             Gérez votre temps entre les cours officiels et votre travail personnel.
           </p>
+          
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-2 mt-4 p-2 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30 w-fit">
+               <span className="text-[10px] font-black uppercase text-blue-600 px-2">Vue Admin :</span>
+               <select 
+                 value={filterFieldId} 
+                 onChange={(e) => setFilterFieldId(e.target.value)}
+                 className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
+               >
+                  <option value="">Toutes filières</option>
+                  {options.fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+               </select>
+               <select 
+                 value={filterLevelId} 
+                 onChange={(e) => setFilterLevelId(e.target.value)}
+                 className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
+               >
+                  <option value="">Tous niveaux</option>
+                  {options.levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+               </select>
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-3">

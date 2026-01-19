@@ -35,14 +35,14 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Script Publicitaire Monetag (Multitag) */}
-        <Script 
+        {/* Script Publicitaire Monetag (Multitag) - Désactivé pour éviter l'intrusion. On utilise maintenant le Direct Link sur demande. */}
+        {/* <Script 
           src="https://quge5.com/88/tag.min.js" 
           data-zone="203183" 
           async 
           data-cfasync="false" 
           strategy="lazyOnload"
-        />
+        /> */}
         
         <SessionProvider session={session}>
           <ThemeProvider

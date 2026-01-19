@@ -154,83 +154,30 @@ export default function AIChat() {
 
 
 
-        const handleWatchAd = async () => {
+  const handleWatchAd = async () => {
+    const adUrl = 'https://otieu.com/4/10485395'; 
+    
+    setWatchingAd(true);
+    
+    // Ouvrir la pub dans un nouvel onglet
+    window.open(adUrl, '_blank');
 
-
-
-          setWatchingAd(true);
-
-
-
-          
-
-
-
-          // Monetag Multitag se déclenche automatiquement au clic ou via des popunders/vignettes.
-
-
-
-          // Nous simulons un délai de visionnage pour garantir que l'impression a eu lieu.
-
-
-
-          setTimeout(async () => {
-
-
-
-            try {
-
-
-
-              const res = await fetch('/api/user/ad-reward', { method: 'POST' });
-
-
-
-              if (res.ok) {
-
-
-
-                await fetchQuota();
-
-
-
-                setShowAdModal(false);
-
-
-
-                play('success');
-
-
-
-              }
-
-
-
-            } catch (e) {
-
-
-
-              console.error("Erreur lors de la récompense pub:", e);
-
-
-
-            } finally {
-
-
-
-              setWatchingAd(false);
-
-
-
-            }
-
-
-
-          }, 10000); // 10 secondes pour laisser la pub s'afficher et être rémunératrice
-
-
-
-        };
+    // On attend 15 secondes (temps pour voir la pub et être rémunéré)
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+        if (res.ok) {
+          await fetchQuota();
+          setShowAdModal(false);
+          play('success');
+        }
+      } catch (e) {
+        console.error("Erreur lors de la récompense pub:", e);
+      } finally {
+        setWatchingAd(false);
+      }
+    }, 30000); // 30 secondes pour maximiser la validation Monetag
+  };
 
 
 

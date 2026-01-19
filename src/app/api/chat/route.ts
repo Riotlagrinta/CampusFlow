@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { addXP } from "@/lib/xp";
 import { auth } from "@/../auth";
 
-const DAILY_AI_LIMIT = 10;
+const DAILY_AI_LIMIT = 5;
 
 export async function POST(req: Request) {
   try {
@@ -37,12 +37,11 @@ export async function POST(req: Request) {
     }
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
-      return NextResponse.json({ 
-        reply: "Vous avez atteint votre limite personnelle de 10 messages aujourd'hui.",
+      return NextResponse.json({
+        reply: "Vous avez atteint votre limite personnelle de 5 messages aujourd'hui.",
         quotaExceeded: true
       }, { status: 429 });
     }
-
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
     // CHAINE DE ROTATION 2025 (Basée sur votre liste)

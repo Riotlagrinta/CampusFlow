@@ -126,6 +126,19 @@ export default function AdminDashboard() {
     } catch (err) { console.error(err); }
   };
 
+  const handleDeleteField = async (fieldId: string) => {
+    if (!confirm('Voulez-vous vraiment supprimer cette filière ? Attention : Cela supprimera les emplois du temps associés.')) return;
+    try {
+      const res = await fetch(`/api/admin/academic/fields/${fieldId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        setFields(prev => prev.filter(f => f.id !== fieldId));
+      } else {
+        alert(data.error || "Impossible de supprimer");
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const isOnline = (lastActive: string) => {
     const last = new Date(lastActive).getTime();
     const now = Date.now();
@@ -342,7 +355,12 @@ export default function AdminDashboard() {
                   </span>
                 </div>
                 <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{f.name}</h3>
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{f.name}</h3>
+                    <button onClick={() => handleDeleteField(f.id)} className="text-zinc-400 hover:text-red-500 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                   <p className="text-[10px] text-zinc-500 mt-1 line-clamp-2 italic">{f.description || 'Pas de description.'}</p>
                 </div>
               </div>

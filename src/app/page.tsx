@@ -81,7 +81,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed"
           >
-            La plateforme tout-en-un pour la classe de Génie Logiciel. 
+            La plateforme tout-en-un pour les étudiants de DEFITECH. 
             Centralisez vos cours, testez vos connaissances avec l&apos;IA et dominez le classement.
           </motion.p>
           <motion.div 
@@ -121,7 +121,7 @@ export default function Home() {
         {/* Community Proof */}
         <section className="card-pro p-12 bg-blue-600 text-white text-center space-y-6 overflow-hidden relative">
            <div className="relative z-10">
-              <h2 className="text-3xl font-black">Rejoignez vos camarades de Génie Logiciel</h2>
+              <h2 className="text-3xl font-black">Rejoignez vos camarades de DEFITECH</h2>
               <p className="text-blue-100">Déjà plus de 20 étudiants actifs sur la plateforme.</p>
               <div className="pt-8 flex justify-center -space-x-4">
                  {[1,2,3,4,5].map(i => (

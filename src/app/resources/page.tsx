@@ -53,6 +53,10 @@ export default function ResourcesPage() {
   const [levelId, setLevelId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  
+  // Ad Reward State
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [watchingAd, setWatchingAd] = useState(false);
 
   useEffect(() => {
     fetchResources();
@@ -64,11 +68,38 @@ export default function ResourcesPage() {
       .then(data => setOptions(data));
   }, []);
 
+  const handleWatchAd = async () => {
+    const adUrl = 'https://otieu.com/4/10485395'; 
+    setWatchingAd(true);
+    window.open(adUrl, '_blank');
+
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+        if (res.ok) {
+          play('success');
+          setShowAdModal(false);
+          alert("Récompense validée ! Vous pouvez maintenant générer un nouveau quiz.");
+        }
+      } catch (e) {
+        console.error("Erreur pub:", e);
+      } finally {
+        setWatchingAd(false);
+      }
+    }, 30000);
+  };
+
   const handleGenerateQuiz = async (resourceId: string) => {
     setGeneratingId(resourceId);
     try {
       const res = await fetch(`/api/resources/${resourceId}/generate-quiz`, { method: 'POST' });
       const data = await res.json();
+      
+      if (res.status === 429 || data.quotaExceeded) {
+        setShowAdModal(true);
+        return;
+      }
+
       if (res.ok) {
         play('success');
         window.location.href = '/quiz'; // Rediriger vers la page des quizz
@@ -91,6 +122,12 @@ export default function ResourcesPage() {
         body: JSON.stringify({}) // Plus besoin d'email
       });
       const data = await res.json();
+      
+      if (res.status === 429 || data.quotaExceeded) {
+        setShowAdModal(true);
+        return;
+      }
+
       if (res.ok) {
         setExplanation(data.explanation);
         play('success');
@@ -538,6 +575,44 @@ export default function ResourcesPage() {
                    </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Ad Reward Modal */}
+      <AnimatePresence>
+        {showAdModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 text-center space-y-6"
+            >
+              <div className="w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center">
+                <Video size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Quota Quizz Atteint</h3>
+                <p className="text-zinc-500 text-sm mt-2">Vous avez atteint votre limite de génération de quizz pour aujourd'hui.</p>
+              </div>
+              
+              <button 
+                onClick={handleWatchAd}
+                disabled={watchingAd}
+                className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+              >
+                {watchingAd ? <Loader2 className="animate-spin" size={16} /> : <Video size={16} />}
+                {watchingAd ? 'Publicité en cours...' : 'Regarder une pub (+2 Quizz)'}
+              </button>
+
+              <button 
+                onClick={() => setShowAdModal(false)}
+                className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
+              >
+                Annuler
+              </button>
             </motion.div>
           </div>
         )}

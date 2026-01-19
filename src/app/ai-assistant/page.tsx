@@ -84,30 +84,28 @@ export default function AIAssistantPage() {
   };
 
   const handleWatchAd = async () => {
+    const adUrl = 'https://otieu.com/4/10485395'; 
+    
     setWatchingAd(true);
-    // Simulation de pub (5 secondes) 
-    await new Promise(resolve => setTimeout(resolve, 5000)); 
+    window.open(adUrl, '_blank');
 
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const res = await fetch('/api/user/ai-quota/grant-bonus', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
-      if (res.ok) {
-        play('success');
-        setShowAdModal(false);
-        fetchQuota(); // Rafraîchir le quota
-      } else {
-        alert("Erreur lors de l'obtention du bonus.");
+    setTimeout(async () => {
+      try {
+        const res = await fetch('/api/user/ad-reward', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          setShowAdModal(false);
+          // Rafraîchir la page ou l'état pour voir les nouveaux crédits
+          window.location.reload(); 
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setWatchingAd(false);
       }
-    } catch (error) {
-      console.error("Erreur pub:", error);
-      alert("Erreur lors de l'obtention du bonus.");
-    } finally {
-      setWatchingAd(false);
-    }
+    }, 30000);
   };
 
   return (

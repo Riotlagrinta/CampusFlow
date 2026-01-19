@@ -16,17 +16,32 @@ export async function GET(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const { searchParams } = new URL(req.url);
+    const filterFieldId = searchParams.get('fieldId');
+    const filterLevelId = searchParams.get('levelId');
+
+    let whereClause: any = {
+      OR: [
+        { userId: user.id }, 
+        { 
+          isAcademic: true, 
+          fieldId: user.fieldId, 
+          levelId: user.academicLevelId 
+        }
+      ]
+    };
+
+    // Admin Override: Si des filtres sont appliqués, on montre l'emploi du temps spécifique de cette classe
+    if (user.role === 'ADMIN' && filterFieldId && filterLevelId) {
+       whereClause = {
+          isAcademic: true,
+          fieldId: filterFieldId,
+          levelId: filterLevelId
+       };
+    }
+
     const schedules = await prisma.personalSchedule.findMany({
-      where: {
-        OR: [
-          { userId: user.id }, // Ses cours personnels
-          { 
-            isAcademic: true, 
-            fieldId: user.fieldId, 
-            levelId: user.academicLevelId 
-          } // Les cours de sa classe
-        ]
-      },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(schedules);

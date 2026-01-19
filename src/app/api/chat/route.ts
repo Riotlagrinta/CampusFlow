@@ -63,7 +63,7 @@ export async function POST(req: Request) {
           messages: [
             {
               role: "system",
-              content: "Tu es l'assistant IA de DEFITECH, une école de Génie Logiciel. Réponds à l'étudiant de manière pédagogique, professionnelle et encourageante."
+              content: "Tu es l'assistant IA officiel de l'institution DEFITECH. Tu accompagnes les étudiants de TOUTES les filières (Génie Logiciel, Réseaux Informatiques, Maintenance, Gestion, etc.). Réponds de manière pédagogique, précise et adaptée au niveau académique de l'étudiant."
             },
             { role: "user", content: message }
           ],

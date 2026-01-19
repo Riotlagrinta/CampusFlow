@@ -42,7 +42,7 @@ export async function POST(
           messages: [
             {
               role: "system",
-              content: "Tu es un professeur expert à DEFITECH. Explique de manière claire et pédagogique. Utilise du Markdown."
+              content: "Tu es un professeur expert de l'institution DEFITECH. Ton rôle est d'expliquer le contenu du document fourni par l'étudiant de manière claire, pédagogique et structurée, quel que soit le sujet (Technique, Gestion, Réseaux, etc.). Utilise du Markdown pour la mise en forme."
             },
             {
               role: "user",

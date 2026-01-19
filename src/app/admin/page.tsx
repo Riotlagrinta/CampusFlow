@@ -29,7 +29,12 @@ type AdminUser = {  id: string;
   badges: { badge: { name: string; icon: string } }[];
 };
 
-// ... (dans le composant AdminDashboard)
+type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
+type Level = { id: string; name: string; _count: { users: number } };
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels'>('users');
+  const [users, setUsers] = useState<AdminUser[]>([]);
 
   const handleActivateUser = async (userId: string) => {
     try {
@@ -40,12 +45,6 @@ type AdminUser = {  id: string;
     } catch (err) { console.error(err); }
   };
 
-type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
-type Level = { id: string; name: string; _count: { users: number } };
-
-export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels'>('users');
-  const [users, setUsers] = useState<AdminUser[]>([]);
   const [fields, setFields] = useState<Field[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);

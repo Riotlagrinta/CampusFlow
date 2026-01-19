@@ -43,7 +43,7 @@ export async function GET(req: Request) {
         where: {
           OR: [
             { title: { contains: query, mode: 'insensitive' } },
-            { subject: { contains: query, mode: 'insensitive' } }
+            { subjectName: { contains: query, mode: 'insensitive' } }
           ]
         },
         take: 5

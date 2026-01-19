@@ -55,6 +55,7 @@ export async function GET(req: Request) {
         day: today,
         isAcademic: true
       },
+      include: { subject: { select: { name: true } } },
       orderBy: { time: 'asc' }
     });
 
@@ -75,7 +76,7 @@ export async function GET(req: Request) {
       ],
       activities: recentActivities,
       nextCourse: nextCourse ? {
-        title: nextCourse.subject,
+        title: nextCourse.subject?.name || nextCourse.subjectName,
         time: nextCourse.time,
         teacher: nextCourse.teacher || 'N/A'
       } : null

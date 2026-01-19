@@ -87,7 +87,8 @@ export async function POST(
       data: {
         title: quizData.title,
         description: quizData.description,
-        subject: resource.subject || 'Général',
+        subjectName: resource.subjectName || 'Général',
+        subjectId: resource.subjectId,
         resourceId: resource.id,
         questions: {
           create: quizData.questions.map((q: any) => ({

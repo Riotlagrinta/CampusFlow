@@ -198,7 +198,7 @@ export default function ResourcesPage() {
     formData.append('file', file);
     formData.append('title', title);
     formData.append('type', type);
-    formData.append('subject', subject);
+    formData.append('subjectId', subjectId);
     formData.append('fieldId', fieldId);
     formData.append('levelId', levelId);
 
@@ -213,7 +213,7 @@ export default function ResourcesPage() {
         setIsModalOpen(false);
         // Reset form
         setTitle('');
-        setSubject('');
+        setSubjectId('');
         setType('PDF');
         setFile(null);
       } else {

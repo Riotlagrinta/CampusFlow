@@ -96,7 +96,7 @@ async function main() {
       id: 'quiz-java-1',
       title: 'Maîtrise de Java I',
       description: 'Testez vos connaissances sur les bases du langage Java.',
-      subject: 'JAVA',
+      subjectName: 'JAVA',
       xpReward: 150,
       questions: {
         create: [
@@ -122,7 +122,7 @@ async function main() {
       id: 'quiz-algo-1',
       title: 'Complexité Algorithmique',
       description: 'Comprendre les notations Big O.',
-      subject: 'ALGO',
+      subjectName: 'ALGO',
       xpReward: 200,
       questions: {
         create: [

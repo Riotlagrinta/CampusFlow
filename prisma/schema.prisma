@@ -41,11 +41,27 @@ model User {
 
   
 
-  // Validation OTP
+    // Validation OTP et Récupération
 
-  isActive        Boolean        @default(false)
+  
 
-  otpCode         String?
+    isActive        Boolean        @default(false)
+
+  
+
+    otpCode         String?
+
+  
+
+    resetCode       String?
+
+  
+
+    resetCodeExpires DateTime?
+
+  
+
+  
 
   
 

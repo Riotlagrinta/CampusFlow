@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/mail';
 
 export async function POST(req: Request) {
   try {
@@ -46,40 +46,34 @@ export async function POST(req: Request) {
     });
 
     // --- ENVOI DU CODE OTP À L'ÉTUDIANT ---
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        
-        // Mail pour l'étudiant (Code de validation)
-        await resend.emails.send({
-          from: 'StudentHub <onboarding@resend.dev>',
-          to: email,
-          subject: `${otpCode} est votre code de validation DefiTech Hub`,
-          html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #333; text-align: center;">
-              <h1 style="color: #2563eb;">Bienvenue chez DefiTech !</h1>
-              <p>Voici votre code de validation pour activer votre compte :</p>
-              <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 20px; background: #f3f4f6; border-radius: 10px; display: inline-block; margin: 20px 0;">
-                ${otpCode}
-              </div>
-              <p style="font-size: 14px; color: #666;">Ce code expirera bientôt. Ne le partagez avec personne.</p>
+    try {
+      // Mail pour l'étudiant (Code de validation)
+      await sendEmail({
+        to: email,
+        subject: `${otpCode} est votre code de validation DefiTech Hub`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333; text-align: center;">
+            <h1 style="color: #2563eb;">Bienvenue chez DefiTech !</h1>
+            <p>Voici votre code de validation pour activer votre compte :</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 20px; background: #f3f4f6; border-radius: 10px; display: inline-block; margin: 20px 0;">
+              ${otpCode}
             </div>
-          `
-        });
+            <p style="font-size: 14px; color: #666;">Ce code expirera bientôt. Ne le partagez avec personne.</p>
+          </div>
+        `
+      });
 
-        // Mail pour l'administrateur (Notification simple)
-        await resend.emails.send({
-          from: 'StudentHub <onboarding@resend.dev>',
-          to: 'djkeda82@gmail.com',
-          subject: '🚀 Nouvelle pré-inscription sur le Hub',
-          html: `
-            <p><strong>${firstName} ${lastName}</strong> (${email}) s'est inscrit en <strong>${field?.name}</strong>.</p>
-            <p>En attente de validation OTP.</p>
-          `
-        });
-      } catch (mailError) {
-        console.error('Erreur envoi mail OTP:', mailError);
-      }
+      // Mail pour l'administrateur (Notification simple)
+      await sendEmail({
+        to: 'djkeda82@gmail.com',
+        subject: '🚀 Nouvelle pré-inscription sur le Hub',
+        html: `
+          <p><strong>${firstName} ${lastName}</strong> (${email}) s'est inscrit en <strong>${field?.name}</strong>.</p>
+          <p>En attente de validation OTP.</p>
+        `
+      });
+    } catch (mailError) {
+      console.error('Erreur envoi mail OTP:', mailError);
     }
 
     // On donne le badge "Premiers Pas" automatiquement

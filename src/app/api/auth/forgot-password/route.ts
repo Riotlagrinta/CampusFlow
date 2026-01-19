@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/mail';
 
 export async function POST(req: Request) {
   try {
@@ -26,10 +26,8 @@ export async function POST(req: Request) {
       data: { resetCode, resetCodeExpires: expires }
     });
 
-    if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: 'StudentHub <onboarding@resend.dev>',
+    try {
+      await sendEmail({
         to: email,
         subject: `Réinitialisation de votre mot de passe - ${resetCode}`,
         html: `
@@ -44,6 +42,8 @@ export async function POST(req: Request) {
           </div>
         `
       });
+    } catch (mailError) {
+      console.error('Erreur envoi mail reset:', mailError);
     }
 
     return NextResponse.json({ success: true });

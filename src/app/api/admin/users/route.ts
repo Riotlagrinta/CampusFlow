@@ -21,6 +21,8 @@ export async function GET(req: Request) {
         level: true,
         xp: true,
         role: true,
+        isActive: true,
+        otpCode: true,
         field: { select: { name: true, code: true } },
         academicLevel: { select: { name: true } },
         badges: {

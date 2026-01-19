@@ -22,10 +22,23 @@ type AdminUser = {  id: string;
   level: number;
   xp: number;
   role: string;
+  isActive: boolean;
+  otpCode?: string;
   field?: { name: string, code: string };
   academicLevel?: { name: string };
   badges: { badge: { name: string; icon: string } }[];
 };
+
+// ... (dans le composant AdminDashboard)
+
+  const handleActivateUser = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/activate`, { method: 'POST' });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: true, otpCode: undefined } : u));
+      }
+    } catch (err) { console.error(err); }
+  };
 
 type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
 type Level = { id: string; name: string; _count: { users: number } };
@@ -275,6 +288,7 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4">Classe</th>
                     <th className="px-6 py-4">Progression</th>
                     <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Validation</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -308,6 +322,21 @@ export default function AdminDashboard() {
                           <span className="text-emerald-500 flex items-center gap-1.5"><Circle size={6} fill="currentColor" /> En ligne</span>
                         ) : (
                           <span className="text-zinc-400 flex items-center gap-1.5"><Circle size={6} fill="currentColor" /> Hors ligne</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {u.isActive ? (
+                          <span className="px-2 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded text-[10px] font-black uppercase">Actif</span>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            <span className="px-2 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded text-[10px] font-black uppercase w-fit">Code: {u.otpCode}</span>
+                            <button 
+                              onClick={() => handleActivateUser(u.id)}
+                              className="text-[9px] font-bold text-blue-600 hover:underline text-left"
+                            >
+                              Activer manuellement
+                            </button>
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">

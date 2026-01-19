@@ -23,7 +23,8 @@ export async function GET() {
         levelId: user.academicLevelId
       },
       include: {
-        author: { select: { firstName: true, lastName: true, level: true } }
+        author: { select: { firstName: true, lastName: true, level: true } },
+        subject: { select: { name: true, code: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     const title = formData.get('title') as string;
     const type = formData.get('type') as string;
-    const subject = formData.get('subject') as string;
+    const subjectId = formData.get('subjectId') as string;
     const fieldId = formData.get('fieldId') as string;
     const levelId = formData.get('levelId') as string;
 
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       data: {
         title,
         type,
-        subject: subject || 'Général',
+        subjectId: subjectId || null,
         url: blob.url,
         size: sizeStr,
         authorId: user.id,

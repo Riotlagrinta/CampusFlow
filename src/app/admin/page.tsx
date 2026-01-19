@@ -31,9 +31,10 @@ type AdminUser = {  id: string;
 
 type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
 type Level = { id: string; name: string; _count: { users: number } };
+type Subject = { id: string; name: string; code: string | null; fieldId: string; levelId: string; field: { name: string }; level: { name: string }; _count: { resources: number } };
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
 
   const handleActivateUser = async (userId: string) => {
@@ -47,6 +48,7 @@ export default function AdminDashboard() {
 
   const [fields, setFields] = useState<Field[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,7 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newField, setNewField] = useState({ name: '', code: '', description: '' });
   const [newLevel, setNewLevel] = useState({ name: '' });
+  const [newSubject, setNewSubject] = useState({ name: '', code: '', fieldId: '', levelId: '' });
 
   useEffect(() => {
     fetchData();
@@ -66,7 +69,7 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchFields(), fetchLevels()]);
+    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects()]);
     setLoading(false);
   };
 
@@ -95,6 +98,14 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/academic/levels');
       const data = await res.json();
       if (res.ok) setLevels(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const res = await fetch('/api/admin/academic/subjects');
+      const data = await res.json();
+      if (res.ok) setSubjects(data);
     } catch (err) { console.error(err); }
   };
 
@@ -130,6 +141,22 @@ export default function AdminDashboard() {
     } catch (err) { console.error(err); }
   };
 
+  const handleAddSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/admin/academic/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSubject),
+      });
+      if (res.ok) {
+        fetchSubjects();
+        setIsModalOpen(false);
+        setNewSubject({ name: '', code: '', fieldId: '', levelId: '' });
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
     try {
@@ -148,6 +175,14 @@ export default function AdminDashboard() {
       } else {
         alert(data.error || "Impossible de supprimer");
       }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteSubject = async (id: string) => {
+    if (!confirm('Voulez-vous vraiment supprimer cette matière ?')) return;
+    try {
+      const res = await fetch(`/api/admin/academic/subjects/${id}`, { method: 'DELETE' });
+      if (res.ok) setSubjects(prev => prev.filter(s => s.id !== id));
     } catch (err) { console.error(err); }
   };
 
@@ -257,6 +292,7 @@ export default function AdminDashboard() {
           { id: 'users', label: 'Étudiants', icon: Users },
           { id: 'fields', label: 'Filières', icon: BookOpen },
           { id: 'levels', label: 'Niveaux', icon: GraduationCap },
+          { id: 'subjects', label: 'Matières', icon: BookOpen },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -409,6 +445,33 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+
+        {activeTab === 'subjects' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subjects.map((s) => (
+              <div key={s.id} className="card-pro p-6 space-y-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+                <div className="flex justify-between items-start">
+                  <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl flex items-center justify-center font-black text-[10px] border border-amber-100 dark:border-amber-800/30">
+                    {s.code || 'MAT'}
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-[10px] font-black text-zinc-400 uppercase">{s.field.name}</span>
+                    <span className="block text-[9px] font-bold text-blue-500">{s.level.name}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{s.name}</h3>
+                    <button onClick={() => handleDeleteSubject(s.id)} className="text-zinc-400 hover:text-red-500 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 mt-1 italic">{s._count.resources} documents disponibles</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Creation Modal */}
@@ -418,12 +481,14 @@ export default function AdminDashboard() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
               <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                <h3 className="text-xl font-bold">Ajouter {activeTab === 'fields' ? 'une Filière' : 'un Niveau'}</h3>
+                <h3 className="text-xl font-bold">
+                  Ajouter {activeTab === 'fields' ? 'une Filière' : activeTab === 'levels' ? 'un Niveau' : 'une Matière'}
+                </h3>
                 <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
               </div>
               
-              <form onSubmit={activeTab === 'fields' ? handleAddField : handleAddLevel} className="p-6 space-y-4">
-                {activeTab === 'fields' ? (
+              <form onSubmit={activeTab === 'fields' ? handleAddField : activeTab === 'levels' ? handleAddLevel : handleAddSubject} className="p-6 space-y-4">
+                {activeTab === 'fields' && (
                   <>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom complet</label>
@@ -438,11 +503,42 @@ export default function AdminDashboard() {
                       <textarea className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none" placeholder="Description de la filière..." value={newField.description} onChange={e => setNewField({...newField, description: e.target.value})} />
                     </div>
                   </>
-                ) : (
+                )}
+
+                {activeTab === 'levels' && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom du niveau</label>
                     <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: Licence 1" value={newLevel.name} onChange={e => setNewLevel({...newLevel, name: e.target.value})} />
                   </div>
+                )}
+
+                {activeTab === 'subjects' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom de la matière</label>
+                      <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: Algorithmique" value={newSubject.name} onChange={e => setNewSubject({...newSubject, name: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Code court (Optionnel)</label>
+                      <input className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: ALGO" value={newSubject.code || ''} onChange={e => setNewSubject({...newSubject, code: e.target.value})} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Filière</label>
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-xs outline-none" value={newSubject.fieldId} onChange={e => setNewSubject({...newSubject, fieldId: e.target.value})}>
+                          <option value="">Choisir...</option>
+                          {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Niveau</label>
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-xs outline-none" value={newSubject.levelId} onChange={e => setNewSubject({...newSubject, levelId: e.target.value})}>
+                          <option value="">Choisir...</option>
+                          {levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="pt-4 flex gap-3">

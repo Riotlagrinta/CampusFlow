@@ -44,10 +44,11 @@ export default function ResourcesPage() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [subjects, setSubjects] = useState<any[]>([]);
 
   // Form State
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subjectId, setSubjectId] = useState('');
   const [type, setType] = useState('PDF');
   const [fieldId, setFieldId] = useState('');
   const [levelId, setLevelId] = useState('');
@@ -67,6 +68,16 @@ export default function ResourcesPage() {
       .then(res => res.json())
       .then(data => setOptions(data));
   }, []);
+
+  useEffect(() => {
+    if (fieldId && levelId) {
+      fetch(`/api/admin/academic/subjects?fieldId=${fieldId}&levelId=${levelId}`)
+        .then(res => res.json())
+        .then(data => setSubjects(data));
+    } else {
+      setSubjects([]);
+    }
+  }, [fieldId, levelId]);
 
   const handleWatchAd = async () => {
     const adUrl = 'https://otieu.com/4/10485395'; 
@@ -499,13 +510,18 @@ export default function ResourcesPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase text-zinc-500">Matière</label>
-                    <input 
-                      type="text" 
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: Java"
-                      value={subject}
-                      onChange={e => setSubject(e.target.value)}
-                    />
+                    <select 
+                      required
+                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      value={subjectId}
+                      onChange={e => setSubjectId(e.target.value)}
+                      disabled={!fieldId || !levelId}
+                    >
+                      <option value="">{subjects.length > 0 ? 'Choisir...' : 'Aucune matière'}</option>
+                      {subjects.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase text-zinc-500">Type</label>

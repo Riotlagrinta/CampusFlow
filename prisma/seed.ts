@@ -59,6 +59,7 @@ async function main() {
           firstName: 'Étudiant',
           lastName: 'Demo',
           password: 'hash_placeholder',
+          isActive: true,
           xp: 2450,
           level: 12,
           streak: 7,
@@ -78,6 +79,7 @@ async function main() {
           firstName: 'Admin',
           lastName: 'DefiTech',
           password: 'password', // Mot de passe simple pour l'admin
+          isActive: true,
           xp: 5000,
           level: 25,
           streak: 30,

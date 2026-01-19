@@ -312,21 +312,21 @@ export default function AIChat() {
             {/* Zone de Messages avec Markdown */}
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-6 space-y-6 bg-white dark:bg-zinc-900/30"
+              className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/50 dark:bg-zinc-900/30"
             >
               {messages.map((msg, i) => (
                 <div key={i} className={clsx("flex gap-4", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}>
                   <div className={clsx(
                     "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm",
-                    msg.role === 'user' ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400" : "bg-blue-600 text-white"
+                    msg.role === 'user' ? "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700" : "bg-blue-600 text-white"
                   )}>
                     {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                   </div>
                   <div className={clsx(
-                    "max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed",
+                    "max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm transition-all",
                     msg.role === 'user' 
-                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200" 
-                      : "bg-white dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700/50 shadow-sm"
+                      ? "bg-blue-600 text-white" 
+                      : "bg-white dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700/50"
                   )}>
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
@@ -352,7 +352,7 @@ export default function AIChat() {
                               </div>
                             </div>
                           ) : (
-                            <code className="bg-zinc-200 dark:bg-zinc-700 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-mono text-xs" {...props}>
+                            <code className="bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-mono text-[10px] font-bold" {...props}>
                               {children}
                             </code>
                           );

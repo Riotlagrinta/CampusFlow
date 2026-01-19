@@ -163,10 +163,10 @@ export default function AIAssistantPage() {
               msg.role === 'user' ? "items-end text-right" : "items-start"
             )}>
               <div className={clsx(
-                "p-6 rounded-[2rem] text-sm leading-relaxed shadow-sm",
+                "p-6 rounded-[2rem] text-sm leading-relaxed shadow-sm transition-all",
                 msg.role === 'user' 
                   ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-tr-none" 
-                  : "bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700/50 text-zinc-800 dark:text-zinc-100 rounded-tl-none"
+                  : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/50 text-zinc-900 dark:text-zinc-100 rounded-tl-none"
               )}>
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}

@@ -267,9 +267,9 @@ export default function AdminDashboard() {
         {activeTab === 'users' && (
           <div className="space-y-4">
             {/* Desktop Table */}
-            <div className="hidden lg:block card-pro overflow-hidden">
+            <div className="hidden lg:block card-pro overflow-hidden border border-zinc-200 dark:border-zinc-800">
               <table className="w-full text-left">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
                     <th className="px-6 py-4">Utilisateur</th>
                     <th className="px-6 py-4">Classe</th>
@@ -278,16 +278,16 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 bg-white dark:bg-zinc-900/50">
                   {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
+                    <tr key={u.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/80 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-500">
+                          <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                             {u.firstName?.[0]}{u.lastName?.[0]}
                           </div>
                           <div>
-                            <p className="text-sm font-bold flex items-center gap-2">
+                            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                               {u.firstName} {u.lastName}
                               {u.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
                             </p>
@@ -345,12 +345,12 @@ export default function AdminDashboard() {
         {activeTab === 'fields' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {fields.map((f) => (
-              <div key={f.id} className="card-pro p-6 space-y-4">
+              <div key={f.id} className="card-pro p-6 space-y-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                 <div className="flex justify-between items-start">
-                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center font-black text-xs">
+                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center font-black text-xs border border-blue-100 dark:border-blue-800/30">
                     {f.code}
                   </div>
-                  <span className="text-[10px] font-black bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded uppercase tracking-widest">
+                  <span className="text-[10px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-1 rounded uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
                     {f._count.users} Étudiants
                   </span>
                 </div>

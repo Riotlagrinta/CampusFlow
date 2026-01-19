@@ -27,7 +27,7 @@ export async function addXP(userId: string, amount: number) {
   }
 
   const totalXP = user.xp + amount;
-  const newLevel = Math.floor(totalXP / 200) + 1;
+  const newLevel = Math.floor(totalXP / 500) + 1;
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },

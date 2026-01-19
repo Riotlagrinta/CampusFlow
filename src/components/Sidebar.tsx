@@ -118,7 +118,7 @@ export default function Sidebar() {
           x: (typeof window !== 'undefined' && window.innerWidth < 1024 && !isOpen) ? -260 : 0
         }}
         className={cn(
-          "fixed top-0 left-0 h-screen bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-r border-zinc-200 dark:border-zinc-900 z-50 transition-all flex flex-col",
+          "fixed top-0 left-0 h-screen bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-900 z-50 transition-all flex flex-col shadow-xl md:shadow-none",
           !isOpen && "items-center"
         )}
       >
@@ -133,15 +133,15 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <div className="flex-1 px-3 space-y-1">
-          {isOpen && <p className="px-3 mb-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Navigation</p>}
+        <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar">
+          {isOpen && <p className="px-3 mb-2 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Navigation</p>}
           
           {isAdmin && (
             <Link
               href="/admin"
               onClick={handleLinkClick}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md mb-4 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-lg",
+                "flex items-center gap-3 px-3 py-2 rounded-xl mb-4 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-lg",
                 pathname === '/admin' && "ring-2 ring-blue-500"
               )}
             >
@@ -158,10 +158,10 @@ export default function Sidebar() {
                 href={item.href}
                 onClick={handleLinkClick}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200",
+                  "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200",
                   isActive 
-                    ? "bg-blue-500/10 text-blue-600 border border-blue-500/20" 
-                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                    ? "bg-blue-600/10 text-blue-600 border border-blue-500/10" 
+                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/50"
                 )}
               >
                 <item.icon size={18} className={cn("shrink-0", isActive && "text-blue-600")} />
@@ -171,11 +171,11 @@ export default function Sidebar() {
           })}
         </div>
 
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/10 border-t border-zinc-100 dark:border-zinc-900">
             {mounted && (
                 <button
                     onClick={toggleTheme}
-                    className="flex items-center gap-3 w-full px-3 py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    className="flex items-center gap-3 w-full px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900"
                 >
                     <div className="relative w-4 h-4">
                         <Sun className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-90 scale-0" : "rotate-0 scale-100")} size={18} />
@@ -187,30 +187,30 @@ export default function Sidebar() {
 
             <button
                 onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-md transition-all"
+                className="flex items-center gap-3 w-full px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
             >
                 <LogOut size={18} />
                 {isOpen && <span className="text-xs font-bold">Déconnexion</span>}
             </button>
             
             <Link href="/profile" onClick={handleLinkClick} className={cn(
-                "flex items-center gap-3 px-2 py-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800",
+                "flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm",
                 !isOpen && "justify-center"
             )}>
-                <div className="w-6 h-6 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700">
                     {(session?.user as any)?.image ? (
                       <img src={(session?.user as any).image} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <UserIcon size={14} className="text-zinc-500" />
+                      <UserIcon size={16} className="text-zinc-400 dark:text-zinc-500" />
                     )}
                 </div>
                 {isOpen && (
                     <div className="flex-1 overflow-hidden">
-                        <p className="text-xs font-bold truncate">{userName}</p>
+                        <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{userName}</p>
                         {isAdmin && (
                           <div className="flex items-center gap-1">
                             <ShieldCheck size={10} className="text-blue-500" />
-                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Administrateur</p>
+                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Admin</p>
                           </div>
                         )}
                     </div>

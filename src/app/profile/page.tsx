@@ -157,12 +157,12 @@ export default function ProfilePage() {
     return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
   }
 
-  // Calcul du % vers le prochain niveau (Level * 200 XP requis)
+  // Calcul du % vers le prochain niveau (Level * 500 XP requis)
   // XP actuel = userData.xp.
-  // XP debut niveau actuel = (userData.level - 1) * 200
-  // XP fin niveau actuel = userData.level * 200
-  const xpForNextLevel = 200;
-  const xpCurrentLevel = userData ? userData.xp % 200 : 0;
+  // XP debut niveau actuel = (userData.level - 1) * 500
+  // XP fin niveau actuel = userData.level * 500
+  const xpForNextLevel = 500;
+  const xpCurrentLevel = userData ? userData.xp % 500 : 0;
   const progressPercent = (xpCurrentLevel / xpForNextLevel) * 100;
 
   return (
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                 className="h-full bg-blue-600 absolute left-0 top-0" 
               />
             </div>
-            <span className="text-[8px] md:text-[10px] text-zinc-600">Suivant : {200 - xpCurrentLevel} XP</span>
+            <span className="text-[8px] md:text-[10px] text-zinc-600">Suivant : {500 - xpCurrentLevel} XP</span>
           </div>
         </div>
       </div>

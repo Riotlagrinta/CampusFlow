@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { Sparkles, Send, X, Bot, User, Loader2, Maximize2, Minimize2, Copy, Youtube, Info } from 'lucide-react';
+import { Sparkles, Send, X, Bot, User, Loader2, Maximize2, Minimize2, Copy, Youtube, Info, PlusCircle, Paperclip, FileText } from 'lucide-react';
 
 import { clsx } from 'clsx';
 
@@ -18,6 +18,8 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import { useSound } from '@/hooks/useSound';
 
+import Mermaid from './Mermaid';
+
 
 
 interface Message {
@@ -28,7 +30,11 @@ interface Message {
 
 }
 
-
+interface Resource {
+  id: string;
+  title: string;
+  type: string;
+}
 
 export default function AIChat() {
 
@@ -40,13 +46,60 @@ export default function AIChat() {
 
   const [input, setInput] = useState('');
 
-  const [messages, setMessages] = useState<Message[]>([
-
-    { role: 'assistant', content: 'Bonjour. Je suis l\'assistant pédagogique de DEFITECH. Comment puis-je vous accompagner dans vos travaux de Génie Logiciel aujourd\'hui ?' }
-
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [showResourceList, setShowResourceList] = useState(false);
+
+
+
+  const handleNewChat = () => {
+    if (confirm('Démarrer une nouvelle discussion ?')) {
+      const initialMessage: Message[] = [
+        { role: 'assistant', content: 'Bonjour. Je suis l\'assistant pédagogique de DEFITECH. Comment puis-je vous accompagner dans vos travaux de Génie Logiciel aujourd\'hui ?' }
+      ];
+      setMessages(initialMessage);
+      localStorage.setItem('ai_chat_history', JSON.stringify(initialMessage));
+      play('send');
+    }
+  };
+
+  useEffect(() => {
+      // Charger l'historique au démarrage
+
+      const savedMessages = localStorage.getItem('ai_chat_history');
+
+      if (savedMessages) {
+
+        setMessages(JSON.parse(savedMessages));
+
+      } else {
+
+        setMessages([
+
+          { role: 'assistant', content: 'Bonjour. Je suis l\'assistant pédagogique de DEFITECH. Comment puis-je vous accompagner dans vos travaux de Génie Logiciel aujourd\'hui ?' }
+
+        ]);
+
+      }
+
+    }, []);
+
+  
+
+    useEffect(() => {
+
+      // Sauvegarder l'historique quand les messages changent
+
+      if (messages.length > 0) {
+
+        localStorage.setItem('ai_chat_history', JSON.stringify(messages));
+
+      }
+
+    }, [messages]);
 
   const [quotaInfo, setQuotaInfo] = useState<{ remaining: number; total: number; bonus: number } | null>(null);
 
@@ -70,19 +123,83 @@ export default function AIChat() {
 
 
 
-  useEffect(() => {
-
-    if (isOpen) {
-
-      fetchQuota();
-
-    }
-
-  }, [isOpen]);
+    useEffect(() => {
 
 
 
-  const fetchQuota = async () => {
+      if (isOpen) {
+
+
+
+        fetchQuota();
+
+
+
+        fetchResources();
+
+
+
+      }
+
+
+
+    }, [isOpen]);
+
+
+
+  
+
+
+
+    const fetchResources = async () => {
+
+
+
+      try {
+
+
+
+        const res = await fetch('/api/resources');
+
+
+
+        if (res.ok) {
+
+
+
+          const data = await res.json();
+
+
+
+          setResources(data.filter((r: Resource) => r.type === 'PDF'));
+
+
+
+        }
+
+
+
+      } catch (err) {
+
+
+
+        console.error(err);
+
+
+
+      }
+
+
+
+    };
+
+
+
+  
+
+
+
+    const fetchQuota = async () => {
     try {
       const res = await fetch('/api/user/ai-quota');
       if (res.ok) {
@@ -119,7 +236,10 @@ export default function AIChat() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ 
+          message: userMessage,
+          resourceId: selectedResource?.id 
+        }),
       });
 
       const data = await response.json();
@@ -261,8 +381,10 @@ export default function AIChat() {
 
   return (
     <div className={clsx(
-      "fixed z-50 transition-all duration-500 ease-in-out",
-      isMaximized ? "inset-4 md:inset-10" : "bottom-6 right-6"
+      "fixed z-40 transition-all duration-500 ease-in-out",
+      isMaximized 
+        ? "inset-4 lg:left-[280px] lg:right-8 lg:inset-y-8" 
+        : "bottom-6 right-6"
     )}>
       <AnimatePresence>
         {isOpen && (
@@ -295,6 +417,13 @@ export default function AIChat() {
                   </div>
                 )}
                 <button 
+                  onClick={handleNewChat}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                  title="Nouvelle conversation"
+                >
+                  <PlusCircle size={18} />
+                </button>
+                <button 
                   onClick={() => setIsMaximized(!isMaximized)}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
                 >
@@ -323,7 +452,7 @@ export default function AIChat() {
                     {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                   </div>
                   <div className={clsx(
-                    "max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm transition-all",
+                    "max-w-[92%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm transition-all",
                     msg.role === 'user' 
                       ? "bg-blue-600 text-white" 
                       : "bg-white dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700/50"
@@ -333,6 +462,12 @@ export default function AIChat() {
                       components={{
                         code({ className, children, ...props }: React.ComponentPropsWithoutRef<'code'>) {
                           const match = /language-(\w+)/.exec(className || '');
+                          const codeContent = String(children).replace(/\n$/, '');
+
+                          if (match && match[1] === 'mermaid') {
+                            return <Mermaid chart={codeContent} />;
+                          }
+
                           return match ? (
                             <div className="relative group my-4">
                               <SyntaxHighlighter
@@ -343,7 +478,7 @@ export default function AIChat() {
                                 className="rounded-xl !bg-zinc-950 !p-4 border border-white/5"
                                 {...props}
                               >
-                                {String(children).replace(/\n$/, '')}
+                                {codeContent}
                               </SyntaxHighlighter>
                               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button className="p-1.5 bg-white/10 hover:bg-white/20 rounded text-zinc-400 transition-colors">
@@ -357,9 +492,17 @@ export default function AIChat() {
                             </code>
                           );
                         },
-                        ul: ({ children }) => <ul className="list-disc ml-4 space-y-2 my-2">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal ml-4 space-y-2 my-2">{children}</ol>,
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>
+                        ul: ({ children }) => <ul className="list-disc ml-4 space-y-2 my-4 text-inherit">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal ml-4 space-y-2 my-4 text-inherit">{children}</ol>,
+                        p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+                        strong: ({children}) => <strong className="font-bold text-blue-200 dark:text-blue-300">{children}</strong>,
+                        h1: ({children}) => <h1 className="text-lg font-black mb-3 text-white">{children}</h1>,
+                        h2: ({children}) => <h2 className="text-md font-bold mb-2 text-blue-200">{children}</h2>,
+                        blockquote: ({children}) => (
+                          <blockquote className="border-l-2 border-blue-400 bg-white/5 p-3 my-3 rounded-r-lg italic text-xs">
+                            {children}
+                          </blockquote>
+                        ),
                       }}
                     >
                       {msg.content}
@@ -381,14 +524,58 @@ export default function AIChat() {
             </div>
 
             {/* Input Professionnel */}
-            <div className="p-6 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="p-6 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 relative">
+              {selectedResource && (
+                <div className="absolute bottom-[calc(100%+0.5rem)] left-6 right-6 flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-lg animate-in fade-in slide-in-from-bottom-1">
+                  <FileText size={12} />
+                  <span className="truncate flex-1">{selectedResource.title}</span>
+                  <button onClick={() => setSelectedResource(null)} className="hover:bg-white/20 p-0.5 rounded transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
+              {showResourceList && (
+                <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-3 max-h-48 overflow-y-auto z-10 animate-in fade-in zoom-in-95">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-2 px-1">Joindre un document</p>
+                  <div className="space-y-1">
+                    {resources.map(res => (
+                      <button
+                        key={res.id}
+                        onClick={() => {
+                          setSelectedResource(res);
+                          setShowResourceList(false);
+                          play('xp');
+                        }}
+                        className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-left group"
+                      >
+                        <FileText size={14} className="text-blue-500" />
+                        <span className="text-[11px] font-bold truncate">{res.title}</span>
+                      </button>
+                    ))}
+                    {resources.length === 0 && <p className="text-[10px] text-zinc-500 p-2">Aucun PDF disponible.</p>}
+                  </div>
+                </div>
+              )}
+
               <div className="relative flex items-center gap-2">
+                <button 
+                  onClick={() => setShowResourceList(!showResourceList)}
+                  className={clsx(
+                    "p-3 rounded-xl transition-all border",
+                    selectedResource 
+                      ? "bg-blue-600 text-white border-blue-600 shadow-blue-500/20 shadow-lg" 
+                      : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
+                  )}
+                >
+                  <Paperclip size={18} />
+                </button>
                 <input 
                   type="text" 
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Posez votre question technique..."
+                  placeholder={selectedResource ? "Question sur le PDF..." : "Posez votre question technique..."}
                   className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-all"
                 />
                 <motion.button 

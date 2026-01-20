@@ -117,6 +117,78 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PUT(req: Request) {
+  try {
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { id, day, time, subject: subjectName, type, fieldId, levelId } = body;
+
+    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const existingSchedule = await prisma.personalSchedule.findUnique({ where: { id } });
+    if (!existingSchedule) return NextResponse.json({ error: 'Non trouvé' }, { status: 404 });
+
+    // Sécurité
+    if (existingSchedule.userId !== user.id && user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
+    }
+
+    const finalFieldId = (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId;
+    const finalLevelId = (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId;
+
+    // Gestion automatique de la matière
+    let subjectId = null;
+    if (subjectName && finalFieldId && finalLevelId) {
+      const existingSub = await prisma.subject.findFirst({
+        where: {
+          name: { equals: subjectName, mode: 'insensitive' },
+          fieldId: finalFieldId,
+          levelId: finalLevelId
+        }
+      });
+
+      if (existingSub) {
+        subjectId = existingSub.id;
+      } else {
+        const newSub = await prisma.subject.create({
+          data: {
+            name: subjectName,
+            fieldId: finalFieldId,
+            levelId: finalLevelId
+          }
+        });
+        subjectId = newSub.id;
+      }
+    }
+
+    const updatedSchedule = await prisma.personalSchedule.update({
+      where: { id },
+      data: {
+        day,
+        time,
+        subjectName,
+        subjectId,
+        type: type || 'Personnel',
+        isAcademic: user.role === 'ADMIN' && type === 'Académique',
+        fieldId: finalFieldId,
+        levelId: finalLevelId,
+      },
+    });
+
+    return NextResponse.json(updatedSchedule);
+  } catch (error) {
+    console.error('Erreur PUT planning perso:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     const session = await auth();

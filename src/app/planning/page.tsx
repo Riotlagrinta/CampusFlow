@@ -8,6 +8,7 @@ import {
   Plus, 
   Trash2, 
   Loader2, 
+  Edit2
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 
@@ -51,6 +52,7 @@ export default function PlanningPage() {
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
   
@@ -123,24 +125,44 @@ export default function PlanningPage() {
 
     setIsSubmitting(true);
     try {
+      const method = editingId ? 'PUT' : 'POST';
+      const body = editingId ? { ...newEvent, id: editingId } : newEvent;
+
       const res = await fetch('/api/planning/personal', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEvent),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
-        const createdEvent = await res.json();
-        setPersonalEvents(prev => [createdEvent, ...prev]);
+        await fetchPersonalEvents(filterFieldId, filterLevelId);
         setIsModalOpen(false);
+        setEditingId(null);
         setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel', fieldId: '', levelId: '' });
         play('success');
       }
     } catch (error) {
-      console.error("Error adding event", error);
+      console.error("Error saving event", error);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditClick = (event: any) => {
+    // Retrouver l'événement original pour avoir toutes les infos (fieldId, levelId)
+    const originalEvent = personalEvents.find(e => e.id === event.id);
+    if (!originalEvent) return;
+
+    setEditingId(originalEvent.id);
+    setNewEvent({
+      day: originalEvent.day,
+      time: originalEvent.time,
+      subject: originalEvent.subjectName,
+      type: originalEvent.isAcademic ? 'Académique' : 'Personnel',
+      fieldId: (originalEvent as any).fieldId || '',
+      levelId: (originalEvent as any).levelId || ''
+    });
+    setIsModalOpen(true);
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -284,14 +306,24 @@ export default function PlanningPage() {
                     }`}>
                       {course.time}
                     </div>
-                    {(course.isPersonal || isAdmin) && course.id && (
-                       <button 
-                         onClick={() => handleDeleteEvent(course.id!)}
-                         className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-500 transition-all"
-                       >
-                         <Trash2 size={16} />
-                       </button>
-                    )}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      {(course.isPersonal || isAdmin) && course.id && (
+                        <>
+                          <button 
+                            onClick={() => handleEditClick(course)}
+                            className="p-1.5 text-zinc-400 hover:text-blue-500 transition-all"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteEvent(course.id!)}
+                            className="p-1.5 text-zinc-400 hover:text-red-500 transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   
                   <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-2">
@@ -334,7 +366,11 @@ export default function PlanningPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setEditingId(null);
+                setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel', fieldId: '', levelId: '' });
+              }}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
             <motion.div 
@@ -344,8 +380,10 @@ export default function PlanningPage() {
               className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
             >
               <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-                <h3 className="text-xl font-bold">Ajouter un créneau personnel</h3>
-                <p className="text-sm text-zinc-500 mt-1">Organisez vos révisions et temps libre.</p>
+                <h3 className="text-xl font-bold">{editingId ? 'Modifier le créneau' : 'Ajouter un créneau personnel'}</h3>
+                <p className="text-sm text-zinc-500 mt-1">
+                  {editingId ? 'Mettez à jour vos informations de cours ou de révision.' : 'Organisez vos révisions et temps libre.'}
+                </p>
               </div>
               
               <form onSubmit={handleAddEvent} className="p-6 space-y-4">
@@ -438,7 +476,11 @@ export default function PlanningPage() {
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button" 
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setEditingId(null);
+                      setNewEvent({ day: 'Lundi', time: '', subject: '', type: 'Personnel', fieldId: '', levelId: '' });
+                    }}
                     className="flex-1 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                   >
                     Annuler
@@ -449,7 +491,7 @@ export default function PlanningPage() {
                     className="flex-1 px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                   >
                     {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-                    {isSubmitting ? 'Ajout...' : 'Confirmer'}
+                    {isSubmitting ? 'Enregistrement...' : editingId ? 'Enregistrer' : 'Confirmer'}
                   </button>
                 </div>
               </form>

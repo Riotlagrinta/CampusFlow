@@ -56,26 +56,25 @@ export default function Sidebar() {
   useEffect(() => {
     setMounted(true);
     const isMobile = window.innerWidth < 1024;
-    setIsOpen(!isMobile);
+    const initialOpen = !isMobile;
+    setIsOpen(initialOpen);
+    if (isMobile) {
+      document.documentElement.style.setProperty('--sidebar-width', '0px');
+    } else {
+      document.documentElement.style.setProperty('--sidebar-width', initialOpen ? '260px' : '72px');
+    }
   }, []);
 
   useEffect(() => {
-    const sendHeartbeat = async () => {
-      if (session?.user?.email) {
-        try {
-          await fetch('/api/user/heartbeat', {
-            method: 'POST',
-            body: JSON.stringify({ email: session.user.email }),
-            headers: { 'Content-Type': 'application/json' }
-          });
-        } catch (e) { /* silent error */ }
+    if (mounted) {
+      const isMobile = window.innerWidth < 1024;
+      if (isMobile) {
+        document.documentElement.style.setProperty('--sidebar-width', '0px');
+      } else {
+        document.documentElement.style.setProperty('--sidebar-width', isOpen ? '260px' : '72px');
       }
-    };
-
-    sendHeartbeat(); 
-    const heartbeatInterval = setInterval(sendHeartbeat, 60000); 
-    return () => clearInterval(heartbeatInterval);
-  }, [session]);
+    }
+  }, [isOpen, mounted]);
 
   const handleLinkClick = () => {
     if (window.innerWidth < 1024) setIsOpen(false);

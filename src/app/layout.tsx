@@ -53,7 +53,10 @@ export default async function RootLayout({
           >
             <div className="flex min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
               {session && <Sidebar />}
-              <main className={`${session ? 'lg:ml-[260px]' : 'w-full'} flex-1 p-4 md:p-8 transition-all relative`}>
+              <main 
+                className="flex-1 p-4 md:p-8 transition-all duration-300 relative"
+                style={{ marginLeft: session ? 'var(--sidebar-width, 260px)' : '0' }}
+              >
                 {children}
               </main>
               {session && <AIChat />}

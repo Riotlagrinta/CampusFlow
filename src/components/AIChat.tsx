@@ -380,12 +380,17 @@ export default function AIChat() {
     };
 
   return (
-    <div className={clsx(
-      "fixed z-40 transition-all duration-500 ease-in-out",
-      isMaximized 
-        ? "inset-4 lg:left-[280px] lg:right-8 lg:inset-y-8" 
-        : "bottom-6 right-6"
-    )}>
+    <div 
+      className={clsx(
+        "fixed z-40 transition-all duration-500 ease-in-out",
+        isMaximized 
+          ? "inset-2 md:inset-4 lg:right-8 lg:inset-y-8" 
+          : "bottom-4 right-4 md:bottom-6 md:right-6"
+      )}
+      style={isMaximized ? { 
+        left: 'calc(var(--sidebar-width, 0px) + (window.innerWidth < 1024 ? 8px : 20px))' 
+      } : {}}
+    >
       <AnimatePresence>
         {isOpen && (
           <motion.div

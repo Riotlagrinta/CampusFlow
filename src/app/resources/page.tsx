@@ -48,7 +48,7 @@ export default function ResourcesPage() {
 
   // Form State
   const [title, setTitle] = useState('');
-  const [subjectId, setSubjectId] = useState('');
+  const [subjectName, setSubjectName] = useState('');
   const [type, setType] = useState('PDF');
   const [fieldId, setFieldId] = useState('');
   const [levelId, setLevelId] = useState('');
@@ -198,7 +198,7 @@ export default function ResourcesPage() {
     formData.append('file', file);
     formData.append('title', title);
     formData.append('type', type);
-    formData.append('subjectId', subjectId);
+    formData.append('subjectName', subjectName);
     formData.append('fieldId', fieldId);
     formData.append('levelId', levelId);
 
@@ -213,7 +213,7 @@ export default function ResourcesPage() {
         setIsModalOpen(false);
         // Reset form
         setTitle('');
-        setSubjectId('');
+        setSubjectName('');
         setType('PDF');
         setFile(null);
       } else {
@@ -510,18 +510,21 @@ export default function ResourcesPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase text-zinc-500">Matière</label>
-                    <select 
+                    <input 
+                      type="text"
+                      list="subjects-list"
                       required
                       className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      value={subjectId}
-                      onChange={e => setSubjectId(e.target.value)}
+                      placeholder="Ex: Algorithmique"
+                      value={subjectName}
+                      onChange={e => setSubjectName(e.target.value)}
                       disabled={!fieldId || !levelId}
-                    >
-                      <option value="">{subjects.length > 0 ? 'Choisir...' : 'Aucune matière'}</option>
+                    />
+                    <datalist id="subjects-list">
                       {subjects.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                        <option key={s.id} value={s.name} />
                       ))}
-                    </select>
+                    </datalist>
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase text-zinc-500">Type</label>

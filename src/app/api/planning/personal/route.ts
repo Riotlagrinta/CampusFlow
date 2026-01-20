@@ -42,6 +42,7 @@ export async function GET(req: Request) {
 
     const schedules = await prisma.personalSchedule.findMany({
       where: whereClause,
+      include: { subject: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(schedules);
@@ -59,21 +60,50 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { day, time, subject, type, fieldId, levelId } = body;
+    const { day, time, subject: subjectName, type, fieldId, levelId } = body;
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const finalFieldId = (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId;
+    const finalLevelId = (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId;
+
+    // Gestion automatique de la matière
+    let subjectId = null;
+    if (subjectName && finalFieldId && finalLevelId) {
+      const existingSub = await prisma.subject.findFirst({
+        where: {
+          name: { equals: subjectName, mode: 'insensitive' },
+          fieldId: finalFieldId,
+          levelId: finalLevelId
+        }
+      });
+
+      if (existingSub) {
+        subjectId = existingSub.id;
+      } else {
+        const newSub = await prisma.subject.create({
+          data: {
+            name: subjectName,
+            fieldId: finalFieldId,
+            levelId: finalLevelId
+          }
+        });
+        subjectId = newSub.id;
+      }
+    }
 
     const newSchedule = await prisma.personalSchedule.create({
       data: {
         userId: user.id,
         day,
         time,
-        subject,
+        subjectName,
+        subjectId,
         type: type || 'Personnel',
         isAcademic: user.role === 'ADMIN' && type === 'Académique',
-        fieldId: (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId,
-        levelId: (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId,
+        fieldId: finalFieldId,
+        levelId: finalLevelId,
       },
     });
 

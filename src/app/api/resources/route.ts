@@ -71,11 +71,41 @@ export async function POST(req: Request) {
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
     const sizeStr = `${sizeInMB} MB`;
 
+    // Gestion automatique de la matière
+    let finalSubjectId = subjectId;
+    
+    // Si on a reçu un nom de matière au lieu d'un ID (ou si subjectId est vide)
+    const subjectNameInput = formData.get('subjectName') as string;
+    
+    if (!finalSubjectId && subjectNameInput && fieldId && levelId) {
+      const existingSubject = await prisma.subject.findFirst({
+        where: { 
+          name: { equals: subjectNameInput, mode: 'insensitive' },
+          fieldId,
+          levelId
+        }
+      });
+
+      if (existingSubject) {
+        finalSubjectId = existingSubject.id;
+      } else {
+        const newSub = await prisma.subject.create({
+          data: {
+            name: subjectNameInput,
+            fieldId,
+            levelId
+          }
+        });
+        finalSubjectId = newSub.id;
+      }
+    }
+
     const resource = await prisma.resource.create({
       data: {
         title,
         type,
-        subjectId: subjectId || null,
+        subjectId: finalSubjectId || null,
+        subjectName: subjectNameInput || null,
         url: blob.url,
         size: sizeStr,
         authorId: user.id,

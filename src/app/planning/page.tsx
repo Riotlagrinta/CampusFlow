@@ -32,7 +32,8 @@ type PersonalEvent = {
   id: string;
   day: string;
   time: string;
-  subject: string;
+  subjectName: string;
+  subject?: { name: string };
   type: string;
   isAcademic: boolean;
   createdAt: string;
@@ -168,7 +169,7 @@ export default function PlanningPage() {
       .map(e => ({
         id: e.id,
         time: e.time,
-        subject: e.subject,
+        subject: e.subject?.name || e.subjectName || 'Matière inconnue',
         type: e.type,
         isPersonal: !e.isAcademic
       }));

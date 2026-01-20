@@ -30,14 +30,48 @@ export default function AIAssistantPage() {
   const [quotaInfo, setQuotaInfo] = useState<{ remaining: number; total: number; bonus: number } | null>(null);
   const [showAdModal, setShowAdModal] = useState(false);
   const [watchingAd, setWatchingAd] = useState(false);
+  const [adTimer, setAdTimer] = useState(0);
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [showResourceList, setShowResourceList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const savedMessages = localStorage.getItem('ai_assistant_history');
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages));
+    } else {
+      setMessages([
+        { role: 'assistant', content: '# Bienvenue sur l\'Assistant Académique DEFITECH\n\nJe suis là pour vous aider dans vos projets de **Génie Logiciel**, vos révisions ou vos questions techniques.\n\n*Comment puis-je vous aider aujourd\'hui ?*' }
+      ]);
+    }
     fetchResources();
+    fetchQuota();
   }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('ai_assistant_history', JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (watchingAd && adTimer > 0) {
+      interval = setInterval(() => {
+        setAdTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (adTimer === 0 && watchingAd) {
+      handleAdComplete();
+    }
+    return () => clearInterval(interval);
+  }, [watchingAd, adTimer]);
 
   const fetchResources = async () => {
     try {
@@ -51,50 +85,9 @@ export default function AIAssistantPage() {
     }
   };
 
-  const handleNewChat = () => {
-    if (confirm('Voulez-vous commencer une nouvelle conversation ? L\'historique actuel sera effacé.')) {
-      const initialMessage: Message[] = [
-        { role: 'assistant', content: '# Bienvenue sur l\'Assistant Académique DEFITECH\n\nJe suis là pour vous aider dans vos projets de **Génie Logiciel**, vos révisions ou vos questions techniques.\n\n*Comment puis-je vous aider aujourd\'hui ?*' }
-      ];
-      setMessages(initialMessage);
-      localStorage.setItem('ai_assistant_history', JSON.stringify(initialMessage));
-      play('send');
-    }
-  };
-
-  useEffect(() => {
-    // Charger l'historique au démarrage
-    const savedMessages = localStorage.getItem('ai_assistant_history');
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
-    } else {
-      setMessages([
-        { role: 'assistant', content: '# Bienvenue sur l\'Assistant Académique DEFITECH\n\nJe suis là pour vous aider dans vos projets de **Génie Logiciel**, vos révisions ou vos questions techniques.\n\n*Comment puis-je vous aider aujourd\'hui ?*' }
-      ]);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Sauvegarder l'historique quand les messages changent
-    if (messages.length > 0) {
-      localStorage.setItem('ai_assistant_history', JSON.stringify(messages));
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isLoading]);
-
-  useEffect(() => {
-    fetchQuota();
-  }, []);
-
   const fetchQuota = async () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!user.email) return;
-
     try {
       const res = await fetch(`/api/user/ai-quota?email=${user.email}`);
       if (res.ok) {
@@ -103,6 +96,42 @@ export default function AIAssistantPage() {
       }
     } catch (error) {
       console.error("Failed to fetch quota:", error);
+    }
+  };
+
+  const handleAdComplete = async () => {
+    try {
+      const res = await fetch('/api/user/ad-reward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        setShowAdModal(false);
+        setWatchingAd(false);
+        play('xp');
+        fetchQuota(); 
+      }
+    } catch (err) {
+      console.error(err);
+      setWatchingAd(false);
+    }
+  };
+
+  const handleWatchAd = () => {
+    const adUrl = 'https://otieu.com/4/10485395'; 
+    setWatchingAd(true);
+    setAdTimer(30);
+    window.open(adUrl, '_blank');
+  };
+
+  const handleNewChat = () => {
+    if (confirm('Voulez-vous commencer une nouvelle conversation ? L\'historique actuel sera effacé.')) {
+      const initialMessage: Message[] = [
+        { role: 'assistant', content: '# Bienvenue sur l\'Assistant Académique DEFITECH\n\nJe suis là pour vous aider dans vos projets de **Génie Logiciel**, vos révisions ou vos questions techniques.\n\n*Comment puis-je vous aider aujourd\'hui ?*' }
+      ];
+      setMessages(initialMessage);
+      localStorage.setItem('ai_assistant_history', JSON.stringify(initialMessage));
+      play('send');
     }
   };
 
@@ -115,7 +144,6 @@ export default function AIAssistantPage() {
     setIsLoading(true);
 
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,40 +162,14 @@ export default function AIAssistantPage() {
       }
       fetchQuota();
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Une erreur est survenue lors de la communication avec le modèle." }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Une erreur est survenue." }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleWatchAd = async () => {
-    const adUrl = 'https://otieu.com/4/10485395'; 
-    
-    setWatchingAd(true);
-    window.open(adUrl, '_blank');
-
-    setTimeout(async () => {
-      try {
-        const res = await fetch('/api/user/ad-reward', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
-          setShowAdModal(false);
-          // Rafraîchir la page ou l'état pour voir les nouveaux crédits
-          window.location.reload(); 
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setWatchingAd(false);
-      }
-    }, 30000);
-  };
-
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] w-full bg-white dark:bg-zinc-900/50 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden transition-all">
-      {/* Top Bar */}
       <div className="px-8 py-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-zinc-900 dark:bg-white rounded-2xl flex items-center justify-center shadow-xl">
@@ -184,37 +186,20 @@ export default function AIAssistantPage() {
                 <Info size={10} /> {quotaInfo.remaining}/{quotaInfo.total} IA
               </div>
             )}
-            <button 
-              onClick={handleNewChat}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-xl transition-all text-xs font-bold uppercase tracking-widest border border-zinc-200 dark:border-zinc-700"
-            >
-                <PlusCircle size={16} />
-                Nouveau
+            <button onClick={handleNewChat} className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-xl transition-all text-xs font-bold uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
+                <PlusCircle size={16} /> Nouveau
             </button>
-            <button className="p-2.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all">
-                <Bookmark size={20} />
-            </button>
-            <button className="p-2.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all">
-                <Share2 size={20} />
-            </button>
+            <button className="p-2.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all"><Bookmark size={20} /></button>
+            <button className="p-2.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all"><Share2 size={20} /></button>
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-8 py-10 space-y-10 scroll-smooth"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-10 space-y-10 scroll-smooth">
         {messages.map((msg, i) => (
-          <motion.div 
-            key={i} 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={clsx(
-              "flex gap-6 items-start",
-              msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-            )}
-          >
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={clsx(
+            "flex gap-6 items-start",
+            msg.role === 'user' ? "flex-row-reverse" : "flex-row"
+          )}>
             <div className={clsx(
               "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg",
               msg.role === 'user' ? "bg-zinc-100 dark:bg-zinc-800" : "bg-blue-600"
@@ -250,7 +235,6 @@ export default function AIAssistantPage() {
                             <button className="text-zinc-500 hover:text-white transition-colors"><Copy size={12}/></button>
                           </div>
                           <SyntaxHighlighter
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             style={vscDarkPlus as any}
                             language={match[1]}
                             PreTag="div"
@@ -267,13 +251,9 @@ export default function AIAssistantPage() {
                       );
                     },
                     h1: ({children}) => <h1 className="text-2xl font-black mb-6 tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">{children}</h1>,
-                    h2: ({children}) => <h2 className="text-xl font-bold mb-4 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-                      <span className="w-1.5 h-6 bg-blue-600 rounded-full inline-block" /> {children}
-                    </h2>,
-                    h3: ({children}) => <h3 className="text-lg font-bold mb-3 text-zinc-800 dark:text-zinc-200">{children}</h3>,
+                    h2: ({children}) => <h2 className="text-xl font-bold mb-4 text-blue-600 dark:text-blue-400 flex items-center gap-2"><span className="w-1.5 h-6 bg-blue-600 rounded-full inline-block" /> {children}</h2>,
                     p: ({children}) => <p className="mb-4 last:mb-0 leading-relaxed text-zinc-700 dark:text-zinc-300">{children}</p>,
                     strong: ({children}) => <strong className="font-black text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1 rounded">{children}</strong>,
-                    em: ({children}) => <em className="text-cyan-600 dark:text-cyan-400 font-medium">{children}</em>,
                     blockquote: ({children}) => (
                       <blockquote className="border-l-4 border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 p-4 my-6 rounded-r-xl italic text-zinc-600 dark:text-zinc-400">
                         {children}
@@ -281,11 +261,8 @@ export default function AIAssistantPage() {
                     ),
                     ul: ({children}) => <ul className="list-disc ml-6 space-y-3 mb-6 text-zinc-700 dark:text-zinc-300">{children}</ul>,
                     ol: ({children}) => <ol className="list-decimal ml-6 space-y-3 mb-6 text-zinc-700 dark:text-zinc-300">{children}</ol>,
-                    li: ({children}) => <li className="pl-2">{children}</li>,
                   }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
+                >{msg.content}</ReactMarkdown>
               </div>
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">
                 {msg.role === 'assistant' ? 'Assistant Académique' : 'Vous'} • {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -295,153 +272,64 @@ export default function AIAssistantPage() {
         ))}
         {isLoading && (
           <div className="flex gap-6 items-start">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg">
-                <Bot size={20} className="text-white" />
-            </div>
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg"><Bot size={20} className="text-white" /></div>
             <div className="bg-white dark:bg-zinc-800 p-6 rounded-[2rem] rounded-tl-none border border-zinc-100 dark:border-zinc-700/50 shadow-sm flex items-center gap-3">
-              <Loader2 size={20} className="animate-spin text-blue-600" />
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">L&apos;IA réfléchit...</span>
+              <Loader2 size={20} className="animate-spin text-blue-600" /><span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">L'IA réfléchit...</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Input Section */}
       <div className="px-8 py-8 bg-zinc-50/50 dark:bg-zinc-950/30 border-t border-zinc-100 dark:border-zinc-800 relative">
         {selectedResource && (
           <div className="max-w-4xl mx-auto mb-4 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
-            <FileText size={14} />
-            <span className="truncate">Document joint : {selectedResource.title}</span>
-            <button onClick={() => setSelectedResource(null)} className="ml-auto hover:bg-white/20 p-1 rounded-lg transition-colors">
-              <X size={14} />
-            </button>
+            <FileText size={14} /><span className="truncate">Document joint : {selectedResource.title}</span>
+            <button onClick={() => setSelectedResource(null)} className="ml-auto hover:bg-white/20 p-1 rounded-lg transition-colors"><X size={14} /></button>
           </div>
         )}
-
         {showResourceList && (
           <div className="absolute bottom-full left-8 right-8 mb-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 max-h-60 overflow-y-auto z-10 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between mb-3 px-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Vos ressources PDF</p>
-              <button onClick={() => setShowResourceList(false)}><X size={14}/></button>
-            </div>
+            <div className="flex items-center justify-between mb-3 px-2"><p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Vos ressources PDF</p><button onClick={() => setShowResourceList(false)}><X size={14}/></button></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {resources.length > 0 ? resources.map(res => (
-                <button
-                  key={res.id}
-                  onClick={() => {
-                    setSelectedResource(res);
-                    setShowResourceList(false);
-                    play('xp');
-                  }}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-left group"
-                >
-                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <FileText size={16} />
-                  </div>
+              {resources.map(res => (
+                <button key={res.id} onClick={() => { setSelectedResource(res); setShowResourceList(false); play('xp'); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-left group">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors"><FileText size={16} /></div>
                   <span className="text-xs font-bold truncate">{res.title}</span>
                 </button>
-              )) : (
-                <p className="text-xs text-zinc-500 p-4">Aucun PDF trouvé dans vos ressources.</p>
-              )}
+              ))}
             </div>
           </div>
         )}
-
         <div className="relative w-full max-w-6xl mx-auto flex items-center gap-4">
           <div className="flex-1 relative flex items-center gap-4">
-            <button 
-              onClick={() => setShowResourceList(!showResourceList)}
-              className={clsx(
-                "p-4 rounded-2xl transition-all border-2",
-                selectedResource 
-                  ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20" 
-                  : "bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-300 shadow-xl dark:shadow-none"
-              )}
-              title="Joindre un PDF"
-            >
-              <Paperclip size={24} />
-            </button>
+            <button onClick={() => setShowResourceList(!showResourceList)} className={clsx("p-4 rounded-2xl transition-all border-2", selectedResource ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400") }><Paperclip size={24} /></button>
             <div className="flex-1 relative">
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={selectedResource ? "Posez une question sur ce document..." : "Posez votre question sur le Java, SQL, ou le Web..."}
-                className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-3xl px-8 py-5 pr-16 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-xl dark:shadow-none placeholder:text-zinc-400 font-medium"
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                   <kbd className="hidden md:inline-flex h-6 items-center gap-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-1.5 font-mono text-[10px] font-medium text-zinc-500 opacity-100">
-                      <span className="text-xs">↵</span> Enter
-                  </kbd>
-              </div>
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={selectedResource ? "Posez une question sur ce document..." : "Posez votre question..."} className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-3xl px-8 py-5 text-sm focus:outline-none focus:border-blue-500 shadow-xl" />
             </div>
           </div>
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleSend}
-            disabled={isLoading}
-            className="w-16 h-16 bg-zinc-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white rounded-2xl flex items-center justify-center shadow-2xl transition-all disabled:opacity-50"
-          >
-            <Send size={24} />
-          </motion.button>
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSend} disabled={isLoading} className="w-16 h-16 bg-zinc-900 dark:bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-2xl disabled:opacity-50"><Send size={24} /></motion.button>
         </div>
-        <p className="text-center mt-4 text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
-            Base de connaissance DEFITECH Génie Logiciel 2026
-        </p>
       </div>
 
       <AnimatePresence>
         {showAdModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 text-center space-y-6"
-            >
-              <Youtube size={48} className="mx-auto text-red-500" />
-              <h3 className="text-xl font-bold">Quota IA journalier atteint !</h3>
-              <p className="text-zinc-500 text-sm">Regardez une courte publicité pour obtenir {quotaInfo?.bonus || 5} requêtes supplémentaires.</p>
-              
-              {/* --- DÉBUT INTÉGRATION PUB RÉMUNÉRATRICE (POST-DÉPLOIEMENT) --- */}
-              {/* 
-                Ici, vous inséreriez le code pour charger et afficher une publicité réelle 
-                fournie par une régie (ex: Google AdSense, AdMob, etc.).
-
-                Étapes typiques :
-                1. Initialiser le SDK publicitaire (souvent dans layout.tsx ou page.tsx).
-                2. Charger une publicité (vidéo récompensée, interstitielle) ici.
-                3. Attendre la confirmation que la pub a été visionnée ou ignorée.
-                4. Appeler handleWatchAd() UNIQUEMENT si la pub a été visionnée avec succès.
-
-                Exemple (conceptuel, dépend de la régie) :
-                <YourAdSdkComponent 
-                  adUnitId="ca-app-pub-XXX" 
-                  onAdWatched={handleWatchAd} 
-                  onAdFailed={() => alert("La pub n'a pas pu être chargée. Réessayez.")}
-                />
-              */}
-              {/* --- FIN INTÉGRATION PUB RÉMUNÉRATRICE --- */}
-
-              <button 
-                onClick={handleWatchAd} 
-                disabled={watchingAd}
-                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                {watchingAd && <Loader2 className="animate-spin" size={20} />}
-                {watchingAd ? 'Chargement de la pub...' : 'Regarder la publicité'}
-              </button>
-              <button 
-                onClick={() => setShowAdModal(false)}
-                className="w-full py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-              >
-                Non merci, attendre demain
-              </button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 text-center space-y-6">
+              <Youtube size={48} className="mx-auto text-red-500" /><h3 className="text-xl font-bold">Quota IA journalier atteint !</h3><p className="text-zinc-500 text-sm">Regardez une courte publicité pour obtenir {quotaInfo?.bonus || 5} requêtes supplémentaires.</p>
+              <div className="py-4">
+                {watchingAd ? (
+                  <div className="space-y-4">
+                    <div className="relative w-24 h-24 mx-auto">
+                      <svg className="w-full h-full rotate-[-90deg]"><circle cx="48" cy="48" r="45" className="stroke-zinc-100 dark:stroke-zinc-800 fill-none" strokeWidth="6" /><circle cx="48" cy="48" r="45" className="stroke-red-500 fill-none transition-all duration-1000" strokeWidth="6" strokeDasharray="283" strokeDashoffset={283 - (283 * adTimer) / 30} /></svg>
+                      <div className="absolute inset-0 flex items-center justify-center font-black text-2xl">{adTimer}s</div>
+                    </div>
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest animate-pulse">Visionnage obligatoire...</p>
+                  </div>
+                ) : (
+                  <button onClick={handleWatchAd} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-500/20 transition-all">Regarder la publicité</button>
+                )}
+              </div>
+              {!watchingAd && <button onClick={() => setShowAdModal(false)} className="w-full py-2 text-zinc-500 hover:text-zinc-900 text-sm font-medium">Plus tard</button>}
             </motion.div>
           </motion.div>
         )}

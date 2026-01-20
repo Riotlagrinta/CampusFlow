@@ -106,6 +106,41 @@ export default function AIChat() {
   const [showAdModal, setShowAdModal] = useState(false);
 
   const [watchingAd, setWatchingAd] = useState(false);
+  const [adTimer, setAdTimer] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (watchingAd && adTimer > 0) {
+      interval = setInterval(() => {
+        setAdTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (adTimer === 0 && watchingAd) {
+      handleAdComplete();
+    }
+    return () => clearInterval(interval);
+  }, [watchingAd, adTimer]);
+
+  const handleAdComplete = async () => {
+    try {
+      const res = await fetch('/api/user/ad-reward', { method: 'POST' });
+      if (res.ok) {
+        await fetchQuota();
+        setShowAdModal(false);
+        setWatchingAd(false);
+        play('success');
+      }
+    } catch (e) {
+      console.error(e);
+      setWatchingAd(false);
+    }
+  };
+
+  const handleWatchAd = () => {
+    const adUrl = 'https://otieu.com/4/10485395'; 
+    setWatchingAd(true);
+    setAdTimer(30);
+    window.open(adUrl, '_blank');
+  };
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -274,38 +309,7 @@ export default function AIChat() {
 
 
 
-  const handleWatchAd = async () => {
-    const adUrl = 'https://otieu.com/4/10485395'; 
-    
-    setWatchingAd(true);
-    
-    // Ouvrir la pub dans un nouvel onglet
-    window.open(adUrl, '_blank');
-
-    // On attend 15 secondes (temps pour voir la pub et être rémunéré)
-    setTimeout(async () => {
-      try {
-        const res = await fetch('/api/user/ad-reward', { method: 'POST' });
-        if (res.ok) {
-          await fetchQuota();
-          setShowAdModal(false);
-          play('success');
-        }
-      } catch (e) {
-        console.error("Erreur lors de la récompense pub:", e);
-      } finally {
-        setWatchingAd(false);
-      }
-    }, 30000); // 30 secondes pour maximiser la validation Monetag
-  };
-
-
-
-  
-
-
-
-    const handleBuyPack = async (packId: string) => {
+  const handleBuyPack = async (packId: string) => {
 
 
 
@@ -628,35 +632,53 @@ export default function AIChat() {
               <h3 className="text-xl font-bold">Plus de jetons IA ?</h3>
               <p className="text-zinc-500 text-sm">Votre quota gratuit est épuisé. Choisissez une option pour continuer :</p>
               
-              <div className="space-y-3">
-                <button 
-                  onClick={handleWatchAd}
-                  disabled={watchingAd}
-                  className="w-full py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all"
-                >
-                  {watchingAd ? <Loader2 className="animate-spin" size={16} /> : <Youtube size={16} />}
-                  {watchingAd ? 'Publicité en cours...' : 'Regarder une pub (+2 jetons)'}
-                </button>
+              <div className="space-y-4">
+                {watchingAd ? (
+                  <div className="py-4 space-y-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700">
+                    <div className="relative w-16 h-16 mx-auto">
+                      <svg className="w-full h-full rotate-[-90deg]">
+                        <circle cx="32" cy="32" r="30" className="stroke-zinc-200 dark:stroke-zinc-700 fill-none" strokeWidth="4" />
+                        <circle cx="32" cy="32" r="30" className="stroke-blue-500 fill-none transition-all duration-1000" strokeWidth="4" strokeDasharray="188.5" strokeDashoffset={188.5 - (188.5 * adTimer) / 30} />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center font-bold text-lg">
+                        {adTimer}
+                      </div>
+                    </div>
+                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse">Publicité obligatoire en cours...</p>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handleWatchAd}
+                    className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-xl"
+                  >
+                    <Youtube size={18} />
+                    Regarder la pub (+{quotaInfo?.bonus || 2} jetons)
+                  </button>
+                )}
 
-                <div className="relative py-2">
-                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100 dark:border-zinc-800"></div></div>
-                   <div className="relative flex justify-center text-[10px] uppercase font-black text-zinc-400"><span className="bg-white dark:bg-zinc-900 px-2">À venir</span></div>
-                </div>
+                {!watchingAd && (
+                  <>
+                    <div className="relative py-2">
+                       <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100 dark:border-zinc-800"></div></div>
+                       <div className="relative flex justify-center text-[10px] uppercase font-black text-zinc-400"><span className="bg-white dark:bg-zinc-900 px-2">À venir</span></div>
+                    </div>
 
-                <div className="p-4 bg-blue-500/5 border border-dashed border-blue-500/20 rounded-2xl space-y-2">
-                   <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Pass Premium</p>
-                   <p className="text-[10px] text-zinc-500 leading-relaxed">
-                     Bientôt : Achetez des jetons illimités via T-Money & Flooz pour booster votre productivité. 
-                   </p>
-                </div>
+                    <div className="p-4 bg-blue-500/5 border border-dashed border-blue-500/20 rounded-2xl space-y-2">
+                       <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Pass Premium</p>
+                       <p className="text-[10px] text-zinc-500 leading-relaxed">
+                         Bientôt : Achetez des jetons illimités via T-Money & Flooz. 
+                       </p>
+                    </div>
+
+                    <button 
+                      onClick={() => setShowAdModal(false)}
+                      className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
+                    >
+                      Plus tard
+                    </button>
+                  </>
+                )}
               </div>
-
-              <button 
-                onClick={() => setShowAdModal(false)}
-                className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
-              >
-                Plus tard
-              </button>
             </motion.div>
           </motion.div>
         )}

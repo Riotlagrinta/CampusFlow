@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap,
-  BookOpen, GraduationCap, Plus, Save, X, BarChart3
+  BookOpen, GraduationCap, Plus, Save, X, BarChart3, FileText
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
@@ -31,11 +31,24 @@ type AdminUser = {  id: string;
 
 type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
 type Level = { id: string; name: string; _count: { users: number } };
+type Resource = {
+  id: string;
+  title: string;
+  type: string;
+  url: string;
+  createdAt: string;
+  subject: { name: string } | null;
+  author: { firstName: string; lastName: string };
+  field?: { code: string };
+  level?: { name: string };
+};
+
 type Subject = { id: string; name: string; code: string | null; fieldId: string; levelId: string; field: { name: string }; level: { name: string }; _count: { resources: number } };
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects' | 'resources'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
 
   const handleActivateUser = async (userId: string) => {
     try {
@@ -69,7 +82,7 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects()]);
+    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects(), fetchResources()]);
     setLoading(false);
   };
 
@@ -82,6 +95,14 @@ export default function AdminDashboard() {
         setTotalTokens(data.totalTokensToday);
         setChartData(data.chartData);
       }
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchResources = async () => {
+    try {
+      const res = await fetch('/api/resources');
+      const data = await res.json();
+      if (res.ok) setResources(data);
     } catch (err) { console.error(err); }
   };
 
@@ -183,6 +204,14 @@ export default function AdminDashboard() {
     try {
       const res = await fetch(`/api/admin/academic/subjects/${id}`, { method: 'DELETE' });
       if (res.ok) setSubjects(prev => prev.filter(s => s.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteResource = async (id: string) => {
+    if (!confirm('Voulez-vous vraiment supprimer ce document ?')) return;
+    try {
+      const res = await fetch(`/api/resources/${id}`, { method: 'DELETE' });
+      if (res.ok) setResources(prev => prev.filter(r => r.id !== id));
     } catch (err) { console.error(err); }
   };
 
@@ -293,6 +322,7 @@ export default function AdminDashboard() {
           { id: 'fields', label: 'Filières', icon: BookOpen },
           { id: 'levels', label: 'Niveaux', icon: GraduationCap },
           { id: 'subjects', label: 'Matières', icon: BookOpen },
+          { id: 'resources', label: 'Documents', icon: FileText },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -470,6 +500,74 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {activeTab === 'resources' && (
+          <div className="space-y-4">
+            {/* Desktop Table */}
+            <div className="hidden lg:block card-pro overflow-hidden border border-zinc-200 dark:border-zinc-800">
+              <table className="w-full text-left">
+                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
+                  <tr>
+                    <th className="px-6 py-4">Titre</th>
+                    <th className="px-6 py-4">Matière</th>
+                    <th className="px-6 py-4">Type</th>
+                    <th className="px-6 py-4">Auteur</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 bg-white dark:bg-zinc-900/50">
+                  {resources.map((r) => (
+                    <tr key={r.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${r.type === 'PDF' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                            {r.type === 'PDF' ? 'PDF' : r.type === 'VIDEO' ? 'VID' : 'LNK'}
+                          </div>
+                          <div className="max-w-[200px]">
+                            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate" title={r.title}>{r.title}</p>
+                            <a href={r.url} target="_blank" className="text-[10px] text-blue-500 hover:underline truncate block">{r.url}</a>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{r.subject?.name || 'Général'}</p>
+                        <p className="text-[10px] text-zinc-500">{r.field?.code} • {r.level?.name}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px] font-bold text-zinc-500">{r.type}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                         <p className="text-xs font-medium">{r.author?.firstName} {r.author?.lastName}</p>
+                         <p className="text-[10px] text-zinc-400">{new Date(r.createdAt).toLocaleDateString()}</p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => handleDeleteResource(r.id)} className="p-2 text-zinc-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+             {/* Mobile Cards */}
+             <div className="lg:hidden space-y-3">
+               {resources.map((r) => (
+                 <div key={r.id} className="card-pro p-4 space-y-3 relative">
+                   <div className="flex items-center gap-3">
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${r.type === 'PDF' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {r.type === 'PDF' ? 'PDF' : 'VID'}
+                     </div>
+                     <div className="flex-1 min-w-0">
+                       <p className="text-sm font-bold truncate">{r.title}</p>
+                       <p className="text-[10px] text-zinc-500 truncate">{r.subject?.name} • {new Date(r.createdAt).toLocaleDateString()}</p>
+                     </div>
+                   </div>
+                   <button onClick={() => handleDeleteResource(r.id)} className="absolute top-2 right-2 p-2 text-zinc-300"><Trash2 size={14} /></button>
+                 </div>
+               ))}
+             </div>
           </div>
         )}
       </div>

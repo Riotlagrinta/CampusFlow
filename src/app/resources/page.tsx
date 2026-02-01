@@ -14,7 +14,8 @@ import {
   X,
   Sparkles,
   Trash2,
-  Bot
+  Bot,
+  ExternalLink
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 
@@ -290,6 +291,14 @@ export default function ResourcesPage() {
     }
   };
 
+  const isExternalDrive = (url: string) => {
+    return url.includes('drive.google.com') || 
+           url.includes('mega.nz') || 
+           url.includes('dropbox.com') ||
+           url.includes('youtube.com') ||
+           url.includes('youtu.be');
+  };
+
   const filteredResources = filterType === 'ALL' 
     ? resources 
     : resources.filter(r => r.type === filterType);
@@ -374,20 +383,27 @@ export default function ResourcesPage() {
               <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setPreviewFile(res)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
-                    >
-                      <Eye size={14} /> <span className="hidden sm:inline">Aperçu</span>
-                    </button>
+                    {/* Hide Preview for external drives to avoid iframe blocks */}
+                    {!isExternalDrive(res.url) && (
+                      <button 
+                        onClick={() => setPreviewFile(res)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
+                      >
+                        <Eye size={14} /> <span className="hidden sm:inline">Aperçu</span>
+                      </button>
+                    )}
+                    
                     <a 
                       href={res.url} 
-                      download
+                      download={!isExternalDrive(res.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
                     >
-                      <Download size={14} /> <span className="hidden sm:inline">Télécharger</span>
+                      {isExternalDrive(res.url) ? <ExternalLink size={14} /> : <Download size={14} />} 
+                      <span className="hidden sm:inline">
+                        {isExternalDrive(res.url) ? 'Ouvrir le lien' : 'Télécharger'}
+                      </span>
                     </a>
                   </div>
                 </div>

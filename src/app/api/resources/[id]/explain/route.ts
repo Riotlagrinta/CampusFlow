@@ -31,18 +31,22 @@ export async function POST(
     if (!process.env.GROQ_API_KEY) throw new Error("Clé manquante");
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    // ROTATION EXPLICATION
-    const models = ["openai/gpt-oss-120b", "groq/compound", "moonshotai/kimi-k2-instruction"];
+    // ROTATION ROBUSTE (Explication)
+    // 1. Mixtral : Excellent pour le texte fluide et pédagogique.
+    // 2. Llama 3.3 : Plus rigoureux si Mixtral échoue.
+    const models = ["mixtral-8x7b-32768", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
     let completion;
     let success = false;
+    let lastError = null;
 
     for (const m of models) {
       try {
+        console.log(`Tentative explication avec modèle : ${m}...`);
         completion = await groq.chat.completions.create({
           messages: [
             {
               role: "system",
-              content: "Tu es un professeur expert de l'institution DEFITECH. Ton rôle est d'expliquer le contenu du document fourni par l'étudiant de manière claire, pédagogique et structurée, quel que soit le sujet (Technique, Gestion, Réseaux, etc.). Utilise du Markdown pour la mise en forme."
+              content: "Tu es un professeur expert de l'institution DEFITECH. Ton rôle est d'expliquer le contenu du document fourni par l'étudiant de manière claire, pédagogique et structurée. Utilise du Markdown pour la mise en forme (Titres, Listes, Gras)."
             },
             {
               role: "user",
@@ -50,16 +54,21 @@ export async function POST(
             }
           ],
           model: m,
+          temperature: 0.5
         });
         success = true;
+        console.log(`✅ Succès avec ${m}`);
         break;
       } catch (err: any) {
-        if (err?.status === 429) continue;
-        break;
+        console.warn(`⚠️ Échec avec ${m}:`, err.message);
+        lastError = err;
+        continue;
       }
     }
 
-    if (!success || !completion) throw new Error("IA Indisponible");
+    if (!success || !completion) {
+        throw new Error("IA Indisponible (Toutes les tentatives ont échoué)");
+    }
 
     return NextResponse.json({ explanation: completion.choices[0]?.message?.content });
   } catch (error) {

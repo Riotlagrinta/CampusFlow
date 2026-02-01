@@ -56,30 +56,42 @@ export async function POST(
     const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
     Structure: { "title": "", "description": "", "questions": [{ "question": "", "options": [], "answer": 0 }] }`;
 
-    // ROTATION SPECIALISEE QUIZZ (Priorité Compound pour les longs textes)
-    const models = ["groq/compound", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"];
+    // ROTATION ROBUSTE (Modèles Officiels Groq 2025/2026)
+    // 1. Llama 3.3 70B : Le plus intelligent pour la structure JSON complexe.
+    // 2. Mixtral 8x7B : Excellent fallback, très stable.
+    // 3. Llama 3.1 8B : Rapide, en dernier recours.
+    const models = ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"];
     let completion;
     let success = false;
+    let lastError = null;
 
     for (const m of models) {
       try {
+        console.log(`Tentative génération Quiz avec modèle : ${m}...`);
         completion = await groq.chat.completions.create({
           messages: [
             { role: "system", content: "Réponds uniquement en JSON valide." },
             { role: "user", content: `Texte: ${fullText}\n\nInstruction: ${prompt}` }
           ],
           model: m,
-          response_format: { type: "json_object" }
+          response_format: { type: "json_object" },
+          temperature: 0.3 // Faible température pour garantir le format JSON
         });
         success = true;
-        break;
+        console.log(`✅ Succès avec ${m}`);
+        break; // Sortie de boucle si succès
       } catch (err: any) {
-        if (err?.status === 429) continue;
-        break;
+        console.warn(`⚠️ Échec avec ${m}:`, err.message);
+        lastError = err;
+        // On continue vers le prochain modèle de la liste
+        continue;
       }
     }
 
-    if (!success || !completion) throw new Error("IA Indisponible");
+    if (!success || !completion) {
+        console.error("Tous les modèles ont échoué.", lastError);
+        throw new Error("Service IA temporairement indisponible (Rotation épuisée).");
+    }
 
     const quizData = JSON.parse(completion.choices[0]?.message?.content || "{}");
 

@@ -52,6 +52,8 @@ export default function ResourcesPage() {
   const [type, setType] = useState('PDF');
   const [fieldId, setFieldId] = useState('');
   const [levelId, setLevelId] = useState('');
+  const [inputType, setInputType] = useState<'FILE' | 'LINK'>('FILE');
+  const [externalUrl, setExternalUrl] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(''); // Ex: "3/10"
@@ -196,59 +198,81 @@ export default function ResourcesPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!files || files.length === 0) return;
+    
+    // Validation
+    if (inputType === 'FILE' && (!files || files.length === 0)) return;
+    if (inputType === 'LINK' && !externalUrl) return;
+    if (!title && (inputType === 'LINK' || (files && files.length === 1))) {
+        alert("Le titre est requis.");
+        return;
+    }
 
     setUploading(true);
     let successCount = 0;
-    const totalFiles = files.length;
-
+    
     try {
-      // Itération sur tous les fichiers sélectionnés
-      for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
-        setUploadProgress(`${i + 1}/${totalFiles}`);
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        // Auto-detection ou usage des champs
-        const fileTitle = totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title;
-        
-        // Auto-detection du type basé sur l'extension si multiple
-        let fileType = type;
-        if (totalFiles > 1) {
-            if (file.name.toLowerCase().endsWith('.pdf')) fileType = 'PDF';
-            else if (file.name.match(/\.(mp4|mov|avi)$/i)) fileType = 'VIDEO';
-            else if (file.name.match(/\.(mp3|wav)$/i)) fileType = 'AUDIO';
-        }
+      if (inputType === 'LINK') {
+          // Mode LIEN UNIQUE
+          const formData = new FormData();
+          formData.append('externalUrl', externalUrl);
+          formData.append('title', title);
+          formData.append('type', type);
+          formData.append('subjectName', subjectName);
+          formData.append('fieldId', fieldId);
+          formData.append('levelId', levelId);
 
-        formData.append('title', fileTitle);
-        formData.append('type', fileType);
-        formData.append('subjectName', subjectName);
-        formData.append('fieldId', fieldId);
-        formData.append('levelId', levelId);
+          const res = await fetch('/api/resources', { method: 'POST', body: formData });
+          if (res.ok) successCount = 1;
+      } else {
+          // Mode FICHIERS MULTIPLES
+          const totalFiles = files!.length;
+          for (let i = 0; i < totalFiles; i++) {
+            const file = files![i];
+            setUploadProgress(`${i + 1}/${totalFiles}`);
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Auto-detection ou usage des champs
+            const fileTitle = totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title;
+            
+            // Auto-detection du type basé sur l'extension si multiple
+            let fileType = type;
+            if (totalFiles > 1) {
+                if (file.name.toLowerCase().endsWith('.pdf')) fileType = 'PDF';
+                else if (file.name.match(/\.(mp4|mov|avi)$/i)) fileType = 'VIDEO';
+                else if (file.name.match(/\.(mp3|wav)$/i)) fileType = 'AUDIO';
+            }
 
-        const res = await fetch('/api/resources', {
-          method: 'POST',
-          body: formData,
-        });
+            formData.append('title', fileTitle);
+            formData.append('type', fileType);
+            formData.append('subjectName', subjectName);
+            formData.append('fieldId', fieldId);
+            formData.append('levelId', levelId);
 
-        if (res.ok) successCount++;
+            const res = await fetch('/api/resources', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (res.ok) successCount++;
+          }
       }
 
       await fetchResources();
       setIsModalOpen(false);
-      // Reset
+      // Reset form
       setTitle('');
       setSubjectName('');
       setType('PDF');
       setFiles(null);
+      setExternalUrl('');
       setUploadProgress('');
-      if (successCount === totalFiles) {
-          play('success');
-      } else {
-          alert(`${successCount}/${totalFiles} fichiers importés avec succès.`);
-      }
+      
+      if (inputType === 'LINK' && successCount === 1) play('success');
+      else if (inputType === 'FILE' && files && successCount === files.length) play('success');
+      else alert("Importation terminée.");
+
     } catch (error) {
       console.error(error);
       alert("Erreur serveur lors de l'upload");
@@ -523,25 +547,57 @@ export default function ResourcesPage() {
                exit={{ opacity: 0, scale: 0.95, y: 20 }}
                className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
             >
-              <h3 className="text-xl font-bold mb-4">Ajouter un document</h3>
-              <form onSubmit={handleUpload} className="space-y-4">
-                {/* Title Input - Hidden if multiple files selected */}
-                {(!files || files.length <= 1) && (
-                  <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Titre</label>
-                    <input 
-                      type="text" 
-                      required={!files || files.length <= 1}
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ex: Cours Java Chap 1"
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                    />
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
+                            <h3 className="text-xl font-bold mb-4">Ajouter un document</h3>
+                            
+                            {/* Tabs */}
+                            <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl mb-4">
+                                <button 
+                                  type="button"
+                                  onClick={() => setInputType('FILE')}
+                                  className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all ${inputType === 'FILE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-blue-600' : 'text-zinc-500'}`}
+                                >
+                                  Fichier (Upload)
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setInputType('LINK')}
+                                  className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all ${inputType === 'LINK' ? 'bg-white dark:bg-zinc-700 shadow-sm text-blue-600' : 'text-zinc-500'}`}
+                                >
+                                  Lien (Drive/Web)
+                                </button>
+                            </div>
+              
+                            <form onSubmit={handleUpload} className="space-y-4">
+                              {/* Title Input - Always visible for Link, or single file */}
+                              {(inputType === 'LINK' || (!files || files.length <= 1)) && (
+                                <div>
+                                  <label className="text-xs font-bold uppercase text-zinc-500">Titre</label>
+                                  <input 
+                                    type="text" 
+                                    required={inputType === 'LINK' || (!files || files.length <= 1)}
+                                    className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder={inputType === 'LINK' ? "Ex: Dossier Complet Algèbre (Google Drive)" : "Ex: Cours Java Chap 1"}
+                                    value={title}
+                                    onChange={e => setTitle(e.target.value)}
+                                  />
+                                </div>
+                              )}
+                              
+                              {inputType === 'LINK' && (
+                                <div>
+                                  <label className="text-xs font-bold uppercase text-zinc-500">Lien du cours (Google Drive, Mega, YouTube...)</label>
+                                  <input 
+                                    type="url" 
+                                    required
+                                    className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-blue-600 font-medium"
+                                    placeholder="https://drive.google.com/..."
+                                    value={externalUrl}
+                                    onChange={e => setExternalUrl(e.target.value)}
+                                  />
+                                </div>
+                              )}
+              
+                              <div className="grid grid-cols-2 gap-4">                  <div>
                     <label className="text-xs font-bold uppercase text-zinc-500">Matière</label>
                     <input 
                       type="text"
@@ -602,42 +658,48 @@ export default function ResourcesPage() {
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div>
-                   <label className="text-xs font-bold uppercase text-zinc-500">
-                     Fichiers {files && files.length > 0 && <span className="text-blue-600">({files.length} sélectionnés)</span>}
-                   </label>
-                   <div className="mt-1 relative">
-                     <input 
-                       type="file" 
-                       required
-                       multiple
-                       onChange={handleFileChange}
-                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                     />
-                   </div>
-                   {files && files.length > 1 && (
-                     <p className="text-[10px] text-zinc-400 mt-2">
-                       * Les titres seront générés automatiquement à partir des noms de fichiers.
-                       <br/>
-                       * Les types (PDF/VIDEO) seront détectés par l'extension.
-                     </p>
-                   )}
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                   <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>
-                   <button 
-                     type="submit" 
-                     disabled={uploading} 
-                     className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                   >
-                     {uploading && <Loader2 className="animate-spin" size={16} />} 
-                     {uploading ? `Importation ${uploadProgress}...` : (files && files.length > 1 ? `Importer ${files.length} fichiers` : 'Ajouter')}
-                   </button>
-                </div>
-              </form>
+                                </div>
+                
+                                {inputType === 'FILE' && (
+                                  <div>
+                                     <label className="text-xs font-bold uppercase text-zinc-500">
+                                       Fichiers {files && files.length > 0 && <span className="text-blue-600">({files.length} sélectionnés)</span>}
+                                     </label>
+                                     <div className="mt-1 relative">
+                                       <input 
+                                         type="file" 
+                                         required
+                                         multiple
+                                         onChange={handleFileChange}
+                                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                       />
+                                     </div>
+                                     {files && files.length > 1 && (
+                                       <p className="text-[10px] text-zinc-400 mt-2">
+                                         * Les titres seront générés automatiquement à partir des noms de fichiers.
+                                         <br/>
+                                         * Les types (PDF/VIDEO) seront détectés par l'extension.
+                                       </p>
+                                     )}
+                                  </div>
+                                )}
+                
+                                <div className="flex gap-3 pt-4">
+                                   <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>
+                                   <button 
+                                     type="submit" 
+                                     disabled={uploading} 
+                                     className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                   >
+                                     {uploading && <Loader2 className="animate-spin" size={16} />} 
+                                     {uploading 
+                                        ? `Importation ${uploadProgress}...` 
+                                        : (inputType === 'FILE' && files && files.length > 1 
+                                            ? `Importer ${files.length} fichiers` 
+                                            : 'Ajouter')
+                                     }
+                                   </button>
+                                </div>              </form>
             </motion.div>
           </div>
         )}

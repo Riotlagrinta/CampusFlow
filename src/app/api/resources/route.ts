@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 export async function GET() {
   try {
@@ -44,15 +46,17 @@ export async function POST(req: Request) {
     }
 
     const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
+    const externalUrl = formData.get('externalUrl') as string | null;
     const title = formData.get('title') as string;
     const type = formData.get('type') as string;
     const subjectId = formData.get('subjectId') as string;
     const fieldId = formData.get('fieldId') as string;
     const levelId = formData.get('levelId') as string;
 
-    if (!file || !title || !type) {
-      return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
+    // Validation : Soit un fichier, soit une URL externe
+    if ((!file && !externalUrl) || !title || !type) {
+      return NextResponse.json({ error: 'Fichier ou Lien requis, ainsi que titre et type.' }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
@@ -64,34 +68,37 @@ export async function POST(req: Request) {
     }
 
     let fileUrl = '';
-    
-    // Détection : Local vs Cloud (Vercel Blob)
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      // Mode Cloud (Production)
-      const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
-        access: 'public',
-      });
-      fileUrl = blob.url;
-    } else {
-      // Mode Local (Fallback)
-      const { writeFile, mkdir } = require('fs/promises');
-      const path = require('path');
-      
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-      await mkdir(uploadDir, { recursive: true });
-      
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = path.join(uploadDir, fileName);
-      
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      await writeFile(filePath, buffer);
-      
-      fileUrl = `/uploads/${fileName}`;
-    }
+    let sizeStr = 'Lien Externe';
 
-    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-    const sizeStr = `${sizeInMB} MB`;
+    if (externalUrl) {
+        fileUrl = externalUrl;
+    } else if (file) {
+        // Détection : Local vs Cloud (Vercel Blob)
+        if (process.env.BLOB_READ_WRITE_TOKEN) {
+          // Mode Cloud (Production)
+          const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
+            access: 'public',
+          });
+          fileUrl = blob.url;
+        } else {
+          // Mode Local (Fallback)
+          
+          const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+          await mkdir(uploadDir, { recursive: true });
+          
+          const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const filePath = path.join(uploadDir, fileName);
+          
+          const bytes = await file.arrayBuffer();
+          const buffer = Buffer.from(bytes);
+          await writeFile(filePath, buffer);
+          
+          fileUrl = `/uploads/${fileName}`;
+        }
+
+        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+        sizeStr = `${sizeInMB} MB`;
+    }
 
     // Gestion automatique de la matière
     let finalSubjectId = subjectId;

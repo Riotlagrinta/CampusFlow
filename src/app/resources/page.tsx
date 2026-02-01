@@ -52,8 +52,9 @@ export default function ResourcesPage() {
   const [type, setType] = useState('PDF');
   const [fieldId, setFieldId] = useState('');
   const [levelId, setLevelId] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(''); // Ex: "3/10"
   
   // Ad Reward State
   const [showAdModal, setShowAdModal] = useState(false);
@@ -184,44 +185,73 @@ export default function ResourcesPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      setFiles(e.target.files);
+      // Si un seul fichier, on pré-remplit le titre
+      if (e.target.files.length === 1) {
+        setTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
+      }
     }
   };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !title) return;
+    if (!files || files.length === 0) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title);
-    formData.append('type', type);
-    formData.append('subjectName', subjectName);
-    formData.append('fieldId', fieldId);
-    formData.append('levelId', levelId);
+    let successCount = 0;
+    const totalFiles = files.length;
 
     try {
-      const res = await fetch('/api/resources', {
-        method: 'POST',
-        body: formData,
-      });
+      // Itération sur tous les fichiers sélectionnés
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        setUploadProgress(`${i + 1}/${totalFiles}`);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Auto-detection ou usage des champs
+        const fileTitle = totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title;
+        
+        // Auto-detection du type basé sur l'extension si multiple
+        let fileType = type;
+        if (totalFiles > 1) {
+            if (file.name.toLowerCase().endsWith('.pdf')) fileType = 'PDF';
+            else if (file.name.match(/\.(mp4|mov|avi)$/i)) fileType = 'VIDEO';
+            else if (file.name.match(/\.(mp3|wav)$/i)) fileType = 'AUDIO';
+        }
 
-      if (res.ok) {
-        await fetchResources();
-        setIsModalOpen(false);
-        // Reset form
-        setTitle('');
-        setSubjectName('');
-        setType('PDF');
-        setFile(null);
+        formData.append('title', fileTitle);
+        formData.append('type', fileType);
+        formData.append('subjectName', subjectName);
+        formData.append('fieldId', fieldId);
+        formData.append('levelId', levelId);
+
+        const res = await fetch('/api/resources', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) successCount++;
+      }
+
+      await fetchResources();
+      setIsModalOpen(false);
+      // Reset
+      setTitle('');
+      setSubjectName('');
+      setType('PDF');
+      setFiles(null);
+      setUploadProgress('');
+      if (successCount === totalFiles) {
+          play('success');
       } else {
-        alert("Erreur lors de l'upload");
+          alert(`${successCount}/${totalFiles} fichiers importés avec succès.`);
       }
     } catch (error) {
       console.error(error);
-      alert("Erreur serveur");
+      alert("Erreur serveur lors de l'upload");
     } finally {
       setUploading(false);
     }
@@ -495,17 +525,20 @@ export default function ResourcesPage() {
             >
               <h3 className="text-xl font-bold mb-4">Ajouter un document</h3>
               <form onSubmit={handleUpload} className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold uppercase text-zinc-500">Titre</label>
-                  <input 
-                    type="text" 
-                    required
-                    className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: Cours Java Chap 1"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                  />
-                </div>
+                {/* Title Input - Hidden if multiple files selected */}
+                {(!files || files.length <= 1) && (
+                  <div>
+                    <label className="text-xs font-bold uppercase text-zinc-500">Titre</label>
+                    <input 
+                      type="text" 
+                      required={!files || files.length <= 1}
+                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: Cours Java Chap 1"
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                    />
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -527,7 +560,7 @@ export default function ResourcesPage() {
                     </datalist>
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Type</label>
+                    <label className="text-xs font-bold uppercase text-zinc-500">Type (Défaut)</label>
                     <select 
                       className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                       value={type}
@@ -572,14 +605,25 @@ export default function ResourcesPage() {
                 </div>
 
                 <div>
-                   <label className="text-xs font-bold uppercase text-zinc-500">Fichier</label>
-                   <input 
-                     type="file" 
-                     required
-                     accept={type === 'PDF' ? '.pdf' : type === 'VIDEO' ? 'video/*' : 'audio/*'}
-                     onChange={handleFileChange}
-                     className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm"
-                   />
+                   <label className="text-xs font-bold uppercase text-zinc-500">
+                     Fichiers {files && files.length > 0 && <span className="text-blue-600">({files.length} sélectionnés)</span>}
+                   </label>
+                   <div className="mt-1 relative">
+                     <input 
+                       type="file" 
+                       required
+                       multiple
+                       onChange={handleFileChange}
+                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                     />
+                   </div>
+                   {files && files.length > 1 && (
+                     <p className="text-[10px] text-zinc-400 mt-2">
+                       * Les titres seront générés automatiquement à partir des noms de fichiers.
+                       <br/>
+                       * Les types (PDF/VIDEO) seront détectés par l'extension.
+                     </p>
+                   )}
                 </div>
 
                 <div className="flex gap-3 pt-4">
@@ -590,7 +634,7 @@ export default function ResourcesPage() {
                      className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                    >
                      {uploading && <Loader2 className="animate-spin" size={16} />} 
-                     {uploading ? 'Upload...' : 'Ajouter'}
+                     {uploading ? `Importation ${uploadProgress}...` : (files && files.length > 1 ? `Importer ${files.length} fichiers` : 'Ajouter')}
                    </button>
                 </div>
               </form>

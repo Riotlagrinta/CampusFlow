@@ -63,10 +63,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
-    // Upload vers Vercel Blob
-    const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
-      access: 'public',
-    });
+    let fileUrl = '';
+    
+    // Détection : Local vs Cloud (Vercel Blob)
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      // Mode Cloud (Production)
+      const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
+        access: 'public',
+      });
+      fileUrl = blob.url;
+    } else {
+      // Mode Local (Fallback)
+      const { writeFile, mkdir } = require('fs/promises');
+      const path = require('path');
+      
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+      await mkdir(uploadDir, { recursive: true });
+      
+      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const filePath = path.join(uploadDir, fileName);
+      
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      await writeFile(filePath, buffer);
+      
+      fileUrl = `/uploads/${fileName}`;
+    }
 
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
     const sizeStr = `${sizeInMB} MB`;
@@ -106,7 +128,7 @@ export async function POST(req: Request) {
         type,
         subjectId: finalSubjectId || null,
         subjectName: subjectNameInput || null,
-        url: blob.url,
+        url: fileUrl,
         size: sizeStr,
         authorId: user.id,
         fieldId: fieldId || null,

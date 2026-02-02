@@ -15,18 +15,67 @@ export async function POST(
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const pdf = require('pdf-parse');
     const { id } = await params;
 
     const resource = await prisma.resource.findUnique({ where: { id } });
-    if (!resource || resource.type !== 'PDF') {
-      return NextResponse.json({ error: 'Fichier PDF non trouvé' }, { status: 404 });
+    if (!resource) {
+      return NextResponse.json({ error: 'Ressource non trouvée' }, { status: 404 });
     }
 
-    const filePath = path.join(process.cwd(), 'public', resource.url);
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdf(dataBuffer);
-    const fullText = pdfData.text.substring(0, 15000);
+    let fullText = "";
+    const pdfParser = require('pdf-parse');
+
+    // 1. GESTION DES LIENS EXTERNES (Google Drive)
+    if (resource.url.startsWith('http')) {
+        if (resource.url.includes('drive.google.com')) {
+            try {
+                // Conversion en lien de téléchargement direct pour Google Drive
+                let fileId = "";
+                const match = resource.url.match(/\/d\/(.+?)\//);
+                if (match) fileId = match[1];
+                else {
+                    const urlParams = new URL(resource.url).searchParams;
+                    fileId = urlParams.get('id') || "";
+                }
+
+                if (!fileId) throw new Error("ID Google Drive introuvable");
+
+                const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                const response = await fetch(downloadUrl);
+                
+                if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
+
+                const buffer = Buffer.from(await response.arrayBuffer());
+                const data = await pdfParser(buffer);
+                fullText = data.text.substring(0, 15000);
+            } catch (err) {
+                console.error("Erreur Drive:", err);
+                return NextResponse.json({ error: "Impossible de lire ce lien Drive. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
+            }
+        } else {
+            return NextResponse.json({ error: "L'analyse IA directe n'est supportée que pour les fichiers locaux et Google Drive (Public)." }, { status: 400 });
+        }
+    } else {
+        // 2. GESTION DES FICHIERS LOCAUX
+        if (resource.type !== 'PDF') {
+            return NextResponse.json({ error: "L'explication IA n'est disponible que pour les documents PDF." }, { status: 400 });
+        }
+
+        try {
+            const filePath = path.join(process.cwd(), 'public', resource.url);
+            if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
+            
+            const dataBuffer = fs.readFileSync(filePath);
+            const pdfData = await pdfParser(dataBuffer);
+            fullText = pdfData.text.substring(0, 15000);
+        } catch (err) {
+            return NextResponse.json({ error: "Erreur lors de la lecture du fichier local." }, { status: 500 });
+        }
+    }
+
+    if (!fullText || fullText.trim().length < 20) {
+        return NextResponse.json({ error: "Le document semble vide ou illisible." }, { status: 400 });
+    }
 
     if (!process.env.GROQ_API_KEY) throw new Error("Clé manquante");
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });

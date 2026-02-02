@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: "Vous devez être connecté pour parler à l'IA." }, { status: 401 });
     }
 
-    const { message, resourceId } = await req.json();
+    const { message, resourceId, externalLink, tempFilePath } = await req.json();
 
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json({ reply: "Le service IA Groq n'est pas configuré (Clé manquante)." }, { status: 500 });
@@ -24,11 +24,61 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: "Utilisateur introuvable." }, { status: 404 });
 
-    // --- LECTURE DU PDF SI PRÉSENT ---
+    // --- CONTEXTE DOCUMENT (Local, Externe ou Temporaire) ---
     let resourceContext = "";
-    if (resourceId) {
+    const pdfParse = require('pdf-parse');
+
+    // 1. Gestion Fichier Temporaire (Upload direct machine)
+    if (tempFilePath) {
       try {
-        const pdfParse = require('pdf-parse');
+        const fullTempPath = path.join(process.cwd(), 'public', tempFilePath);
+        if (fs.existsSync(fullTempPath)) {
+          const dataBuffer = fs.readFileSync(fullTempPath);
+          const data = await pdfParse(dataBuffer);
+          resourceContext = `CONTENU DU DOCUMENT TÉLÉVERSÉ :\n${data.text.substring(0, 15000)}`;
+          
+          // NETTOYAGE : On supprime le fichier après lecture pour ne pas encombrer le serveur
+          try { fs.unlinkSync(fullTempPath); } catch(e) {}
+        }
+      } catch (err) {
+        console.error("Erreur lecture PDF Temporaire:", err);
+      }
+    }
+    // 2. Gestion Lien Externe (Google Drive)
+    else if (externalLink) {
+        if (externalLink.includes('/folders/')) {
+             return NextResponse.json({ reply: "⚠️ Je ne peux pas lire un dossier entier. Merci de me donner le lien d'un fichier PDF spécifique." });
+        }
+        if (externalLink.includes('drive.google.com')) {
+            try {
+                let fileId = "";
+                const match = externalLink.match(/\/d\/(.+?)\//);
+                if (match) fileId = match[1];
+                else {
+                    const urlParams = new URL(externalLink).searchParams;
+                    fileId = urlParams.get('id') || "";
+                }
+
+                if (fileId) {
+                    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                    const response = await fetch(downloadUrl);
+                    if (response.ok) {
+                        const buffer = Buffer.from(await response.arrayBuffer());
+                        const data = await pdfParse(buffer);
+                        resourceContext = `CONTENU DU LIEN DRIVE :\n${data.text.substring(0, 15000)}`;
+                    } else {
+                        resourceContext = "Impossible de télécharger le fichier Drive (vérifiez qu'il est public).";
+                    }
+                }
+            } catch (e) {
+                console.error("Erreur Drive Chat:", e);
+                resourceContext = "Erreur lors de la lecture du lien Drive.";
+            }
+        }
+    } 
+    // 3. Gestion Ressource Interne
+    else if (resourceId) {
+      try {
         const resource = await prisma.resource.findUnique({ where: { id: resourceId } });
         if (resource && resource.type === 'PDF') {
           const filePath = path.join(process.cwd(), 'public', resource.url);

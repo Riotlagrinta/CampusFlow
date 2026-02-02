@@ -50,6 +50,13 @@ export async function POST(
     // 1. GESTION DES LIENS EXTERNES (Google Drive)
     if (resource.url.startsWith('http')) {
         if (resource.url.includes('drive.google.com')) {
+            // Check for Folders
+            if (resource.url.includes('/folders/')) {
+                 return NextResponse.json({ 
+                     error: "Ce lien mène à un dossier complet. L'IA ne peut générer un quiz que sur un fichier unique. Veuillez fournir le lien d'un PDF spécifique." 
+                 }, { status: 400 });
+            }
+
             try {
                 // Conversion en lien de téléchargement direct pour Google Drive
                 let fileId = "";

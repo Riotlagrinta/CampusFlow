@@ -28,6 +28,13 @@ export async function POST(
     // 1. GESTION DES LIENS EXTERNES (Google Drive)
     if (resource.url.startsWith('http')) {
         if (resource.url.includes('drive.google.com')) {
+            // Check for Folders
+            if (resource.url.includes('/folders/')) {
+                 return NextResponse.json({ 
+                     error: "Ce lien mène à un dossier complet. L'IA ne peut traiter que des fichiers individuels. Veuillez modifier la ressource avec le lien d'un document PDF spécifique." 
+                 }, { status: 400 });
+            }
+
             try {
                 // Conversion en lien de téléchargement direct pour Google Drive
                 let fileId = "";

@@ -31,10 +31,16 @@ export default function AIAssistantPage() {
   const [showAdModal, setShowAdModal] = useState(false);
   const [watchingAd, setWatchingAd] = useState(false);
   const [adTimer, setAdTimer] = useState(0);
-  const [resources, setResources] = useState<Resource[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]); // Added back
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [attachedLink, setAttachedLink] = useState<string | null>(null);
+  const [tempFile, setTempFile] = useState<{ name: string; path: string } | null>(null); // New State
+  const [isUploading, setIsUploading] = useState(false); // New State
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [tempLink, setTempLink] = useState('');
   const [showResourceList, setShowResourceList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // New Ref
 
   useEffect(() => {
     const savedMessages = localStorage.getItem('ai_assistant_history');
@@ -135,10 +141,60 @@ export default function AIAssistantPage() {
     }
   };
 
+  const handleAddLink = () => {
+    if (tempLink) {
+       setAttachedLink(tempLink);
+       setTempLink('');
+       setShowLinkInput(false);
+       setSelectedResource(null);
+       setTempFile(null); // Clear others
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+        alert("Seuls les fichiers PDF sont supportés pour l'analyse.");
+        return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/chat/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTempFile({ name: file.name, path: data.tempPath });
+        setAttachedLink(null);
+        setSelectedResource(null);
+        play('xp');
+      } else {
+        alert(data.error || "Erreur d'upload");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
     const userMessage = input.trim();
+    const currentLink = attachedLink;
+    const currentResource = selectedResource;
+    const currentTempFile = tempFile;
+
     setInput('');
+    // On garde l'affichage de l'attachement pendant l'envoi, mais on pourra le reset après
+    
     play('send');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
@@ -149,10 +205,18 @@ export default function AIAssistantPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: userMessage,
-          resourceId: selectedResource?.id 
+          resourceId: currentResource?.id,
+          externalLink: currentLink,
+          tempFilePath: currentTempFile?.path
         }),
       });
       const data = await res.json();
+      
+      // Reset attachments after successful send or error
+      setAttachedLink(null);
+      setSelectedResource(null);
+      setTempFile(null);
+
       if (data.quotaExceeded) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
         setShowAdModal(true);
@@ -287,12 +351,47 @@ export default function AIAssistantPage() {
             <button onClick={() => setSelectedResource(null)} className="ml-auto hover:bg-white/20 p-1 rounded-lg transition-colors"><X size={14} /></button>
           </div>
         )}
+        {tempFile && (
+           <div className="max-w-4xl mx-auto mb-4 flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
+             <FileText size={14} /><span className="truncate">Fichier local : {tempFile.name}</span>
+             <button onClick={() => setTempFile(null)} className="ml-auto hover:bg-white/20 p-1 rounded-lg transition-colors"><X size={14} /></button>
+           </div>
+        )}
+        {attachedLink && (
+           <div className="max-w-4xl mx-auto mb-4 flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
+             <div className="flex items-center gap-2 truncate">
+               <Share2 size={14} />
+               <span>Lien Drive : {attachedLink}</span>
+             </div>
+             <button onClick={() => setAttachedLink(null)} className="ml-auto hover:bg-white/20 p-1 rounded-lg transition-colors"><X size={14} /></button>
+           </div>
+        )}
+
+        {/* Link Input Popover */}
+        {showLinkInput && (
+           <div className="absolute bottom-full left-20 mb-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 w-96 z-20 animate-in fade-in zoom-in-95">
+             <h4 className="text-xs font-bold uppercase text-zinc-400 mb-2">Ajouter un lien Google Drive (PDF Public)</h4>
+             <input 
+               autoFocus
+               type="text" 
+               value={tempLink}
+               onChange={(e) => setTempLink(e.target.value)}
+               placeholder="https://drive.google.com/..." 
+               className="w-full bg-zinc-100 dark:bg-zinc-800 border-none rounded-xl px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-blue-500"
+             />
+             <div className="flex gap-2">
+               <button onClick={() => setShowLinkInput(false)} className="flex-1 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-xs font-bold">Annuler</button>
+               <button onClick={handleAddLink} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Ajouter</button>
+             </div>
+           </div>
+        )}
+
         {showResourceList && (
           <div className="absolute bottom-full left-8 right-8 mb-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 max-h-60 overflow-y-auto z-10 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between mb-3 px-2"><p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Vos ressources PDF</p><button onClick={() => setShowResourceList(false)}><X size={14}/></button></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {resources.map(res => (
-                <button key={res.id} onClick={() => { setSelectedResource(res); setShowResourceList(false); play('xp'); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-left group">
+                <button key={res.id} onClick={() => { setSelectedResource(res); setAttachedLink(null); setTempFile(null); setShowResourceList(false); play('xp'); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-left group">
                   <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors"><FileText size={16} /></div>
                   <span className="text-xs font-bold truncate">{res.title}</span>
                 </button>
@@ -302,12 +401,35 @@ export default function AIAssistantPage() {
         )}
         <div className="relative w-full max-w-6xl mx-auto flex items-center gap-4">
           <div className="flex-1 relative flex items-center gap-4">
-            <button onClick={() => setShowResourceList(!showResourceList)} className={clsx("p-4 rounded-2xl transition-all border-2", selectedResource ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400") }><Paperclip size={24} /></button>
+            <button 
+              onClick={() => setShowResourceList(!showResourceList)} 
+              title="Ajouter un fichier existant"
+              className={clsx("p-4 rounded-2xl transition-all border-2", (selectedResource || attachedLink || tempFile) ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-transparent" : "bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400") }
+            >
+              <Paperclip size={24} />
+            </button>
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              title="Uploader un fichier (PDF)"
+              disabled={isUploading}
+              className={clsx("p-4 rounded-2xl transition-all border-2 bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:text-orange-600") }
+            >
+               {isUploading ? <Loader2 size={24} className="animate-spin" /> : <PlusCircle size={24} />}
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".pdf" className="hidden" />
+            
+            <button 
+              onClick={() => setShowLinkInput(!showLinkInput)} 
+              title="Ajouter un lien Drive"
+              className={clsx("p-4 rounded-2xl transition-all border-2 bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:text-blue-600") }
+            >
+               <Share2 size={24} />
+            </button>
             <div className="flex-1 relative">
-              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={selectedResource ? "Posez une question sur ce document..." : "Posez votre question..."} className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-3xl px-8 py-5 text-sm focus:outline-none focus:border-blue-500 shadow-xl" />
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={selectedResource || attachedLink || tempFile ? "Posez une question sur ce document..." : "Posez votre question..."} className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-3xl px-8 py-5 text-sm focus:outline-none focus:border-blue-500 shadow-xl" />
             </div>
           </div>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSend} disabled={isLoading} className="w-16 h-16 bg-zinc-900 dark:bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-2xl disabled:opacity-50"><Send size={24} /></motion.button>
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSend} disabled={isLoading || isUploading} className="w-16 h-16 bg-zinc-900 dark:bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-2xl disabled:opacity-50"><Send size={24} /></motion.button>
         </div>
       </div>
 

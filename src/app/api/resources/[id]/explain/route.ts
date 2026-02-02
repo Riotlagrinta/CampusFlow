@@ -34,25 +34,31 @@ export async function POST(
                 let fileId = driveFileId;
                 
                 if (!fileId) {
-                  // Check for Folders (if no specific file was selected yet)
-                  if (resource.url.includes('/folders/')) {
+                  // Détection robuste ID et Type (Dossier vs Fichier)
+                  const folderMatch = resource.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+                  const fileMatch = resource.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                  const idParam = new URL(resource.url).searchParams.get('id');
+
+                  // Si c'est un dossier (via /folders/ ou via l'URL contenant 'folders')
+                  if (folderMatch || (idParam && resource.url.includes('folders'))) {
                       return NextResponse.json({ 
                           isFolder: true,
                           error: "Veuillez sélectionner un fichier dans ce dossier." 
-                      }, { status: 200 }); // Status 200 pour que le front gère le listing
+                      }, { status: 200 });
                   }
 
-                  const match = resource.url.match(/\/d\/(.+?)\//);
-                  if (match) fileId = match[1];
-                  else {
-                      const urlParams = new URL(resource.url).searchParams;
-                      fileId = urlParams.get('id') || "";
-                  }
+                  // Sinon on cherche l'ID du fichier
+                  fileId = fileMatch ? fileMatch[1] : idParam;
                 }
 
                 if (!fileId) throw new Error("ID Google Drive introuvable");
 
-                const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                // Utilisation de l'API Google Drive officielle pour plus de fiabilité
+                const apiKey = process.env.GOOGLE_API_KEY;
+                const downloadUrl = apiKey 
+                    ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+                    : `https://drive.google.com/uc?export=download&id=${fileId}`;
+
                 const response = await fetch(downloadUrl);
                 
                 if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");

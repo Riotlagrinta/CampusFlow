@@ -9,13 +9,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const folderUrl = searchParams.get("url");
 
-    if (!folderUrl || !folderUrl.includes('/folders/')) {
-      return NextResponse.json({ error: "Lien de dossier invalide" }, { status: 400 });
+    if (!folderUrl) {
+      return NextResponse.json({ error: "Lien de dossier manquant" }, { status: 400 });
     }
 
-    // Extraction de l'ID du dossier
-    const match = folderUrl.match(/\/folders\/(.+?)(\?|$)/);
-    const folderId = match ? match[1] : null;
+    // Extraction robuste de l'ID du dossier
+    const match = folderUrl.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    let folderId = match ? match[1] : null;
+
+    if (!folderId) {
+        try {
+            const urlObj = new URL(folderUrl);
+            folderId = urlObj.searchParams.get('id');
+        } catch {}
+    }
 
     if (!folderId) return NextResponse.json({ error: "ID de dossier introuvable" }, { status: 400 });
 

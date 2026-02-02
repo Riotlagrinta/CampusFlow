@@ -15,6 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
+    const { driveFileId } = await req.json(); // On récupère l'ID du fichier sélectionné si présent
+    const pdfParser = require('pdf-parse');
     const { id } = await params;
 
     const resource = await prisma.resource.findUnique({ where: { id } });
@@ -23,26 +25,29 @@ export async function POST(
     }
 
     let fullText = "";
-    const pdfParser = require('pdf-parse');
 
     // 1. GESTION DES LIENS EXTERNES (Google Drive)
     if (resource.url.startsWith('http')) {
         if (resource.url.includes('drive.google.com')) {
-            // Check for Folders
-            if (resource.url.includes('/folders/')) {
-                 return NextResponse.json({ 
-                     error: "Ce lien mène à un dossier complet. L'IA ne peut traiter que des fichiers individuels. Veuillez modifier la ressource avec le lien d'un document PDF spécifique." 
-                 }, { status: 400 });
-            }
-
             try {
-                // Conversion en lien de téléchargement direct pour Google Drive
-                let fileId = "";
-                const match = resource.url.match(/\/d\/(.+?)\//);
-                if (match) fileId = match[1];
-                else {
-                    const urlParams = new URL(resource.url).searchParams;
-                    fileId = urlParams.get('id') || "";
+                // Si on a un driveFileId, on l'utilise, sinon on l'extrait de l'URL
+                let fileId = driveFileId;
+                
+                if (!fileId) {
+                  // Check for Folders (if no specific file was selected yet)
+                  if (resource.url.includes('/folders/')) {
+                      return NextResponse.json({ 
+                          isFolder: true,
+                          error: "Veuillez sélectionner un fichier dans ce dossier." 
+                      }, { status: 200 }); // Status 200 pour que le front gère le listing
+                  }
+
+                  const match = resource.url.match(/\/d\/(.+?)\//);
+                  if (match) fileId = match[1];
+                  else {
+                      const urlParams = new URL(resource.url).searchParams;
+                      fileId = urlParams.get('id') || "";
+                  }
                 }
 
                 if (!fileId) throw new Error("ID Google Drive introuvable");

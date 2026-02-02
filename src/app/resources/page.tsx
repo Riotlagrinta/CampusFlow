@@ -44,6 +44,12 @@ export default function ResourcesPage() {
   const [explainingId, setExplainingId] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Folder Selection State
+  const [folderFiles, setFolderFiles] = useState<any[]>([]);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ id: string, type: 'EXPLAIN' | 'QUIZ' } | null>(null);
+
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
   const [subjects, setSubjects] = useState<any[]>([]);
 
@@ -104,12 +110,27 @@ export default function ResourcesPage() {
     }, 30000);
   };
 
-  const handleGenerateQuiz = async (resourceId: string) => {
+  const handleGenerateQuiz = async (resourceId: string, driveFileId?: string) => {
     setGeneratingId(resourceId);
     try {
-      const res = await fetch(`/api/resources/${resourceId}/generate-quiz`, { method: 'POST' });
+      const res = await fetch(`/api/resources/${resourceId}/generate-quiz`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driveFileId }) 
+      });
       const data = await res.json();
       
+      if (data.isFolder) {
+         // C'est un dossier, on liste les fichiers
+         const resource = resources.find(r => r.id === resourceId);
+         const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
+         const listData = await listRes.json();
+         setFolderFiles(listData.files || []);
+         setPendingAction({ id: resourceId, type: 'QUIZ' });
+         setIsFolderModalOpen(true);
+         return;
+      }
+
       if (res.status === 429 || data.quotaExceeded) {
         setShowAdModal(true);
         return;
@@ -128,16 +149,27 @@ export default function ResourcesPage() {
     }
   };
 
-  const handleExplain = async (resourceId: string) => {
+  const handleExplain = async (resourceId: string, driveFileId?: string) => {
     setExplainingId(resourceId);
     try {
       const res = await fetch(`/api/resources/${resourceId}/explain`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) // Plus besoin d'email
+        body: JSON.stringify({ driveFileId }) 
       });
       const data = await res.json();
       
+      if (data.isFolder) {
+         // C'est un dossier, on liste les fichiers
+         const resource = resources.find(r => r.id === resourceId);
+         const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
+         const listData = await listRes.json();
+         setFolderFiles(listData.files || []);
+         setPendingAction({ id: resourceId, type: 'EXPLAIN' });
+         setIsFolderModalOpen(true);
+         return;
+      }
+
       if (res.status === 429 || data.quotaExceeded) {
         setShowAdModal(true);
         return;
@@ -153,6 +185,16 @@ export default function ResourcesPage() {
       console.error(err);
     } finally {
       setExplainingId(null);
+    }
+  };
+
+  const handleFolderFileSelect = (fileId: string) => {
+    if (!pendingAction) return;
+    setIsFolderModalOpen(false);
+    if (pendingAction.type === 'EXPLAIN') {
+        handleExplain(pendingAction.id, fileId);
+    } else {
+        handleGenerateQuiz(pendingAction.id, fileId);
     }
   };
 
@@ -754,6 +796,63 @@ export default function ResourcesPage() {
               >
                 Annuler
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Folder File Selection Modal */}
+      <AnimatePresence>
+        {isFolderModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsFolderModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.95, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.95, y: 20 }}
+               className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
+            >
+              <div className="flex items-center justify-between mb-6">
+                 <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl">
+                       <Plus size={20} />
+                    </div>
+                    <h3 className="text-lg font-bold">Sélectionnez un cours</h3>
+                 </div>
+                 <button onClick={() => setIsFolderModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full">
+                    <X size={20} />
+                 </button>
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                {folderFiles.length === 0 ? (
+                  <p className="text-center py-10 text-zinc-500 text-sm italic">Aucun document PDF trouvé dans ce dossier.</p>
+                ) : (
+                  folderFiles.map(file => (
+                    <button 
+                      key={file.id}
+                      onClick={() => handleFolderFileSelect(file.id)}
+                      className="w-full flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-950 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-zinc-100 dark:border-zinc-800 rounded-2xl transition-all text-left group"
+                    >
+                      <div className="p-2 bg-white dark:bg-zinc-900 rounded-lg group-hover:text-blue-600 transition-colors">
+                        <FileText size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors">{file.name}</p>
+                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest mt-0.5">{(parseInt(file.size) / 1024 / 1024).toFixed(1)} MB</p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Choisissez le fichier à analyser par l'IA</p>
+              </div>
             </motion.div>
           </div>
         )}

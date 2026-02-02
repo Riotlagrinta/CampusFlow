@@ -17,6 +17,7 @@ export async function POST(
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
+    const { driveFileId } = await req.json(); // Optionnel : ID d'un fichier dans un dossier
     const pdf = require('pdf-parse');
     const { id } = await params;
 
@@ -50,21 +51,24 @@ export async function POST(
     // 1. GESTION DES LIENS EXTERNES (Google Drive)
     if (resource.url.startsWith('http')) {
         if (resource.url.includes('drive.google.com')) {
-            // Check for Folders
-            if (resource.url.includes('/folders/')) {
-                 return NextResponse.json({ 
-                     error: "Ce lien mène à un dossier complet. L'IA ne peut générer un quiz que sur un fichier unique. Veuillez fournir le lien d'un PDF spécifique." 
-                 }, { status: 400 });
-            }
-
             try {
-                // Conversion en lien de téléchargement direct pour Google Drive
-                let fileId = "";
-                const match = resource.url.match(/\/d\/(.+?)\//);
-                if (match) fileId = match[1];
-                else {
-                    const urlParams = new URL(resource.url).searchParams;
-                    fileId = urlParams.get('id') || "";
+                let fileId = driveFileId;
+
+                if (!fileId) {
+                  // Check for Folders
+                  if (resource.url.includes('/folders/')) {
+                      return NextResponse.json({ 
+                          isFolder: true,
+                          error: "Ce lien est un dossier. Veuillez sélectionner un fichier." 
+                      }, { status: 200 });
+                  }
+
+                  const match = resource.url.match(/\/d\/(.+?)\//);
+                  if (match) fileId = match[1];
+                  else {
+                      const urlParams = new URL(resource.url).searchParams;
+                      fileId = urlParams.get('id') || "";
+                  }
                 }
 
                 if (!fileId) throw new Error("ID Google Drive introuvable");

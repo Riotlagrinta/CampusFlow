@@ -37,7 +37,7 @@ type Resource = {
   type: string;
   url: string;
   createdAt: string;
-  subject: { name: string } | null;
+  subject: { name: string; code: string | null } | null;
   author: { firstName: string; lastName: string };
   field?: { code: string };
   level?: { name: string };

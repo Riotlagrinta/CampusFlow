@@ -10,8 +10,11 @@ export function useSound() {
   const play = (soundName: keyof typeof SOUNDS) => {
     if (typeof window === 'undefined' || !window.Audio) return;
     
+    const soundPath = SOUNDS[soundName];
+    if (!soundPath) return;
+
     try {
-      const audio = new Audio(SOUNDS[soundName]);
+      const audio = new Audio(soundPath);
       audio.volume = 0.4;
       const playPromise = audio.play();
       

@@ -27,7 +27,7 @@ type Resource = {
   title: string;
   type: string; // "PDF", "VIDEO", "AUDIO", "OTHER"
   url: string;
-  subject: string | null;
+  subject: { name: string; code: string | null } | null;
   size: string | null;
   createdAt: string;
   author: { firstName: string; lastName: string };
@@ -420,7 +420,7 @@ export default function ResourcesPage() {
               </div>
               
               <h3 className="text-base md:text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-1">{res.title}</h3>
-              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">{res.subject || 'Général'} • {res.size || 'Unknown'}</p>
+              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">{res.subject?.name || 'Général'} • {res.size || 'Unknown'}</p>
               
               <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between">

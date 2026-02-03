@@ -52,22 +52,23 @@ export async function POST(req: Request) {
         if (externalLink.includes('drive.google.com')) {
             try {
                 let fileId = "";
-                const match = externalLink.match(/\/d\/(.+?)\//);
-                if (match) fileId = match[1];
-                else {
-                    const urlParams = new URL(externalLink).searchParams;
-                    fileId = urlParams.get('id') || "";
-                }
+                const match = externalLink.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                const idParam = new URL(externalLink).searchParams.get('id');
+                fileId = match ? match[1] : idParam || "";
 
                 if (fileId) {
-                    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                    const apiKey = process.env.GOOGLE_API_KEY;
+                    const downloadUrl = apiKey 
+                        ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+                        : `https://drive.google.com/uc?export=download&id=${fileId}`;
+
                     const response = await fetch(downloadUrl);
                     if (response.ok) {
                         const buffer = Buffer.from(await response.arrayBuffer());
                         const data = await pdfParse(buffer);
                         resourceContext = `CONTENU DU LIEN DRIVE :\n${data.text.substring(0, 15000)}`;
                     } else {
-                        resourceContext = "Impossible de télécharger le fichier Drive (vérifiez qu'il est public).";
+                        resourceContext = "Impossible de télécharger le fichier Drive. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien).";
                     }
                 }
             } catch (e) {

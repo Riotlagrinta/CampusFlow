@@ -53,8 +53,16 @@ export async function POST(req: Request) {
             try {
                 let fileId = "";
                 const match = externalLink.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                const idParam = new URL(externalLink).searchParams.get('id');
-                fileId = match ? match[1] : idParam || "";
+                if (match) {
+                    fileId = match[1];
+                } else {
+                    try {
+                        const urlParams = new URL(externalLink).searchParams;
+                        fileId = urlParams.get('id') || "";
+                    } catch {
+                        fileId = "";
+                    }
+                }
 
                 if (fileId) {
                     const apiKey = process.env.GOOGLE_API_KEY;
@@ -68,7 +76,7 @@ export async function POST(req: Request) {
                         const data = await pdfParse(buffer);
                         resourceContext = `CONTENU DU LIEN DRIVE :\n${data.text.substring(0, 15000)}`;
                     } else {
-                        resourceContext = "Impossible de télécharger le fichier Drive. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien).";
+                        resourceContext = "Impossible de télécharger le fichier Drive. Assurez-vous qu'il est public.";
                     }
                 }
             } catch (e) {
@@ -121,8 +129,8 @@ export async function POST(req: Request) {
       "llama-3.3-70b-versatile",
       "llama-3.1-70b-versatile",
       "mixtral-8x7b-32768",
-      "gemma2-9b-it",
-      "llama-3.1-8b-instant"
+      "llama-3.1-8b-instant",
+      "gemma2-9b-it"
     ];
 
     let completion;
@@ -131,6 +139,7 @@ export async function POST(req: Request) {
 
     for (const modelId of models) {
       try {
+        console.log(`Tentative IA avec ${modelId}...`);
         completion = await groq.chat.completions.create({
           messages: [
             {
@@ -153,17 +162,29 @@ STYLE DE RÉPONSE :
             { role: "user", content: message }
           ],
           model: modelId,
+          temperature: 0.6,
+          max_tokens: 2048
         });
         success = true;
         break;
       } catch (err: any) {
         lastError = err;
-        if (err?.status === 429) continue; // Si limite atteinte, on passe au suivant
-        break; 
+        console.warn(`Échec modèle ${modelId}:`, err.message);
+        if (err?.status === 429 || err?.status === 503) {
+            // Petite pause avant le prochain modèle si surcharge
+            await new Promise(resolve => setTimeout(resolve, 500));
+            continue; 
+        }
+        continue;
       }
     }
 
-    if (!success || !completion) throw lastError;
+    if (!success || !completion) {
+        console.error("Tous les modèles IA ont échoué.");
+        return NextResponse.json({ 
+            reply: "Désolé, le service IA est actuellement surchargé (Rate Limit). Merci de réessayer dans une minute ou de regarder une publicité pour débloquer des jetons prioritaires." 
+        }, { status: 503 });
+    }
 
     const text = completion.choices[0]?.message?.content || "Désolé, je ne peux pas répondre pour le moment.";
     const tokensUsed = completion.usage?.total_tokens || 0;

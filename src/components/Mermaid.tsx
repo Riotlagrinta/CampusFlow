@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 
 mermaid.initialize({
-  startOnLoad: true,
+  startOnLoad: false,
   theme: 'dark',
   securityLevel: 'loose',
   fontFamily: 'inherit',
@@ -19,20 +19,19 @@ export default function Mermaid({ chart }: MermaidProps) {
 
   useEffect(() => {
     if (ref.current && chart) {
-      ref.current.removeAttribute('data-processed');
-      mermaid.contentLoaded();
-      
-      // Rendu asynchrone pour éviter les erreurs de montage
       const renderChart = async () => {
         try {
-          const { svg } = await mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart);
+          // Nettoyage complet avant nouveau rendu
+          ref.current!.innerHTML = '';
+          const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`;
+          const { svg } = await mermaid.render(id, chart);
           if (ref.current) {
             ref.current.innerHTML = svg;
           }
         } catch (error) {
           console.error('Mermaid render error:', error);
           if (ref.current) {
-            ref.current.innerHTML = '<div class="text-red-500 text-xs p-4 bg-red-500/10 rounded-xl">Erreur de rendu du diagramme. Vérifiez la syntaxe.</div>';
+            ref.current.innerHTML = '<div class="text-amber-500 text-[10px] p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl italic">Schéma complexe en cours de génération ou erreur de syntaxe.</div>';
           }
         }
       };

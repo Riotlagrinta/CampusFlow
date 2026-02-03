@@ -37,7 +37,10 @@ export async function POST(
                   // Détection robuste ID et Type (Dossier vs Fichier)
                   const folderMatch = resource.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
                   const fileMatch = resource.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                  const idParam = new URL(resource.url).searchParams.get('id');
+                  let idParam = "";
+                  try {
+                      idParam = new URL(resource.url).searchParams.get('id') || "";
+                  } catch {}
 
                   // Si c'est un dossier (via /folders/ ou via l'URL contenant 'folders')
                   if (folderMatch || (idParam && resource.url.includes('folders'))) {

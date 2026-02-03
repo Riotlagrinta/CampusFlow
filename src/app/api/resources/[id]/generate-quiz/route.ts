@@ -18,7 +18,7 @@ export async function POST(
     }
 
     const { driveFileId } = await req.json(); // Optionnel : ID d'un fichier dans un dossier
-    const pdf = require('pdf-parse');
+    const { PDFParse } = require('pdf-parse');
     const { id } = await params;
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
@@ -27,15 +27,11 @@ export async function POST(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let dailyUsage = await prisma.dailyAIUsage.findUnique({
+    const dailyUsage = await prisma.dailyAIUsage.upsert({
       where: { userId_date: { userId: user.id, date: today } },
+      update: {},
+      create: { userId: user.id, date: today, requestCount: 0 },
     });
-
-    if (!dailyUsage) {
-      dailyUsage = await prisma.dailyAIUsage.create({
-        data: { userId: user.id, date: today, requestCount: 0 },
-      });
-    }
 
     if ((DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount) <= 0) {
       return NextResponse.json({ error: "Quota quizz dépassé.", quotaExceeded: true }, { status: 429 });
@@ -88,8 +84,9 @@ export async function POST(
                 if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
 
                 const buffer = Buffer.from(await response.arrayBuffer());
-                const data = await pdf(buffer);
-                fullText = data.text.substring(0, 20000);
+                const parser = new PDFParse({ data: buffer });
+                const result = await parser.getText();
+                fullText = result.text.substring(0, 20000);
             } catch (err) {
                 console.error("Erreur Drive:", err);
                 return NextResponse.json({ error: "Impossible de lire ce lien Drive pour générer le quiz. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
@@ -108,8 +105,9 @@ export async function POST(
             if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
             
             const dataBuffer = fs.readFileSync(filePath);
-            const pdfData = await pdf(dataBuffer);
-            fullText = pdfData.text.substring(0, 20000);
+            const parser = new PDFParse({ data: dataBuffer });
+            const result = await parser.getText();
+            fullText = result.text.substring(0, 20000);
         } catch (err) {
              return NextResponse.json({ error: "Erreur lecture fichier local." }, { status: 500 });
         }

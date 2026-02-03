@@ -24,9 +24,9 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: "Utilisateur introuvable." }, { status: 404 });
 
-    // --- CONTEXTE DOCUMENT (Local, Externe ou Temporaire) ---
+    // --- CONTEXTE DOCUMENT (Local, Externe ou TemporAIRE) ---
     let resourceContext = "";
-    const pdfParse = require('pdf-parse');
+    const { PDFParse } = require('pdf-parse');
 
     // 1. Gestion Fichier Temporaire (Upload direct machine)
     if (tempFilePath) {
@@ -34,8 +34,9 @@ export async function POST(req: Request) {
         const fullTempPath = path.join(process.cwd(), 'public', tempFilePath);
         if (fs.existsSync(fullTempPath)) {
           const dataBuffer = fs.readFileSync(fullTempPath);
-          const data = await pdfParse(dataBuffer);
-          resourceContext = `CONTENU DU DOCUMENT TÉLÉVERSÉ :\n${data.text.substring(0, 15000)}`;
+          const parser = new PDFParse({ data: dataBuffer });
+          const result = await parser.getText();
+          resourceContext = `CONTENU DU DOCUMENT TÉLÉVERSÉ :\n${result.text.substring(0, 15000)}`;
           
           // NETTOYAGE : On supprime le fichier après lecture pour ne pas encombrer le serveur
           try { fs.unlinkSync(fullTempPath); } catch(e) {}
@@ -73,8 +74,9 @@ export async function POST(req: Request) {
                     const response = await fetch(downloadUrl);
                     if (response.ok) {
                         const buffer = Buffer.from(await response.arrayBuffer());
-                        const data = await pdfParse(buffer);
-                        resourceContext = `CONTENU DU LIEN DRIVE :\n${data.text.substring(0, 15000)}`;
+                        const parser = new PDFParse({ data: buffer });
+                        const result = await parser.getText();
+                        resourceContext = `CONTENU DU LIEN DRIVE :\n${result.text.substring(0, 15000)}`;
                     } else {
                         resourceContext = "Impossible de télécharger le fichier Drive. Assurez-vous qu'il est public.";
                     }
@@ -93,8 +95,9 @@ export async function POST(req: Request) {
           const filePath = path.join(process.cwd(), 'public', resource.url);
           if (fs.existsSync(filePath)) {
             const dataBuffer = fs.readFileSync(filePath);
-            const data = await pdfParse(dataBuffer);
-            resourceContext = `CONTENU DU DOCUMENT "${resource.title}" :\n${data.text.substring(0, 10000)}`;
+            const parser = new PDFParse({ data: dataBuffer });
+            const result = await parser.getText();
+            resourceContext = `CONTENU DU DOCUMENT "${resource.title}" :\n${result.text.substring(0, 10000)}`;
           }
         }
       } catch (err) {
@@ -106,15 +109,11 @@ export async function POST(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let dailyUsage = await prisma.dailyAIUsage.findUnique({
+    const dailyUsage = await prisma.dailyAIUsage.upsert({
       where: { userId_date: { userId: user.id, date: today } },
+      update: {},
+      create: { userId: user.id, date: today, requestCount: 0 },
     });
-
-    if (!dailyUsage) {
-      dailyUsage = await prisma.dailyAIUsage.create({
-        data: { userId: user.id, date: today, requestCount: 0 },
-      });
-    }
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
       return NextResponse.json({
@@ -124,11 +123,14 @@ export async function POST(req: Request) {
     }
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
-    // CHAINE DE ROTATION OPTIMISÉE POUR GROQ 2026
+    // CHAINE DE ROTATION ÉTENDUE ET MISE À JOUR 2026
     const models = [
       "llama-3.3-70b-versatile",
       "llama-3.1-70b-versatile",
+      "llama-3.1-405b-reasoning",
       "mixtral-8x7b-32768",
+      "llama3-70b-8192",
+      "llama3-8b-8192",
       "llama-3.1-8b-instant",
       "gemma2-9b-it"
     ];
@@ -137,10 +139,12 @@ export async function POST(req: Request) {
     let success = false;
     let lastError;
 
+    console.log(`Début de la rotation IA pour le message: "${message.substring(0, 50)}..."`);
+
     for (const modelId of models) {
       try {
-        console.log(`Tentative IA avec ${modelId}...`);
-        completion = await groq.chat.completions.create({
+        console.log(`Tentative avec modèle: ${modelId}...`);
+        const chatCompletion = await groq.chat.completions.create({
           messages: [
             {
               role: "system",
@@ -162,27 +166,32 @@ STYLE DE RÉPONSE :
             { role: "user", content: message }
           ],
           model: modelId,
-          temperature: 0.6,
+          temperature: 0.7,
           max_tokens: 2048
         });
-        success = true;
-        break;
+
+        if (chatCompletion?.choices[0]?.message?.content) {
+            completion = chatCompletion;
+            success = true;
+            console.log(`✅ Succès avec ${modelId}`);
+            break;
+        }
       } catch (err: any) {
         lastError = err;
-        console.warn(`Échec modèle ${modelId}:`, err.message);
+        console.warn(`❌ Échec avec ${modelId}:`, err.message || err);
+        
+        // Si c'est une erreur de quota (429) ou surcharge (503), on attend un peu
         if (err?.status === 429 || err?.status === 503) {
-            // Petite pause avant le prochain modèle si surcharge
-            await new Promise(resolve => setTimeout(resolve, 500));
-            continue; 
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
         continue;
       }
     }
 
     if (!success || !completion) {
-        console.error("Tous les modèles IA ont échoué.");
+        console.error("CRITIQUE: Tous les modèles Groq ont échoué.", lastError);
         return NextResponse.json({ 
-            reply: "Désolé, le service IA est actuellement surchargé (Rate Limit). Merci de réessayer dans une minute ou de regarder une publicité pour débloquer des jetons prioritaires." 
+            reply: "Désolé, le service IA est actuellement saturé. Nos équipes techniques ont été alertées. Veuillez réessayer dans quelques instants ou utiliser un jeton prioritaire." 
         }, { status: 503 });
     }
 

@@ -16,7 +16,7 @@ export async function POST(
     }
 
     const { driveFileId } = await req.json(); // On récupère l'ID du fichier sélectionné si présent
-    const pdfParser = require('pdf-parse');
+    const { PDFParse } = require('pdf-parse');
     const { id } = await params;
 
     const resource = await prisma.resource.findUnique({ where: { id } });
@@ -67,8 +67,9 @@ export async function POST(
                 if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
 
                 const buffer = Buffer.from(await response.arrayBuffer());
-                const data = await pdfParser(buffer);
-                fullText = data.text.substring(0, 15000);
+                const parser = new PDFParse({ data: buffer });
+                const result = await parser.getText();
+                fullText = result.text.substring(0, 15000);
             } catch (err) {
                 console.error("Erreur Drive:", err);
                 return NextResponse.json({ error: "Impossible de lire ce lien Drive. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
@@ -87,8 +88,9 @@ export async function POST(
             if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
             
             const dataBuffer = fs.readFileSync(filePath);
-            const pdfData = await pdfParser(dataBuffer);
-            fullText = pdfData.text.substring(0, 15000);
+            const parser = new PDFParse({ data: dataBuffer });
+            const result = await parser.getText();
+            fullText = result.text.substring(0, 15000);
         } catch (err) {
             return NextResponse.json({ error: "Erreur lors de la lecture du fichier local." }, { status: 500 });
         }

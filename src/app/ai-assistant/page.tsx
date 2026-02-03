@@ -43,7 +43,15 @@ export default function AIAssistantPage() {
   const fileInputRef = useRef<HTMLInputElement>(null); // New Ref
 
   useEffect(() => {
+    // Nettoyage automatique si trop d'erreurs détectées (optionnel mais prudent)
     const savedMessages = localStorage.getItem('ai_assistant_history');
+    if (savedMessages && savedMessages.includes('Syntax error in text')) {
+        console.warn("Historique corrompu détecté, nettoyage...");
+        localStorage.removeItem('ai_assistant_history');
+        window.location.reload();
+        return;
+    }
+
     if (savedMessages) {
       setMessages(JSON.parse(savedMessages));
     } else {

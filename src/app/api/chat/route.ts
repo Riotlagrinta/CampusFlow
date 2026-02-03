@@ -39,7 +39,6 @@ export async function POST(req: Request) {
                 try { fs.unlinkSync(fullTempPath); } catch(e) {}
             }
         } else if (externalLink && externalLink.includes('drive.google.com')) {
-            // ... logique Drive simplifiée pour le diagnostic ...
             const fileId = externalLink.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
             if (fileId) {
                 const response = await fetch(`https://drive.google.com/uc?export=download&id=${fileId}`);
@@ -64,7 +63,6 @@ export async function POST(req: Request) {
         }
     } catch (pdfError: any) {
         console.error("Erreur PDF diagnostic:", pdfError);
-        // On ne bloque pas tout le chat si le PDF échoue, on continue sans contexte
     }
 
     // --- LOGIQUE DE QUOTA ---
@@ -83,11 +81,7 @@ export async function POST(req: Request) {
         quotaExceeded: true
       }, { status: 429 });
     }
-      return NextResponse.json({
-        reply: "Vous avez atteint votre limite personnelle de 5 messages aujourd'hui.",
-        quotaExceeded: true
-      }, { status: 429 });
-    }
+
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
     // CHAINE DE ROTATION ÉTENDUE ET MISE À JOUR 2026
@@ -106,7 +100,7 @@ export async function POST(req: Request) {
     let success = false;
     let lastError;
 
-    console.log(`Début de la rotation IA pour le message: "${message.substring(0, 50)}..."`);
+    console.log(`Début de la rotation IA pour le message: "${message.substring(0, 50)}"...`);
 
     for (const modelId of models) {
       try {
@@ -146,8 +140,6 @@ STYLE DE RÉPONSE :
       } catch (err: any) {
         lastError = err;
         console.warn(`❌ Échec avec ${modelId}:`, err.message || err);
-        
-        // Si c'est une erreur de quota (429) ou surcharge (503), on attend un peu
         if (err?.status === 429 || err?.status === 503) {
             await new Promise(resolve => setTimeout(resolve, 800));
         }
@@ -157,8 +149,8 @@ STYLE DE RÉPONSE :
 
     if (!success || !completion) {
         console.error("CRITIQUE: Tous les modèles Groq ont échoué.", lastError);
-        return NextResponse.json({ 
-            reply: "Désolé, le service IA est actuellement saturé. Nos équipes techniques ont été alertées. Veuillez réessayer dans quelques instants ou utiliser un jeton prioritaire." 
+        return NextResponse.json({
+            reply: "Désolé, le service IA est actuellement saturé. Nos équipes techniques ont été alertées. Veuillez réessayer dans quelques instants ou utiliser un jeton prioritaire."
         }, { status: 503 });
     }
 
@@ -167,7 +159,7 @@ STYLE DE RÉPONSE :
 
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
-      data: { 
+      data: {
         requestCount: { increment: 1 },
         tokensUsed: { increment: tokensUsed }
       },

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 
+// Configuration stricte pour éviter le scan automatique des éléments par Mermaid
 mermaid.initialize({
   startOnLoad: false,
   theme: 'dark',
@@ -16,33 +17,46 @@ interface MermaidProps {
 
 export default function Mermaid({ chart }: MermaidProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (ref.current && chart) {
-      const renderChart = async () => {
-        try {
-          // Nettoyage complet avant nouveau rendu
-          ref.current!.innerHTML = '';
-          const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`;
-          const { svg } = await mermaid.render(id, chart);
-          if (ref.current) {
-            ref.current.innerHTML = svg;
-          }
-        } catch (error) {
-          console.error('Mermaid render error:', error);
-          if (ref.current) {
-            ref.current.innerHTML = '<div class="text-amber-500 text-[10px] p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl italic">Schéma complexe en cours de génération ou erreur de syntaxe.</div>';
-          }
-        }
-      };
+    if (!ref.current || !chart) return;
 
-      renderChart();
-    }
+    const renderChart = async () => {
+      try {
+        setError(false);
+        // On génère un ID unique pour chaque rendu
+        const id = `graph-${Math.random().toString(36).substring(2, 11)}`;
+        
+        // On demande à Mermaid de rendre le code sans toucher au DOM automatiquement
+        const { svg } = await mermaid.render(id, chart);
+        
+        if (ref.current) {
+          ref.current.innerHTML = svg;
+        }
+      } catch (err) {
+        console.error('Mermaid render error:', err);
+        setError(true);
+      }
+    };
+
+    renderChart();
   }, [chart]);
+
+  if (error) {
+    return (
+      <div className="my-4 p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+        <p className="text-amber-500 text-[10px] italic font-medium">
+          [ Schéma complexe ou syntaxe en cours d'ajustement ]
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-center my-6 bg-zinc-900/50 p-6 rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
-      <div ref={ref} className="mermaid" />
+      {/* ON NE MET SURTOUT PAS LA CLASSE "mermaid" ICI */}
+      <div ref={ref} id="mermaid-root" />
     </div>
   );
 }

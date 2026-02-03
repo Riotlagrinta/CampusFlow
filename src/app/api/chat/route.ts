@@ -22,31 +22,50 @@ export async function POST(req: Request) {
     }
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ reply: `Utilisateur (${session.user.email}) introuvable dans la base de données.` }, { status: 404 });
+    if (!user) return NextResponse.json({ reply: `Utilisateur (${session.user.email}) introuvable.` }, { status: 404 });
 
     // --- CONTEXTE DOCUMENT ---
     let resourceContext = "";
+    let pdfStatus = "";
+    
     try {
         const { PDFParse } = require('pdf-parse');
         
+        const extractDriveId = (url: string) => {
+            if (!url) return null;
+            const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            if (match) return match[1];
+            try {
+                const u = new URL(url);
+                return u.searchParams.get('id');
+            } catch { return null; }
+        };
+
         if (tempFilePath) {
             const fullTempPath = path.join(process.cwd(), 'public', tempFilePath);
             if (fs.existsSync(fullTempPath)) {
                 const dataBuffer = fs.readFileSync(fullTempPath);
                 const parser = new PDFParse({ data: dataBuffer });
                 const result = await parser.getText();
-                resourceContext = `CONTENU DU DOCUMENT TÉLÉVERSÉ :\n${result.text.substring(0, 15000)}`;
+                resourceContext = result.text.substring(0, 15000);
                 try { fs.unlinkSync(fullTempPath); } catch(e) {}
             }
         } else if (externalLink && externalLink.includes('drive.google.com')) {
-            const fileId = externalLink.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
+            const fileId = extractDriveId(externalLink);
             if (fileId) {
-                const response = await fetch(`https://drive.google.com/uc?export=download&id=${fileId}`);
+                const apiKey = process.env.GOOGLE_API_KEY;
+                const downloadUrl = apiKey 
+                    ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+                    : `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+                const response = await fetch(downloadUrl);
                 if (response.ok) {
                     const buffer = Buffer.from(await response.arrayBuffer());
                     const parser = new PDFParse({ data: buffer });
                     const result = await parser.getText();
-                    resourceContext = `CONTENU DRIVE :\n${result.text.substring(0, 15000)}`;
+                    resourceContext = result.text.substring(0, 15000);
+                } else {
+                    pdfStatus = "⚠️ Impossible de lire le lien Drive (vérifiez qu'il est bien public).";
                 }
             }
         } else if (resourceId) {
@@ -57,12 +76,13 @@ export async function POST(req: Request) {
                     const dataBuffer = fs.readFileSync(filePath);
                     const parser = new PDFParse({ data: dataBuffer });
                     const result = await parser.getText();
-                    resourceContext = `CONTENU DOC "${resource.title}" :\n${result.text.substring(0, 10000)}`;
+                    resourceContext = result.text.substring(0, 10000);
                 }
             }
         }
     } catch (pdfError: any) {
-        console.error("Erreur PDF diagnostic:", pdfError);
+        console.error("Erreur PDF:", pdfError);
+        pdfStatus = `⚠️ Erreur lecture PDF : ${pdfError.message}`;
     }
 
     // --- LOGIQUE DE QUOTA ---
@@ -77,101 +97,75 @@ export async function POST(req: Request) {
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
       return NextResponse.json({
-        reply: "Votre quota quotidien de 5 messages est épuisé. Regardez une publicité pour continuer !",
+        reply: "Quota quotidien épuisé. Regardez une publicité pour continuer !",
         quotaExceeded: true
       }, { status: 429 });
     }
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    
-    // CHAINE DE ROTATION ÉTENDUE ET MISE À JOUR 2026
     const models = [
       "llama-3.3-70b-versatile",
-      "llama-3.1-70b-versatile",
-      "llama-3.1-405b-reasoning",
       "mixtral-8x7b-32768",
-      "llama3-70b-8192",
-      "llama3-8b-8192",
-      "llama-3.1-8b-instant",
-      "gemma2-9b-it"
+      "llama-3.1-8b-instant"
     ];
 
     let completion;
     let success = false;
-    let lastError;
-
-    console.log(`Début de la rotation IA pour le message: "${message.substring(0, 50)}"...`);
 
     for (const modelId of models) {
       try {
-        console.log(`Tentative avec modèle: ${modelId}...`);
         const chatCompletion = await groq.chat.completions.create({
           messages: [
             {
               role: "system",
-              content: `Tu es l'assistant IA officiel de l'institution DEFITECH. Tu accompagnes les étudiants de TOUTES les filières (Génie Logiciel, Réseaux Informatiques, Maintenance, Gestion, etc.).
+              content: `Tu es l'assistant IA de DEFITECH. 
+              ${resourceContext ? `IMPORTANT : Voici le texte du document joint. Tu DOIS l'utiliser pour répondre. Ne dis JAMAIS que tu ne peux pas accéder aux fichiers car ils te sont fournis ici : 
 
-${resourceContext ? `CONTEXTE DU DOCUMENT JOINT :\n${resourceContext}\n\nUtilise ce contexte pour répondre précisément aux questions de l'étudiant.` : ""}
-
-CAPACITÉS SPÉCIALES :
-- Tu peux générer des SCHÉMAS VISUELS (Diagrammes UML, Flux, Base de données, Gantt) en utilisant la syntaxe MERMAID.
-- Pour créer un schéma, utilise le bloc de code suivant : \`\`\`mermaid [ton code ici] \`\`\`.
-- Privilégie les schémas pour expliquer des concepts complexes.
-
-STYLE DE RÉPONSE :
-- Utilise abondamment le **GRAS** pour les termes techniques importants (ils apparaîtront en couleur).
-- Utilise des > citations pour les définitions ou les notes importantes.
-- Utilise des listes à puces et des titres (H1, H2) pour structurer tes réponses.
-- Reste très visuel et pédagogique.`
+${resourceContext}` : "L'étudiant n'a pas joint de document."}
+              
+              INSTRUCTIONS :
+              - Réponds de manière pédagogique.
+              - Utilise MERMAID pour les schémas.`
             },
             { role: "user", content: message }
           ],
           model: modelId,
-          temperature: 0.7,
-          max_tokens: 2048
+          temperature: 0.6,
         });
 
         if (chatCompletion?.choices[0]?.message?.content) {
             completion = chatCompletion;
             success = true;
-            console.log(`✅ Succès avec ${modelId}`);
             break;
         }
       } catch (err: any) {
-        lastError = err;
-        console.warn(`❌ Échec avec ${modelId}:`, err.message || err);
-        if (err?.status === 429 || err?.status === 503) {
-            await new Promise(resolve => setTimeout(resolve, 800));
-        }
+        await new Promise(resolve => setTimeout(resolve, 500));
         continue;
       }
     }
 
     if (!success || !completion) {
-        console.error("CRITIQUE: Tous les modèles Groq ont échoué.", lastError);
-        return NextResponse.json({
-            reply: "Désolé, le service IA est actuellement saturé. Nos équipes techniques ont été alertées. Veuillez réessayer dans quelques instants ou utiliser un jeton prioritaire."
-        }, { status: 503 });
+        return NextResponse.json({ reply: "Service IA momentanément indisponible." }, { status: 503 });
     }
 
-    const text = completion.choices[0]?.message?.content || "Désolé, je ne peux pas répondre pour le moment.";
-    const tokensUsed = completion.usage?.total_tokens || 0;
+    const text = completion.choices[0]?.message?.content || "";
+    const finalReply = pdfStatus ? `${pdfStatus}\n\n${text}` : text;
 
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
-      data: {
+      data: { 
         requestCount: { increment: 1 },
-        tokensUsed: { increment: tokensUsed }
+        tokensUsed: { increment: completion.usage?.total_tokens || 0 }
       },
     });
 
     if (user) await addXP(user.id, 5);
 
-    return NextResponse.json({ reply: text });
+    return NextResponse.json({ reply: finalReply });
   } catch (error: any) {
-    console.error("ERREUR IA ROTATION:", error);
+    console.error("ERREUR CRITIQUE CHAT:", error);
     return NextResponse.json(
-      { reply: "Le service IA est momentanément indisponible. Veuillez réessayer dans quelques instants." },
+      { reply: "Une erreur technique est survenue. Veuillez réessayer." },
       { status: 500 }
     );
   }

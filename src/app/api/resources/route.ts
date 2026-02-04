@@ -4,6 +4,7 @@ import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { put } from '@vercel/blob';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,22 +77,33 @@ export async function POST(req: Request) {
     let sizeStr = '0 MB';
 
     if (file) {
-        try {
-            // Tentative d'écriture locale (marche en dev, peut échouer en prod)
+        sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+        
+        // PRIORITÉ : Vercel Blob (Production)
+        if (process.env.BLOB_READ_WRITE_TOKEN) {
+            try {
+                const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
+                    access: 'public',
+                });
+                fileUrl = blob.url;
+            } catch (e) {
+                console.error("Erreur Vercel Blob:", e);
+                return NextResponse.json({ error: "Erreur lors de l'upload vers le stockage cloud." }, { status: 500 });
+            }
+        } 
+        // FALLBACK : Local (Uniquement pour le développement local)
+        else if (process.env.NODE_ENV === 'development') {
             const uploadDir = path.join(process.cwd(), 'public', 'uploads');
             await mkdir(uploadDir, { recursive: true }).catch(() => {}); 
-            
             const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-            const filePath = path.join(uploadDir, fileName);
-            
-            const bytes = await file.arrayBuffer();
-            await writeFile(filePath, Buffer.from(bytes));
-            
+            await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()));
             fileUrl = `/uploads/${fileName}`;
-            sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
-        } catch (e) {
-            console.error("Erreur écriture fichier:", e);
-            return NextResponse.json({ error: "Le serveur ne peut pas enregistrer de fichiers locaux en production. Utilisez un lien externe ou configurez Vercel Blob." }, { status: 500 });
+        } 
+        // ERREUR : Production sans stockage cloud
+        else {
+            return NextResponse.json({ 
+                error: "Stockage non configuré. Veuillez activer 'Vercel Blob' dans votre tableau de bord Vercel (Onglet Storage)." 
+            }, { status: 500 });
         }
     }
 

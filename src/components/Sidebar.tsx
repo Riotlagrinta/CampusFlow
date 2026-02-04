@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   Command,
   LogOut,
-  Brain
+  Brain,
+  ShoppingCart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -38,6 +39,7 @@ const navItems = [
   { icon: Brain, label: 'Quizz', href: '/quiz' },
   { icon: MessageSquare, label: 'Forum', href: '/forum' },
   { icon: Bot, label: 'AI Assistant', href: '/ai-assistant' },
+  { icon: ShoppingCart, label: 'Boutique IA', href: '/shop' },
   { icon: BookOpen, label: 'Ressources', href: '/resources' },
 ];
 

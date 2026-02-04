@@ -7,9 +7,12 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     console.log("GET /api/resources called");
+    const { searchParams } = new URL(req.url);
+    const parentId = searchParams.get('parentId');
+
     const session = await auth();
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -23,9 +26,12 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const resources = await prisma.resource.findMany({
-      where: user.role === 'ADMIN' ? {} : {
-        fieldId: user.fieldId,
-        levelId: user.academicLevelId
+      where: {
+        ...(user.role === 'ADMIN' ? {} : {
+          fieldId: user.fieldId,
+          levelId: user.academicLevelId
+        }),
+        parentId: parentId === 'null' || !parentId ? null : parentId
       },
       include: {
         author: { select: { firstName: true, lastName: true, level: true } },
@@ -33,7 +39,15 @@ export async function GET() {
       },
       orderBy: { createdAt: 'desc' }
     });
-    return NextResponse.json(resources);
+
+    // Sort: Folders first
+    const sortedResources = resources.sort((a, b) => {
+        if (a.type === 'FOLDER' && b.type !== 'FOLDER') return -1;
+        if (a.type !== 'FOLDER' && b.type === 'FOLDER') return 1;
+        return 0;
+    });
+
+    return NextResponse.json(sortedResources);
   } catch (error) {
     console.error('Erreur GET resources:', error);
     return NextResponse.json({ error: 'Server Error' }, { status: 500 });
@@ -58,13 +72,18 @@ export async function POST(req: Request) {
     const levelId = formData.get('levelId') as string;
     const parentId = formData.get('parentId') as string;
 
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    // Sécurité : Seul l'ADMIN peut uploader
+    if (user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+
     // Special case for Folder Creation
     if (type === 'FOLDER') {
          if (!title) return NextResponse.json({ error: 'Le nom du dossier est requis.' }, { status: 400 });
          
-         const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-         if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-
          const folder = await prisma.resource.create({
             data: {
                 title,
@@ -86,14 +105,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Fichier ou Lien requis, ainsi que titre et type.' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
-    // Sécurité : Seul l'ADMIN peut uploader
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    }
-
     let fileUrl = '';
     let sizeStr = 'Lien Externe';
 
@@ -109,28 +120,21 @@ export async function POST(req: Request) {
           fileUrl = blob.url;
         } else {
           // Mode Local (Fallback)
-          
           const uploadDir = path.join(process.cwd(), 'public', 'uploads');
           await mkdir(uploadDir, { recursive: true });
-          
           const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
           const filePath = path.join(uploadDir, fileName);
-          
           const bytes = await file.arrayBuffer();
           const buffer = Buffer.from(bytes);
           await writeFile(filePath, buffer);
-          
           fileUrl = `/uploads/${fileName}`;
         }
-
         const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
         sizeStr = `${sizeInMB} MB`;
     }
 
     // Gestion automatique de la matière
     let finalSubjectId = subjectId;
-    
-    // Si on a reçu un nom de matière au lieu d'un ID (ou si subjectId est vide)
     const subjectNameInput = formData.get('subjectName') as string;
     
     if (!finalSubjectId && subjectNameInput && fieldId && levelId) {
@@ -141,16 +145,11 @@ export async function POST(req: Request) {
           levelId
         }
       });
-
       if (existingSubject) {
         finalSubjectId = existingSubject.id;
       } else {
         const newSub = await prisma.subject.create({
-          data: {
-            name: subjectNameInput,
-            fieldId,
-            levelId
-          }
+          data: { name: subjectNameInput, fieldId, levelId }
         });
         finalSubjectId = newSub.id;
       }
@@ -171,12 +170,10 @@ export async function POST(req: Request) {
       }
     });
 
-    // Bonus XP automatique (+30 XP)
     await addXP(user.id, 30);
-
     return NextResponse.json(resource);
   } catch (error) {
     console.error('Erreur Upload:', error);
-    return NextResponse.json({ error: 'Échec de l\'upload vers le cloud' }, { status: 500 });
+    return NextResponse.json({ error: 'Échec de l\'upload' }, { status: 500 });
   }
 }

@@ -18,7 +18,7 @@ import {
   ExternalLink,
   Folder,
   ChevronRight,
-  ArrowLeft
+  Upload
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 
@@ -31,6 +31,9 @@ type Resource = {
   type: string; // "PDF", "VIDEO", "AUDIO", "FOLDER", "OTHER"
   url: string;
   subject: { name: string; code: string | null } | null;
+  subjectName: string | null;
+  fieldId: string | null;
+  levelId: string | null;
   size: string | null;
   createdAt: string;
   author: { firstName: string; lastName: string };
@@ -74,7 +77,7 @@ export default function ResourcesPage() {
   const [externalUrl, setExternalUrl] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(''); // Ex: "3/10"
+  const [uploadProgress, setUploadProgress] = useState(''); 
   
   // New Folder Form State
   const [newFolderName, setNewFolderName] = useState('');
@@ -124,59 +127,69 @@ export default function ResourcesPage() {
   const handleEnterFolder = (folder: Resource) => {
     setCurrentFolder(folder);
     setBreadcrumbs([...breadcrumbs, folder]);
-    setFilterType('ALL'); // Reset filter when entering folder
+    setFilterType('ALL'); 
+    
+    // Auto-fill context
+    setFieldId(folder.fieldId || '');
+    setLevelId(folder.levelId || '');
+    setSubjectName(folder.subjectName || '');
+    
     fetchResources(folder.id);
   };
 
   const handleNavigateBreadcrumb = (index: number) => {
-    // If index is -1, it means Root
     if (index === -1) {
         setCurrentFolder(null);
         setBreadcrumbs([]);
+        setFieldId('');
+        setLevelId('');
+        setSubjectName('');
         fetchResources(null);
         return;
     }
-    
-    // Otherwise go to that specific folder
     const targetFolder = breadcrumbs[index];
     const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
     setCurrentFolder(targetFolder);
     setBreadcrumbs(newBreadcrumbs);
+    
+    setFieldId(targetFolder.fieldId || '');
+    setLevelId(targetFolder.levelId || '');
+    setSubjectName(targetFolder.subjectName || '');
+    
     fetchResources(targetFolder.id);
+  };
+
+  const handleOpenUploadInFolder = (e: React.MouseEvent, folder: Resource) => {
+    e.stopPropagation();
+    setCurrentFolder(folder);
+    setBreadcrumbs([...breadcrumbs, folder]);
+    setFieldId(folder.fieldId || '');
+    setLevelId(folder.levelId || '');
+    setSubjectName(folder.subjectName || '');
+    setIsModalOpen(true);
+    fetchResources(folder.id);
   };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFolderName) return;
+    if (!newFolderName || !folderFieldId || !folderLevelId) return;
 
     setCreatingFolder(true);
     const formData = new FormData();
     formData.append('title', newFolderName);
     formData.append('type', 'FOLDER');
+    formData.append('fieldId', folderFieldId);
+    formData.append('levelId', folderLevelId);
     
-    if (currentFolder) {
-        formData.append('parentId', currentFolder.id);
-    }
-    
-    if (folderFieldId) formData.append('fieldId', folderFieldId);
-    if (folderLevelId) formData.append('levelId', folderLevelId);
+    if (currentFolder) formData.append('parentId', currentFolder.id);
 
     try {
-        const res = await fetch('/api/resources', {
-            method: 'POST',
-            body: formData
-        });
-        
+        const res = await fetch('/api/resources', { method: 'POST', body: formData });
         if (res.ok) {
             play('success');
             setNewFolderName('');
-            setFolderFieldId('');
-            setFolderLevelId('');
             setIsFolderCreateOpen(false);
             fetchResources(currentFolder?.id || null);
-        } else {
-            const err = await res.json();
-            alert(err.error || "Erreur création dossier");
         }
     } catch (e) {
         console.error(e);
@@ -185,149 +198,11 @@ export default function ResourcesPage() {
     }
   };
 
-  const handleWatchAd = async () => {
-    const adUrl = 'https://otieu.com/4/10485395'; 
-    setWatchingAd(true);
-    window.open(adUrl, '_blank');
-
-    setTimeout(async () => {
-      try {
-        const res = await fetch('/api/user/ad-reward', { method: 'POST' });
-        if (res.ok) {
-          play('success');
-          setShowAdModal(false);
-          alert("Récompense validée ! Vous pouvez maintenant générer un nouveau quiz.");
-        }
-      } catch (e) {
-        console.error("Erreur pub:", e);
-      } finally {
-        setWatchingAd(false);
-      }
-    }, 30000);
-  };
-
-  const handleGenerateQuiz = async (resourceId: string, driveFileId?: string) => {
-    setGeneratingId(resourceId);
-    try {
-      const res = await fetch(`/api/resources/${resourceId}/generate-quiz`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driveFileId }) 
-      });
-      const data = await res.json();
-      
-      if (data.isFolder) {
-         const resource = resources.find(r => r.id === resourceId);
-         const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
-         const listData = await listRes.json();
-         setFolderFiles(listData.files || []);
-         setPendingAction({ id: resourceId, type: 'QUIZ' });
-         setIsFolderModalOpen(true);
-         return;
-      }
-
-      if (res.status === 429 || data.quotaExceeded) {
-        setShowAdModal(true);
-        return;
-      }
-
-      if (res.ok) {
-        play('success');
-        window.location.href = '/quiz'; 
-      } else {
-        alert(data.error || "Erreur lors de la génération");
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setGeneratingId(null);
-    }
-  };
-
-  const handleExplain = async (resourceId: string, driveFileId?: string) => {
-    setExplainingId(resourceId);
-    try {
-      const res = await fetch(`/api/resources/${resourceId}/explain`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driveFileId }) 
-      });
-      const data = await res.json();
-      
-      if (data.isFolder) {
-         const resource = resources.find(r => r.id === resourceId);
-         const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
-         const listData = await listRes.json();
-         setFolderFiles(listData.files || []);
-         setPendingAction({ id: resourceId, type: 'EXPLAIN' });
-         setIsFolderModalOpen(true);
-         return;
-      }
-
-      if (res.status === 429 || data.quotaExceeded) {
-        setShowAdModal(true);
-        return;
-      }
-
-      if (res.ok) {
-        setExplanation(data.explanation);
-        play('success');
-      } else {
-        alert(data.error || "Erreur lors de l'explication");
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setExplainingId(null);
-    }
-  };
-
-  const handleFolderFileSelect = (fileId: string) => {
-    if (!pendingAction) return;
-    setIsFolderModalOpen(false);
-    if (pendingAction.type === 'EXPLAIN') {
-        handleExplain(pendingAction.id, fileId);
-    } else {
-        handleGenerateQuiz(pendingAction.id, fileId);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer ce document/dossier ? Tout le contenu sera perdu.')) return;
-    
-    try {
-      const res = await fetch(`/api/resources/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        play('success');
-        fetchResources(currentFolder?.id || null);
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Erreur lors de la suppression');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFiles(e.target.files);
-      if (e.target.files.length === 1) {
-        setTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
-      }
-    }
-  };
-
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (inputType === 'FILE' && (!files || files.length === 0)) return;
     if (inputType === 'LINK' && !externalUrl) return;
-    if (!title && (inputType === 'LINK' || (files && files.length === 1))) {
-        alert("Le titre est requis.");
-        return;
-    }
-
+    
     setUploading(true);
     let successCount = 0;
     
@@ -349,11 +224,9 @@ export default function ResourcesPage() {
           for (let i = 0; i < totalFiles; i++) {
             const file = files![i];
             setUploadProgress(`${i + 1}/${totalFiles}`);
-            
             const formData = new FormData();
             formData.append('file', file);
-            
-            const fileTitle = totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title;
+            formData.append('title', totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title);
             
             let fileType = type;
             if (totalFiles > 1) {
@@ -361,19 +234,13 @@ export default function ResourcesPage() {
                 else if (file.name.match(/\.(mp4|mov|avi)$/i)) fileType = 'VIDEO';
                 else if (file.name.match(/\.(mp3|wav)$/i)) fileType = 'AUDIO';
             }
-
-            formData.append('title', fileTitle);
             formData.append('type', fileType);
             formData.append('subjectName', subjectName);
             formData.append('fieldId', fieldId);
             formData.append('levelId', levelId);
             if (currentFolder) formData.append('parentId', currentFolder.id);
 
-            const res = await fetch('/api/resources', {
-              method: 'POST',
-              body: formData,
-            });
-
+            const res = await fetch('/api/resources', { method: 'POST', body: formData });
             if (res.ok) successCount++;
           }
       }
@@ -381,19 +248,11 @@ export default function ResourcesPage() {
       await fetchResources(currentFolder?.id || null);
       setIsModalOpen(false);
       setTitle('');
-      setSubjectName('');
-      setType('PDF');
       setFiles(null);
       setExternalUrl('');
-      setUploadProgress('');
-      
-      if (inputType === 'LINK' && successCount === 1) play('success');
-      else if (inputType === 'FILE' && files && successCount === files.length) play('success');
-      else alert("Importation terminée.");
-
+      play('success');
     } catch (error) {
       console.error(error);
-      alert("Erreur serveur lors de l'upload");
     } finally {
       setUploading(false);
     }
@@ -409,14 +268,6 @@ export default function ResourcesPage() {
     }
   };
 
-  const isExternalDrive = (url: string) => {
-    return url.includes('drive.google.com') || 
-           url.includes('mega.nz') || 
-           url.includes('dropbox.com') ||
-           url.includes('youtube.com') ||
-           url.includes('youtu.be');
-  };
-
   const filteredResources = filterType === 'ALL' 
     ? resources 
     : resources.filter(r => r.type === filterType);
@@ -430,7 +281,7 @@ export default function ResourcesPage() {
             <div className="space-y-1">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources Pédagogiques</h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base">
-                Cours, tutoriels vidéos et podcasts partagés.
+                Organisez et accédez à vos cours en toute simplicité.
             </p>
             </div>
             {isAdmin && (
@@ -440,16 +291,14 @@ export default function ResourcesPage() {
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl font-bold transition-all"
                 >
                     <Folder size={18} />
-                    <span className="hidden sm:inline">Nouveau Dossier</span>
-                    <span className="sm:hidden">Dossier</span>
+                    <span>Nouveau Dossier</span>
                 </button>
                 <button 
                     onClick={() => setIsModalOpen(true)}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
                 >
-                    <Plus size={18} />
-                    <span className="hidden sm:inline">Ajouter un fichier</span>
-                    <span className="sm:hidden">Ajouter</span>
+                    <Upload size={18} />
+                    <span>Importer ici</span>
                 </button>
             </div>
             )}
@@ -462,7 +311,7 @@ export default function ResourcesPage() {
                 className={`flex items-center gap-1 hover:text-blue-600 transition-colors ${breadcrumbs.length === 0 ? 'font-bold text-zinc-900 dark:text-white' : ''}`}
             >
                 <Folder size={14} />
-                Acceuil
+                Accueil
             </button>
             {breadcrumbs.map((folder, index) => (
                 <div key={folder.id} className="flex items-center gap-1 shrink-0">
@@ -478,29 +327,15 @@ export default function ResourcesPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar px-2">
-        {['ALL', 'PDF', 'VIDEO', 'AUDIO'].map((ft) => (
-          <button
-            key={ft}
-            onClick={() => setFilterType(ft)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              filterType === ft 
-                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900' 
-                : 'bg-white dark:bg-zinc-900 text-zinc-500 border border-zinc-100 dark:border-zinc-800'
-            }`}
-          >
-            {ft === 'ALL' ? 'Tout voir' : ft}
-          </button>
-        ))}
-      </div>
-
       {/* Grid */}
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
       ) : filteredResources.length === 0 ? (
         <div className="mx-2 text-center py-20 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
            <p>Ce dossier est vide.</p>
+           {isAdmin && (
+             <button onClick={() => setIsModalOpen(true)} className="mt-4 text-blue-600 font-bold hover:underline">Importer le premier fichier</button>
+           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-2">
@@ -516,78 +351,52 @@ export default function ResourcesPage() {
                 <div className={`p-2.5 rounded-xl border ${res.type === 'FOLDER' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800'}`}>
                   {getIcon(res.type)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {isAdmin && res.type === 'FOLDER' && (
+                    <button 
+                      onClick={(e) => handleOpenUploadInFolder(e, res)}
+                      className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                      title="Importer directement dans ce dossier"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  )}
                   {isAdmin && (
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleDelete(res.id); }}
-                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors z-10 relative"
+                      onClick={(e) => { e.stopPropagation(); if(confirm('Supprimer ?')) fetch(`/api/resources/${res.id}`, {method:'DELETE'}).then(()=>fetchResources(currentFolder?.id||null)); }}
+                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
-                  )}
-                  {res.type !== 'FOLDER' && (
-                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest bg-zinc-50 dark:bg-zinc-950 px-2 py-1 rounded">
-                        {res.type}
-                    </span>
                   )}
                 </div>
               </div>
               
               <h3 className="text-base md:text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-1">{res.title}</h3>
-              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">
-                 {res.type === 'FOLDER' ? 'Dossier' : `${res.subject?.name || 'Général'} • ${res.size || 'Unknown'}`}
+              <p className="text-[10px] md:text-xs text-zinc-500 mb-4 truncate">
+                 {res.type === 'FOLDER' ? 'Dossier' : `${res.subject?.name || res.subjectName || 'Général'} • ${res.size}`}
               </p>
               
               {res.type !== 'FOLDER' && (
               <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {/* Hide Preview for external drives to avoid iframe blocks */}
-                    {!isExternalDrive(res.url) && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setPreviewFile(res); }}
-                        className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
-                      >
-                        <Eye size={14} /> <span className="hidden sm:inline">Aperçu</span>
-                      </button>
-                    )}
-                    
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setPreviewFile(res); }}
+                      className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
+                    >
+                      <Eye size={14} /> <span>Aperçu</span>
+                    </button>
                     <a 
                       href={res.url} 
-                      download={!isExternalDrive(res.url)}
                       target="_blank"
-                      rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
                     >
-                      {isExternalDrive(res.url) ? <ExternalLink size={14} /> : <Download size={14} />} 
-                      <span className="hidden sm:inline">
-                        {isExternalDrive(res.url) ? 'Ouvrir le lien' : 'Télécharger'}
-                      </span>
+                      <Download size={14} /> <span>Télécharger</span>
                     </a>
                   </div>
                 </div>
-                
-                {res.type === 'PDF' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleExplain(res.id); }}
-                      disabled={explainingId === res.id}
-                      className="py-2 bg-blue-500/10 text-blue-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
-                    >
-                      {explainingId === res.id ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
-                      IA : Expliquer
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleGenerateQuiz(res.id); }}
-                      disabled={generatingId === res.id}
-                      className="py-2 bg-emerald-500/10 text-emerald-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
-                    >
-                      {generatingId === res.id ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                      IA : Quiz
-                    </button>
-                  </div>
-                )}
               </div>
               )}
             </motion.div>
@@ -595,77 +404,53 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      {/* Create Folder Modal */}
+      {/* Modals are simplified now */}
       <AnimatePresence>
-        {isFolderCreateOpen && (
+        {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsFolderCreateOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.95, y: 20 }}
-               animate={{ opacity: 1, scale: 1, y: 0 }}
-               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
-            >
-                <h3 className="text-xl font-bold mb-4">Nouveau Dossier</h3>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+                <h3 className="text-xl font-bold mb-2">Importer un document</h3>
+                <p className="text-xs text-zinc-500 mb-6 italic">Destination : {currentFolder ? `Dossier "${currentFolder.title}"` : 'Racine'}</p>
                 
-                <form onSubmit={handleCreateFolder} className="space-y-4">
+                <form onSubmit={handleUpload} className="space-y-4">
+                    {/* Auto-filled context visible but minimal */}
+                    {currentFolder && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/20 mb-4">
+                            <p className="text-[10px] font-black uppercase text-blue-600 mb-1">Contexte hérité</p>
+                            <p className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
+                                {options.fields.find(f=>f.id===fieldId)?.name} • {options.levels.find(l=>l.id===levelId)?.name}
+                            </p>
+                        </div>
+                    )}
+
+                    {!currentFolder && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" value={fieldId} onChange={e=>setFieldId(e.target.value)}>
+                                <option value="">Filière...</option>
+                                {options.fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                            </select>
+                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" value={levelId} onChange={e=>setLevelId(e.target.value)}>
+                                <option value="">Niveau...</option>
+                                {options.levels.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+
                     <div>
-                        <label className="text-xs font-bold uppercase text-zinc-500">Nom du dossier</label>
-                        <input 
-                            type="text" 
-                            required
-                            autoFocus
-                            className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Ex: Chapitre 1 - Algèbre"
-                            value={newFolderName}
-                            onChange={e => setNewFolderName(e.target.value)}
-                        />
+                        <label className="text-xs font-bold uppercase text-zinc-500">Fichier(s)</label>
+                        <input type="file" required multiple onChange={e=>{setFiles(e.target.files); if(e.target.files?.length===1) setTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""))}} className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" />
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold uppercase text-zinc-500">Filière</label>
-                            <select 
-                                required
-                                className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                value={folderFieldId}
-                                onChange={e => setFolderFieldId(e.target.value)}
-                            >
-                                <option value="">Choisir...</option>
-                                {options.fields.map(f => (
-                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold uppercase text-zinc-500">Niveau</label>
-                            <select 
-                                required
-                                className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                value={folderLevelId}
-                                onChange={e => setFolderLevelId(e.target.value)}
-                            >
-                                <option value="">Choisir...</option>
-                                {options.levels.map(l => (
-                                    <option key={l.id} value={l.id}>{l.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                    
+
+                    {!files || files.length <= 1 && (
+                        <input type="text" placeholder="Titre (optionnel)" className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" value={title} onChange={e=>setTitle(e.target.value)} />
+                    )}
+
                     <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>
-                        <button 
-                            type="submit" 
-                            disabled={creatingFolder} 
-                            className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                        >
-                            {creatingFolder ? <Loader2 className="animate-spin" size={16} /> : <Folder size={16} />} 
-                            Créer
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold">Annuler</button>
+                        <button type="submit" disabled={uploading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                            {uploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+                            {uploading ? 'Importation...' : 'Importer'}
                         </button>
                     </div>
                 </form>
@@ -674,347 +459,32 @@ export default function ResourcesPage() {
         )}
       </AnimatePresence>
 
-      {/* AI Explanation Modal */}
       <AnimatePresence>
-        {explanation && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setExplanation(null)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            />
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.95, y: 20 }}
-               animate={{ opacity: 1, scale: 1, y: 0 }}
-               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="relative w-full max-w-2xl max-h-[80vh] bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-800"
-            >
-              <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl">
-                    <Bot size={24} />
-                  </div>
-                  <h3 className="text-xl font-bold">Explication Professeur IA</h3>
-                </div>
-                <button onClick={() => setExplanation(null)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-8 prose dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {explanation}
-                </ReactMarkdown>
-              </div>
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800 text-center">
-                <button 
-                  onClick={() => setExplanation(null)}
-                  className="px-6 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold text-sm"
-                >
-                  J&apos;ai compris
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* File Preview Modal */}
-      <AnimatePresence>
-        {previewFile && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-10">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setPreviewFile(null)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
-            />
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.95 }}
-               animate={{ opacity: 1, scale: 1 }}
-               exit={{ opacity: 0, scale: 0.95 }}
-               className="relative w-full h-full max-w-6xl bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-            >
-              {/* Toolbar */}
-              <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-white dark:bg-zinc-900">
-                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                       {getIcon(previewFile.type)}
-                    </div>
-                    <div>
-                       <h3 className="font-bold text-sm">{previewFile.title}</h3>
-                       <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">{previewFile.type} • {previewFile.size}</p>
-                    </div>
-                 </div>
-                 <button 
-                   onClick={() => setPreviewFile(null)}
-                   className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
-                 >
-                   <X size={20} />
-                 </button>
-              </div>
-
-              {/* Viewer Content */}
-              <div className="flex-1 bg-zinc-50 dark:bg-black overflow-hidden flex items-center justify-center">
-                 {previewFile.type === 'PDF' && (
-                   <iframe 
-                     src={`${previewFile.url}#toolbar=0`} 
-                     className="w-full h-full border-none"
-                     title={previewFile.title}
-                   />
-                 )}
-                 {previewFile.type === 'VIDEO' && (
-                   <video 
-                     controls 
-                     autoPlay
-                     className="max-w-full max-h-full shadow-2xl"
-                   >
-                     <source src={previewFile.url} type="video/mp4" />
-                     Votre navigateur ne supporte pas la lecture de cette vidéo.
-                   </video>
-                 )}
-                 {previewFile.type === 'AUDIO' && (
-                   <div className="flex flex-col items-center gap-8 p-12 bg-white dark:bg-zinc-900 rounded-[3rem] shadow-2xl border border-zinc-200 dark:border-zinc-800">
-                      <div className="w-48 h-48 bg-purple-100 dark:bg-purple-900/30 rounded-[2.5rem] flex items-center justify-center text-purple-600">
-                         <Headphones size={80} />
-                      </div>
-                      <audio controls className="w-80">
-                        <source src={previewFile.url} type="audio/mpeg" />
-                        Votre navigateur ne supporte pas la lecture de cet audio.
-                      </audio>
-                   </div>
-                 )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Upload Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
+        {isFolderCreateOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.95, y: 20 }}
-               animate={{ opacity: 1, scale: 1, y: 0 }}
-               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
-            >
-                            <h3 className="text-xl font-bold mb-4">
-                                {currentFolder ? `Ajouter dans "${currentFolder.title}"` : 'Ajouter un document'}
-                            </h3>
-                            
-                            {/* Tabs */}
-                            <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl mb-4">
-                                <button 
-                                  type="button"
-                                  onClick={() => setInputType('FILE')}
-                                  className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all ${inputType === 'FILE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-blue-600' : 'text-zinc-500'}`}
-                                >
-                                  Fichier (Upload)
-                                </button>
-                                <button 
-                                  type="button"
-                                  onClick={() => setInputType('LINK')}
-                                  className={`flex-1 py-2 text-xs font-bold uppercase rounded-lg transition-all ${inputType === 'LINK' ? 'bg-white dark:bg-zinc-700 shadow-sm text-blue-600' : 'text-zinc-500'}`}
-                                >
-                                  Lien (Drive/Web)
-                                </button>
-                            </div>
-              
-                            <form onSubmit={handleUpload} className="space-y-4">
-                              {/* Title Input - Always visible for Link, or single file */}
-                              {(inputType === 'LINK' || (!files || files.length <= 1)) && (
-                                <div>
-                                  <label className="text-xs font-bold uppercase text-zinc-500">Titre</label>
-                                  <input 
-                                    type="text" 
-                                    required={inputType === 'LINK' || (!files || files.length <= 1)}
-                                    className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder={inputType === 'LINK' ? "Ex: Dossier Complet Algèbre (Google Drive)" : "Ex: Cours Java Chap 1"}
-                                    value={title}
-                                    onChange={e => setTitle(e.target.value)}
-                                  />
-                                </div>
-                              )}
-                              
-                              {inputType === 'LINK' && (
-                                <div>
-                                  <label className="text-xs font-bold uppercase text-zinc-500">Lien du cours (Google Drive, Mega, YouTube...)</label>
-                                  <input 
-                                    type="url" 
-                                    required
-                                    className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-blue-600 font-medium"
-                                    placeholder="https://drive.google.com/..."
-                                    value={externalUrl}
-                                    onChange={e => setExternalUrl(e.target.value)}
-                                  />
-                                </div>
-                              )}
-              
-                              <div className="grid grid-cols-2 gap-4">                  <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Matière</label>
-                    <input 
-                      type="text"
-                      list="subjects-list"
-                      required
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      placeholder="Ex: Algorithmique"
-                      value={subjectName}
-                      onChange={e => setSubjectName(e.target.value)}
-                      disabled={!fieldId || !levelId}
-                    />
-                    <datalist id="subjects-list">
-                      {subjects.map(s => (
-                        <option key={s.id} value={s.name} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Type (Défaut)</label>
-                    <select 
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                      value={type}
-                      onChange={e => setType(e.target.value)}
-                    >
-                      <option value="PDF">Document (PDF)</option>
-                      <option value="VIDEO">Vidéo (MP4)</option>
-                      <option value="AUDIO">Audio (MP3)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Filière</label>
-                    <select 
-                      required
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      value={fieldId}
-                      onChange={e => setFieldId(e.target.value)}
-                    >
-                      <option value="">Choisir...</option>
-                      {options.fields.map(f => (
-                        <option key={f.id} value={f.id}>{f.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-zinc-500">Niveau</label>
-                    <select 
-                      required
-                      className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      value={levelId}
-                      onChange={e => setLevelId(e.target.value)}
-                    >
-                      <option value="">Choisir...</option>
-                      {options.levels.map(l => (
-                        <option key={l.id} value={l.id}>{l.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                                </div>
-                
-                                {inputType === 'FILE' && (
-                                  <div>
-                                     <label className="text-xs font-bold uppercase text-zinc-500">
-                                       Fichiers {files && files.length > 0 && <span className="text-blue-600">({files.length} sélectionnés)</span>}
-                                     </label>
-                                     <div className="mt-1 relative">
-                                       <input 
-                                         type="file" 
-                                         required
-                                         multiple
-                                         onChange={handleFileChange}
-                                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                       />
-                                     </div>
-                                     {files && files.length > 1 && (
-                                       <p className="text-[10px] text-zinc-400 mt-2">
-                                         * Les titres seront générés automatiquement à partir des noms de fichiers.
-                                         <br/>
-                                         * Les types (PDF/VIDEO) seront détectés par l'extension.
-                                       </p>
-                                     )}
-                                  </div>
-                                )}
-                
-                                <div className="flex gap-3 pt-4">
-                                   <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>
-                                   <button 
-                                     type="submit" 
-                                     disabled={uploading} 
-                                     className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                   >
-                                     {uploading && <Loader2 className="animate-spin" size={16} />} 
-                                     {uploading 
-                                        ? `Importation ${uploadProgress}...` 
-                                        : (inputType === 'FILE' && files && files.length > 1 
-                                            ? `Importer ${files.length} fichiers` 
-                                            : 'Ajouter')
-                                     }
-                                   </button>
-                                </div>              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Folder File Selection Modal */}
-      <AnimatePresence>
-        {isFolderModalOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsFolderModalOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            />
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.95, y: 20 }}
-               animate={{ opacity: 1, scale: 1, y: 0 }}
-               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
-            >
-              <div className="flex items-center justify-between mb-6">
-                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl">
-                       <Plus size={20} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFolderCreateOpen(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+                <h3 className="text-xl font-bold mb-4">Nouveau Dossier</h3>
+                <form onSubmit={handleCreateFolder} className="space-y-4">
+                    <input type="text" required autoFocus className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" placeholder="Nom du dossier" value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" value={folderFieldId} onChange={e=>setFolderFieldId(e.target.value)}>
+                            <option value="">Filière...</option>
+                            {options.fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm" value={folderLevelId} onChange={e=>setFolderLevelId(e.target.value)}>
+                            <option value="">Niveau...</option>
+                            {options.levels.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
                     </div>
-                    <h3 className="text-lg font-bold">Sélectionnez un cours</h3>
-                 </div>
-                 <button onClick={() => setIsFolderModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full">
-                    <X size={20} />
-                 </button>
-              </div>
-
-              <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                {folderFiles.length === 0 ? (
-                  <p className="text-center py-10 text-zinc-500 text-sm italic">Aucun document PDF trouvé dans ce dossier.</p>
-                ) : (
-                  folderFiles.map(file => (
-                    <button 
-                      key={file.id}
-                      onClick={() => handleFolderFileSelect(file.id)}
-                      className="w-full flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-950 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-zinc-100 dark:border-zinc-800 rounded-2xl transition-all text-left group"
-                    >
-                      <div className="p-2 bg-white dark:bg-zinc-900 rounded-lg group-hover:text-blue-600 transition-colors">
-                        <FileText size={20} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors">{file.name}</p>
-                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest mt-0.5">{(parseInt(file.size) / 1024 / 1024).toFixed(1)} MB</p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center">
-                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Choisissez le fichier à analyser par l'IA</p>
-              </div>
+                    <div className="flex gap-3 pt-4">
+                        <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold">Annuler</button>
+                        <button type="submit" disabled={creatingFolder} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                            {creatingFolder ? <Loader2 className="animate-spin" size={16} /> : <Folder size={16} />}
+                            Créer
+                        </button>
+                    </div>
+                </form>
             </motion.div>
           </div>
         )}

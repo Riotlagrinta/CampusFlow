@@ -86,7 +86,7 @@ export default function ResourcesPage() {
         setResources(data);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Erreur fetch:", err);
     } finally {
       setLoading(false);
     }
@@ -120,38 +120,66 @@ export default function ResourcesPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputType === 'FILE' && (!files || files.length === 0)) return;
+    console.log("Tentative d'importation...");
+
+    if (inputType === 'FILE' && (!files || files.length === 0)) {
+        alert("Veuillez sélectionner au moins un fichier.");
+        return;
+    }
+
+    if (!fieldId || !levelId) {
+        alert("Veuillez sélectionner une filière et un niveau.");
+        return;
+    }
+
     setUploading(true);
+    let successCount = 0;
+    let failCount = 0;
     
     try {
       const total = inputType === 'FILE' ? files!.length : 1;
-      let success = 0;
 
       for (let i = 0; i < total; i++) {
         const formData = new FormData();
-        if (inputType === 'FILE') formData.append('file', files![i]);
-        else formData.append('externalUrl', externalUrl);
+        if (inputType === 'FILE') {
+            formData.append('file', files![i]);
+            formData.append('title', total > 1 ? files![i].name : (title || files![i].name));
+        } else {
+            formData.append('externalUrl', externalUrl);
+            formData.append('title', title || "Lien externe");
+        }
 
-        formData.append('title', total > 1 ? files![i].name : title);
         formData.append('type', type);
         formData.append('fieldId', fieldId);
         formData.append('levelId', levelId);
         if (currentFolder) formData.append('parentId', currentFolder.id);
 
+        console.log(`Envoi du fichier ${i+1}/${total}...`);
         const res = await fetch('/api/resources', { method: 'POST', body: formData });
-        if (res.ok) success++;
+        
+        if (res.ok) {
+            successCount++;
+        } else {
+            failCount++;
+            const errorData = await res.json();
+            console.error("Détails erreur serveur:", errorData);
+        }
       }
 
-      if (success > 0) {
+      if (successCount > 0) {
         play('success');
-        alert(`${success} élément(s) importé(s) avec succès !`);
+        alert(`${successCount} élément(s) ajouté(s) !`);
         setIsModalOpen(false);
         setTitle('');
         setFiles(null);
+        setExternalUrl('');
         fetchResources(currentFolder?.id || null);
+      } else if (failCount > 0) {
+        alert("L'importation a échoué. Vérifiez la console pour plus de détails.");
       }
     } catch (error) {
-      alert("Erreur lors de l'importation");
+      console.error("Erreur critique upload:", error);
+      alert("Erreur de connexion au serveur.");
     } finally {
       setUploading(false);
     }
@@ -159,6 +187,11 @@ export default function ResourcesPage() {
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newFolderName || !folderFieldId || !folderLevelId) {
+        alert("Tous les champs sont requis pour le dossier.");
+        return;
+    }
+
     setCreatingFolder(true);
     try {
         const formData = new FormData();
@@ -174,6 +207,8 @@ export default function ResourcesPage() {
             setIsFolderCreateOpen(false);
             setNewFolderName('');
             fetchResources(currentFolder?.id || null);
+        } else {
+            alert("Impossible de créer le dossier.");
         }
     } catch (e) {
         console.error(e);
@@ -188,13 +223,12 @@ export default function ResourcesPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="space-y-1">
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources</h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Organisez vos documents par dossiers.</p>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Gestion et organisation des cours.</p>
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
                 <button 
                     onClick={() => fetchResources(currentFolder?.id || null)} 
                     className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-all border border-zinc-200 dark:border-zinc-700"
-                    title="Actualiser la liste"
                 >
                     <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                 </button>
@@ -241,46 +275,46 @@ export default function ResourcesPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="animate-spin text-blue-600" size={40} />
-            <p className="text-zinc-500 animate-pulse font-bold">Chargement des ressources...</p>
+            <p className="text-zinc-500 animate-pulse font-bold">Synchronisation...</p>
         </div>
       ) : resources.length === 0 ? (
         <div className="mx-2 text-center py-24 text-zinc-400 dark:text-zinc-500 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-[2rem] bg-zinc-50/50 dark:bg-zinc-900/20">
            <Folder size={48} className="mx-auto mb-4 opacity-20" />
            <p className="text-lg font-bold">Ce dossier est vide.</p>
-           <p className="text-sm opacity-60">Aucun document n'a été ajouté ici pour le moment.</p>
+           {isAdmin && <p className="text-sm">Cliquez sur "Importer" pour ajouter un fichier.</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-2 pb-10">
           {resources.map((res) => (
             <motion.div 
               key={res.id} 
-              initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               onClick={() => res.type === 'FOLDER' ? handleEnterFolder(res) : null}
-              className={`bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-xl transition-all group ${res.type === 'FOLDER' ? 'cursor-pointer hover:border-amber-400/50 dark:hover:border-amber-400/30' : 'hover:border-blue-400/50 dark:hover:border-blue-400/30'}`}
+              className={`bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all group ${res.type === 'FOLDER' ? 'cursor-pointer hover:border-amber-400' : 'hover:border-blue-400'}`}
             >
               <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-2xl border ${res.type === 'FOLDER' ? 'bg-amber-50 border-amber-100 text-amber-500 dark:bg-amber-500/10 dark:border-amber-500/20' : 'bg-blue-50 border-blue-100 text-blue-500 dark:bg-blue-500/10 dark:border-blue-500/20'}`}>
+                <div className={`p-3 rounded-2xl border ${res.type === 'FOLDER' ? 'bg-amber-50 border-amber-100 text-amber-500' : 'bg-blue-50 border-blue-100 text-blue-500'}`}>
                   {res.type === 'FOLDER' ? <Folder size={24} /> : <FileText size={24} />}
                 </div>
                 {isAdmin && (
                     <button 
-                        onClick={(e) => { e.stopPropagation(); if(confirm('Voulez-vous supprimer cet élément ?')) fetch(`/api/resources/${res.id}`, {method:'DELETE'}).then(()=>fetchResources(currentFolder?.id||null)); }} 
-                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                        onClick={(e) => { e.stopPropagation(); if(confirm('Supprimer ?')) fetch(`/api/resources/${res.id}`, {method:'DELETE'}).then(()=>fetchResources(currentFolder?.id||null)); }} 
+                        className="p-2 text-zinc-400 hover:text-red-500 rounded-xl"
                     >
                         <Trash2 size={18} />
                     </button>
                 )}
               </div>
-              <h3 className="font-bold text-zinc-900 dark:text-zinc-100 truncate text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{res.title}</h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-semibold uppercase tracking-wider">
-                {res.type === 'FOLDER' ? 'Dossier Partagé' : `${res.size || 'Fichier'} • ${res.type}`}
+              <h3 className="font-bold text-zinc-900 dark:text-zinc-100 truncate">{res.title}</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-semibold">
+                {res.type === 'FOLDER' ? 'DOSSIER' : `${res.size || 'Fichier'}`}
               </p>
               
               {res.type !== 'FOLDER' && (
                 <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                     <button 
                         onClick={(e) => { e.stopPropagation(); setPreviewFile(res); }} 
-                        className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-zinc-600 dark:text-zinc-300 hover:text-blue-600 transition-colors bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 rounded-lg"
+                        className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-zinc-600 dark:text-zinc-300 hover:text-blue-600 transition-colors bg-zinc-50 dark:bg-zinc-800 px-3 py-2 rounded-lg"
                     >
                         <Eye size={14}/> Aperçu
                     </button>
@@ -288,7 +322,7 @@ export default function ResourcesPage() {
                         href={res.url} 
                         target="_blank" 
                         onClick={e=>e.stopPropagation()} 
-                        className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 px-3 py-2 rounded-lg transition-all"
+                        className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg transition-all"
                     >
                         <Download size={14}/> Télécharger
                     </a>
@@ -299,46 +333,40 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      {/* Modals with fixed colors */}
+      {/* Upload Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 relative">
-                <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><X/></button>
-                <h3 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white text-center">Importer un document</h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8 text-center">Destination : <span className="text-blue-600 font-bold">{currentFolder ? currentFolder.title : 'Racine'}</span></p>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 relative">
+                <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-zinc-400 hover:text-white transition-colors"><X/></button>
+                <h3 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white text-center">Importer</h3>
+                <p className="text-sm text-zinc-500 mb-8 text-center">Destination : <span className="text-blue-600 font-bold">{currentFolder ? currentFolder.title : 'Racine'}</span></p>
                 
                 <form onSubmit={handleUpload} className="space-y-5">
                     {!currentFolder && (
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Filière</label>
-                                <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={fieldId} onChange={e=>setFieldId(e.target.value)}>
-                                    <option value="">Sélectionner...</option>
-                                    {options.fields.map(f=><option key={f.id} value={f.id} className="bg-white dark:bg-zinc-900">{f.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Niveau</label>
-                                <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={levelId} onChange={e=>setLevelId(e.target.value)}>
-                                    <option value="">Sélectionner...</option>
-                                    {options.levels.map(l=><option key={l.id} value={l.id} className="bg-white dark:bg-zinc-900">{l.name}</option>)}
-                                </select>
-                            </div>
+                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white" value={fieldId} onChange={e=>setFieldId(e.target.value)}>
+                                <option value="">Filière...</option>
+                                {options.fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                            </select>
+                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white" value={levelId} onChange={e=>setLevelId(e.target.value)}>
+                                <option value="">Niveau...</option>
+                                {options.levels.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                            </select>
                         </div>
                     )}
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Choisir le fichier</label>
-                        <input type="file" required multiple onChange={e=>setFiles(e.target.files)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3 rounded-2xl text-xs font-medium text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+                        <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Fichier(s)</label>
+                        <input type="file" required multiple onChange={e=>{setFiles(e.target.files); if(e.target.files?.length===1) setTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""))}} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3 rounded-2xl text-xs font-medium text-zinc-500 cursor-pointer" />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Titre affiché</label>
-                        <input type="text" placeholder="Ex: Cours de Mathématiques" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
+                        <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Titre (Auto si vide)</label>
+                        <input type="text" placeholder="Ex: TP Algo" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 p-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-widest text-xs border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all">Annuler</button>
-                        <button type="submit" disabled={uploading} className="flex-1 p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                            {uploading ? 'Traitement...' : 'Confirmer'}
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 p-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-widest text-xs">Annuler</button>
+                        <button type="submit" disabled={uploading} className="flex-1 p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-700 disabled:opacity-50">
+                            {uploading ? 'Envoi...' : 'Confirmer'}
                         </button>
                     </div>
                 </form>
@@ -350,34 +378,25 @@ export default function ResourcesPage() {
       <AnimatePresence>
         {isFolderCreateOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 relative">
-                <button onClick={() => setIsFolderCreateOpen(false)} className="absolute top-6 right-6 p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"><X/></button>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-zinc-800 relative">
+                <button onClick={() => setIsFolderCreateOpen(false)} className="absolute top-6 right-6 p-2 text-zinc-400 hover:text-white transition-colors"><X/></button>
                 <h3 className="text-2xl font-bold mb-8 text-zinc-900 dark:text-white text-center">Nouveau Dossier</h3>
                 <form onSubmit={handleCreateFolder} className="space-y-5">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Nom de l'organisation</label>
-                        <input type="text" required placeholder="Ex: TD et Exercices" value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
-                    </div>
+                    <input type="text" required placeholder="Nom du dossier" value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-4 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Filière</label>
-                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={folderFieldId} onChange={e=>setFolderFieldId(e.target.value)}>
-                                <option value="">Choisir...</option>
-                                {options.fields.map(f=><option key={f.id} value={f.id} className="bg-white dark:bg-zinc-900">{f.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-zinc-400 px-1">Niveau</label>
-                            <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={folderLevelId} onChange={e=>setFolderLevelId(e.target.value)}>
-                                <option value="">Choisir...</option>
-                                {options.levels.map(l=><option key={l.id} value={l.id} className="bg-white dark:bg-zinc-900">{l.name}</option>)}
-                            </select>
-                        </div>
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white" value={folderFieldId} onChange={e=>setFolderFieldId(e.target.value)}>
+                            <option value="">Filière...</option>
+                            {options.fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-3.5 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white" value={folderLevelId} onChange={e=>setFolderLevelId(e.target.value)}>
+                            <option value="">Niveau...</option>
+                            {options.levels.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
                     </div>
                     <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 p-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-widest text-xs border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all">Annuler</button>
-                        <button type="submit" disabled={creatingFolder} className="flex-1 p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
-                            {creatingFolder ? 'Création...' : 'Créer le dossier'}
+                        <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 p-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-2xl font-black uppercase tracking-widest text-xs">Annuler</button>
+                        <button type="submit" disabled={creatingFolder} className="flex-1 p-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-700">
+                            {creatingFolder ? 'Création...' : 'Créer'}
                         </button>
                     </div>
                 </form>
@@ -386,25 +405,20 @@ export default function ResourcesPage() {
         )}
       </AnimatePresence>
 
-      {/* Preview Modal High Visibility */}
       <AnimatePresence>
         {previewFile && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 md:p-10 bg-zinc-950/95 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full h-full bg-white dark:bg-zinc-900 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl border border-zinc-200 dark:border-zinc-800">
-              <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-zinc-900">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full h-full bg-white dark:bg-zinc-900 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl border border-zinc-200 dark:border-zinc-800">
+              <div className="p-4 border-b flex justify-between items-center bg-white dark:bg-zinc-900">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-xl text-blue-600">
-                        <FileText size={20}/>
-                    </div>
-                    <h3 className="font-bold text-zinc-900 dark:text-white truncate max-w-[200px] md:max-w-md">{previewFile.title}</h3>
+                    <FileText size={20} className="text-blue-600"/>
+                    <h3 className="font-bold text-zinc-900 dark:text-white truncate">{previewFile.title}</h3>
                 </div>
-                <button onClick={() => setPreviewFile(null)} className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-full transition-all">
+                <button onClick={() => setPreviewFile(null)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full transition-all">
                     <X size={24}/>
                 </button>
               </div>
-              <div className="flex-1 bg-zinc-100 dark:bg-black relative">
-                <iframe src={`${previewFile.url}#toolbar=0`} className="w-full h-full border-none shadow-inner" />
-              </div>
+              <iframe src={`${previewFile.url}#toolbar=0`} className="flex-1 border-none" />
             </motion.div>
           </div>
         )}

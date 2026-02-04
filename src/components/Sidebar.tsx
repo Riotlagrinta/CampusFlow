@@ -18,7 +18,8 @@ import {
   Command,
   LogOut,
   Brain,
-  ShoppingCart
+  ShoppingCart,
+  Sparkles as SparklesIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -40,6 +41,7 @@ const navItems = [
   { icon: MessageSquare, label: 'Forum', href: '/forum' },
   { icon: Bot, label: 'AI Assistant', href: '/ai-assistant' },
   { icon: ShoppingCart, label: 'Boutique IA', href: '/shop' },
+  { icon: SparklesIcon, label: 'Le Développeur', href: '/about' },
   { icon: BookOpen, label: 'Ressources', href: '/resources' },
 ];
 

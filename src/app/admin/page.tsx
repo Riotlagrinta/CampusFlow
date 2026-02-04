@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap,
   BookOpen, GraduationCap, Plus, Save, X, BarChart3, FileText,
-  CreditCard, CheckCircle2, AlertCircle
+  CreditCard, CheckCircle2, AlertCircle, User
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';

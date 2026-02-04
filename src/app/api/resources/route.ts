@@ -9,9 +9,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    console.log("GET /api/resources called");
     const { searchParams } = new URL(req.url);
-    const parentId = searchParams.get('parentId');
+    let parentId = searchParams.get('parentId');
+    
+    // Normalisation du parentId
+    if (parentId === 'null' || parentId === 'undefined' || !parentId) {
+        parentId = null;
+    }
 
     const session = await auth();
     if (!session || !session.user?.email) {
@@ -25,18 +29,15 @@ export async function GET(req: Request) {
 
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    // Si on cherche dans un dossier, on ignore les filtres de filière pour être sûr de tout voir
+    // Si on est à la racine, on filtre par filière pour les étudiants
     const resources = await prisma.resource.findMany({
-      where: {
-        ...(parentId && parentId !== 'null' 
-          ? { parentId } 
-          : {
-              parentId: null,
-              ...(user.role === 'ADMIN' ? {} : {
-                fieldId: user.fieldId,
-                levelId: user.academicLevelId
-              })
-            }
-        )
+      where: parentId ? { parentId } : {
+        parentId: null,
+        ...(user.role === 'ADMIN' ? {} : {
+          fieldId: user.fieldId,
+          levelId: user.academicLevelId
+        })
       },
       include: {
         author: { select: { firstName: true, lastName: true, level: true } },
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Sort: Folders first
+    // Tri : Dossiers en premier
     const sortedResources = resources.sort((a, b) => {
         if (a.type === 'FOLDER' && b.type !== 'FOLDER') return -1;
         if (a.type !== 'FOLDER' && b.type === 'FOLDER') return 1;
@@ -61,7 +62,6 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { put } = require('@vercel/blob');
     const session = await auth();
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -69,116 +69,75 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const externalUrl = formData.get('externalUrl') as string | null;
     const title = formData.get('title') as string;
     const type = formData.get('type') as string;
-    const subjectId = formData.get('subjectId') as string;
     const fieldId = formData.get('fieldId') as string;
     const levelId = formData.get('levelId') as string;
-    const parentId = formData.get('parentId') as string;
+    const subjectNameInput = formData.get('subjectName') as string;
+    let parentId = formData.get('parentId') as string | null;
+
+    // Normalisation du parentId pour éviter le texte "null"
+    if (parentId === 'null' || parentId === 'undefined' || !parentId) {
+        parentId = null;
+    }
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
-    // Sécurité : Seul l'ADMIN peut uploader
-    if (user.role !== 'ADMIN') {
+    if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
-    // Special case for Folder Creation
+    // Cas création de dossier
     if (type === 'FOLDER') {
-         if (!title) return NextResponse.json({ error: 'Le nom du dossier est requis.' }, { status: 400 });
-         
          const folder = await prisma.resource.create({
             data: {
-                title,
+                title: title || "Nouveau Dossier",
                 type: 'FOLDER',
-                url: '#', // Placeholder
-                size: null,
+                url: '#',
                 authorId: user.id,
                 fieldId: fieldId || null,
                 levelId: levelId || null,
-                parentId: parentId || null,
-                subjectName: formData.get('subjectName') as string || null,
+                parentId: parentId,
+                subjectName: subjectNameInput || null,
             }
          });
          return NextResponse.json(folder);
     }
 
-    // Validation : Soit un fichier, soit une URL externe
-    if ((!file && !externalUrl) || !title || !type) {
-      return NextResponse.json({ error: 'Fichier ou Lien requis, ainsi que titre et type.' }, { status: 400 });
+    // Cas import de fichier
+    if (!file && !formData.get('externalUrl')) {
+      return NextResponse.json({ error: 'Fichier requis' }, { status: 400 });
     }
 
-    let fileUrl = '';
+    let fileUrl = formData.get('externalUrl') as string || '';
     let sizeStr = 'Lien Externe';
 
-    if (externalUrl) {
-        fileUrl = externalUrl;
-    } else if (file) {
-        // Détection : Local vs Cloud (Vercel Blob)
-        if (process.env.BLOB_READ_WRITE_TOKEN) {
-          // Mode Cloud (Production)
-          const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
-            access: 'public',
-          });
-          fileUrl = blob.url;
-        } else {
-          // Mode Local (Fallback)
-          const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-          await mkdir(uploadDir, { recursive: true });
-          const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-          const filePath = path.join(uploadDir, fileName);
-          const bytes = await file.arrayBuffer();
-          const buffer = Buffer.from(bytes);
-          await writeFile(filePath, buffer);
-          fileUrl = `/uploads/${fileName}`;
-        }
-        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-        sizeStr = `${sizeInMB} MB`;
-    }
-
-    // Gestion automatique de la matière
-    let finalSubjectId = subjectId;
-    const subjectNameInput = formData.get('subjectName') as string;
-    
-    if (!finalSubjectId && subjectNameInput && fieldId && levelId) {
-      const existingSubject = await prisma.subject.findFirst({
-        where: { 
-          name: { equals: subjectNameInput, mode: 'insensitive' },
-          fieldId,
-          levelId
-        }
-      });
-      if (existingSubject) {
-        finalSubjectId = existingSubject.id;
-      } else {
-        const newSub = await prisma.subject.create({
-          data: { name: subjectNameInput, fieldId, levelId }
-        });
-        finalSubjectId = newSub.id;
-      }
+    if (file) {
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        await mkdir(uploadDir, { recursive: true });
+        const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()));
+        fileUrl = `/uploads/${fileName}`;
+        sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
     }
 
     const resource = await prisma.resource.create({
       data: {
-        title,
-        type,
-        subjectId: finalSubjectId || null,
-        subjectName: subjectNameInput || null,
+        title: title || (file ? file.name : "Sans titre"),
+        type: type || 'PDF',
         url: fileUrl,
         size: sizeStr,
         authorId: user.id,
         fieldId: fieldId || null,
         levelId: levelId || null,
-        parentId: parentId || null
+        parentId: parentId,
+        subjectName: subjectNameInput || null
       }
     });
 
     await addXP(user.id, 30);
     return NextResponse.json(resource);
   } catch (error) {
-    console.error('Erreur Upload:', error);
-    return NextResponse.json({ error: 'Échec de l\'upload' }, { status: 500 });
+    console.error('Erreur POST resources:', error);
+    return NextResponse.json({ error: 'Échec de l\'opération' }, { status: 500 });
   }
 }

@@ -23,10 +23,19 @@ export async function GET(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const GL_ID = "5752636c-824a-44e1-bc75-7e091b22342d";
+    const RIT_ID = "137ef97d-2186-43f5-a795-875ca26fb194";
+    const isTroncCommun = user.fieldId === GL_ID || user.fieldId === RIT_ID;
+
+    // Si on cherche dans un dossier, on ignore les filtres de filière pour être sûr de tout voir
+    // Si on est à la racine, on filtre par filière pour les étudiants (avec partage pour GL/RIT)
     const resources = await prisma.resource.findMany({
       where: parentId ? { parentId } : {
         parentId: null,
-        ...(user.role === 'ADMIN' ? {} : { fieldId: user.fieldId, levelId: user.academicLevelId })
+        ...(user.role === 'ADMIN' ? {} : {
+          fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId,
+          levelId: user.academicLevelId
+        })
       },
       include: {
         author: { select: { firstName: true, lastName: true, level: true } },

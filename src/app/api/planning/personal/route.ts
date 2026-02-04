@@ -20,12 +20,16 @@ export async function GET(req: Request) {
     const filterFieldId = searchParams.get('fieldId');
     const filterLevelId = searchParams.get('levelId');
 
+    const GL_ID = "5752636c-824a-44e1-bc75-7e091b22342d";
+    const RIT_ID = "137ef97d-2186-43f5-a795-875ca26fb194";
+    const isTroncCommun = user.fieldId === GL_ID || user.fieldId === RIT_ID;
+
     let whereClause: any = {
       OR: [
         { userId: user.id }, 
         { 
           isAcademic: true, 
-          fieldId: user.fieldId, 
+          fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId, 
           levelId: user.academicLevelId 
         }
       ]

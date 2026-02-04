@@ -729,7 +729,7 @@ model User {
 
   
 
-      size        String?
+          size        String?
 
   
 
@@ -737,7 +737,55 @@ model User {
 
   
 
-      quizzes     Quiz[]
+      
+
+  
+
+  
+
+  
+
+          // Gestion des dossiers
+
+  
+
+  
+
+  
+
+          parentId    String?
+
+  
+
+  
+
+  
+
+          parent      Resource? @relation("FolderContents", fields: [parentId], references: [id], onDelete: Cascade)
+
+  
+
+  
+
+  
+
+          children    Resource[] @relation("FolderContents")
+
+  
+
+  
+
+  
+
+      
+
+  
+
+  
+
+  
+
+          quizzes     Quiz[]
 
   
 

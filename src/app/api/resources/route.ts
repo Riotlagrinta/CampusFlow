@@ -5,8 +5,11 @@ import { auth } from "@/../auth";
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
+    console.log("GET /api/resources called");
     const session = await auth();
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -53,6 +56,30 @@ export async function POST(req: Request) {
     const subjectId = formData.get('subjectId') as string;
     const fieldId = formData.get('fieldId') as string;
     const levelId = formData.get('levelId') as string;
+    const parentId = formData.get('parentId') as string;
+
+    // Special case for Folder Creation
+    if (type === 'FOLDER') {
+         if (!title) return NextResponse.json({ error: 'Le nom du dossier est requis.' }, { status: 400 });
+         
+         const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+         if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+         const folder = await prisma.resource.create({
+            data: {
+                title,
+                type: 'FOLDER',
+                url: '#', // Placeholder
+                size: null,
+                authorId: user.id,
+                fieldId: fieldId || null,
+                levelId: levelId || null,
+                parentId: parentId || null,
+                subjectName: formData.get('subjectName') as string || null,
+            }
+         });
+         return NextResponse.json(folder);
+    }
 
     // Validation : Soit un fichier, soit une URL externe
     if ((!file && !externalUrl) || !title || !type) {
@@ -139,7 +166,8 @@ export async function POST(req: Request) {
         size: sizeStr,
         authorId: user.id,
         fieldId: fieldId || null,
-        levelId: levelId || null
+        levelId: levelId || null,
+        parentId: parentId || null
       }
     });
 

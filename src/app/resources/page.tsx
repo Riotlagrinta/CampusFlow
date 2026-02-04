@@ -15,7 +15,10 @@ import {
   Sparkles,
   Trash2,
   Bot,
-  ExternalLink
+  ExternalLink,
+  Folder,
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 
@@ -25,19 +28,27 @@ import remarkGfm from 'remark-gfm';
 type Resource = {
   id: string;
   title: string;
-  type: string; // "PDF", "VIDEO", "AUDIO", "OTHER"
+  type: string; // "PDF", "VIDEO", "AUDIO", "FOLDER", "OTHER"
   url: string;
   subject: { name: string; code: string | null } | null;
   size: string | null;
   createdAt: string;
   author: { firstName: string; lastName: string };
+  parentId: string | null;
 };
 
 export default function ResourcesPage() {
   const { play } = useSound();
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Folder Navigation State
+  const [currentFolder, setCurrentFolder] = useState<Resource | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<Resource[]>([]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false); // Upload Modal
+  const [isFolderCreateOpen, setIsFolderCreateOpen] = useState(false); // Create Folder Modal
+  
   const [previewFile, setPreviewFile] = useState<Resource | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -45,7 +56,7 @@ export default function ResourcesPage() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Folder Selection State
+  // Folder Selection State (for Drive/Quiz)
   const [folderFiles, setFolderFiles] = useState<any[]>([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ id: string, type: 'EXPLAIN' | 'QUIZ' } | null>(null);
@@ -65,12 +76,16 @@ export default function ResourcesPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(''); // Ex: "3/10"
   
+  // New Folder Form State
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+
   // Ad Reward State
   const [showAdModal, setShowAdModal] = useState(false);
   const [watchingAd, setWatchingAd] = useState(false);
 
   useEffect(() => {
-    fetchResources();
+    fetchResources(null); // Load root
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setIsAdmin(user.role === 'ADMIN');
 
@@ -88,6 +103,83 @@ export default function ResourcesPage() {
       setSubjects([]);
     }
   }, [fieldId, levelId]);
+
+  const fetchResources = async (parentId: string | null) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/resources?t=${Date.now()}&parentId=${parentId || 'null'}`);
+      if (res.ok) {
+        const data = await res.json();
+        setResources(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEnterFolder = (folder: Resource) => {
+    setCurrentFolder(folder);
+    setBreadcrumbs([...breadcrumbs, folder]);
+    setFilterType('ALL'); // Reset filter when entering folder
+    fetchResources(folder.id);
+  };
+
+  const handleNavigateBreadcrumb = (index: number) => {
+    // If index is -1, it means Root
+    if (index === -1) {
+        setCurrentFolder(null);
+        setBreadcrumbs([]);
+        fetchResources(null);
+        return;
+    }
+    
+    // Otherwise go to that specific folder
+    const targetFolder = breadcrumbs[index];
+    const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
+    setCurrentFolder(targetFolder);
+    setBreadcrumbs(newBreadcrumbs);
+    fetchResources(targetFolder.id);
+  };
+
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFolderName) return;
+
+    setCreatingFolder(true);
+    const formData = new FormData();
+    formData.append('title', newFolderName);
+    formData.append('type', 'FOLDER');
+    
+    if (currentFolder) {
+        formData.append('parentId', currentFolder.id);
+    }
+    
+    if (fieldId) formData.append('fieldId', fieldId);
+    if (levelId) formData.append('levelId', levelId);
+
+    try {
+        const res = await fetch('/api/resources', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (res.ok) {
+            play('success');
+            setNewFolderName('');
+            setIsFolderCreateOpen(false);
+            fetchResources(currentFolder?.id || null);
+        } else {
+            const err = await res.json();
+            alert(err.error || "Erreur création dossier");
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setCreatingFolder(false);
+    }
+  };
 
   const handleWatchAd = async () => {
     const adUrl = 'https://otieu.com/4/10485395'; 
@@ -121,7 +213,6 @@ export default function ResourcesPage() {
       const data = await res.json();
       
       if (data.isFolder) {
-         // C'est un dossier, on liste les fichiers
          const resource = resources.find(r => r.id === resourceId);
          const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
          const listData = await listRes.json();
@@ -138,7 +229,7 @@ export default function ResourcesPage() {
 
       if (res.ok) {
         play('success');
-        window.location.href = '/quiz'; // Rediriger vers la page des quizz
+        window.location.href = '/quiz'; 
       } else {
         alert(data.error || "Erreur lors de la génération");
       }
@@ -160,7 +251,6 @@ export default function ResourcesPage() {
       const data = await res.json();
       
       if (data.isFolder) {
-         // C'est un dossier, on liste les fichiers
          const resource = resources.find(r => r.id === resourceId);
          const listRes = await fetch(`/api/resources/drive/list-folder?url=${encodeURIComponent(resource!.url)}`);
          const listData = await listRes.json();
@@ -199,13 +289,13 @@ export default function ResourcesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer ce document ? Cela supprimera aussi les quizz associés.')) return;
+    if (!confirm('Voulez-vous vraiment supprimer ce document/dossier ? Tout le contenu sera perdu.')) return;
     
     try {
       const res = await fetch(`/api/resources/${id}`, { method: 'DELETE' });
       if (res.ok) {
         play('success');
-        fetchResources();
+        fetchResources(currentFolder?.id || null);
       } else {
         const data = await res.json();
         alert(data.error || 'Erreur lors de la suppression');
@@ -215,24 +305,9 @@ export default function ResourcesPage() {
     }
   };
 
-  const fetchResources = async () => {
-    try {
-      const res = await fetch('/api/resources');
-      if (res.ok) {
-        const data = await res.json();
-        setResources(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFiles(e.target.files);
-      // Si un seul fichier, on pré-remplit le titre
       if (e.target.files.length === 1) {
         setTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
       }
@@ -242,7 +317,6 @@ export default function ResourcesPage() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
     if (inputType === 'FILE' && (!files || files.length === 0)) return;
     if (inputType === 'LINK' && !externalUrl) return;
     if (!title && (inputType === 'LINK' || (files && files.length === 1))) {
@@ -255,7 +329,6 @@ export default function ResourcesPage() {
     
     try {
       if (inputType === 'LINK') {
-          // Mode LIEN UNIQUE
           const formData = new FormData();
           formData.append('externalUrl', externalUrl);
           formData.append('title', title);
@@ -263,11 +336,11 @@ export default function ResourcesPage() {
           formData.append('subjectName', subjectName);
           formData.append('fieldId', fieldId);
           formData.append('levelId', levelId);
+          if (currentFolder) formData.append('parentId', currentFolder.id);
 
           const res = await fetch('/api/resources', { method: 'POST', body: formData });
           if (res.ok) successCount = 1;
       } else {
-          // Mode FICHIERS MULTIPLES
           const totalFiles = files!.length;
           for (let i = 0; i < totalFiles; i++) {
             const file = files![i];
@@ -276,10 +349,8 @@ export default function ResourcesPage() {
             const formData = new FormData();
             formData.append('file', file);
             
-            // Auto-detection ou usage des champs
             const fileTitle = totalFiles > 1 ? file.name.replace(/\.[^/.]+$/, "") : title;
             
-            // Auto-detection du type basé sur l'extension si multiple
             let fileType = type;
             if (totalFiles > 1) {
                 if (file.name.toLowerCase().endsWith('.pdf')) fileType = 'PDF';
@@ -292,6 +363,7 @@ export default function ResourcesPage() {
             formData.append('subjectName', subjectName);
             formData.append('fieldId', fieldId);
             formData.append('levelId', levelId);
+            if (currentFolder) formData.append('parentId', currentFolder.id);
 
             const res = await fetch('/api/resources', {
               method: 'POST',
@@ -302,9 +374,8 @@ export default function ResourcesPage() {
           }
       }
 
-      await fetchResources();
+      await fetchResources(currentFolder?.id || null);
       setIsModalOpen(false);
-      // Reset form
       setTitle('');
       setSubjectName('');
       setType('PDF');
@@ -326,6 +397,7 @@ export default function ResourcesPage() {
 
   const getIcon = (type: string) => {
     switch (type) {
+      case 'FOLDER': return <Folder size={24} className="text-amber-500 fill-amber-500/20" />;
       case 'PDF': return <FileText size={24} className="text-red-500" />;
       case 'VIDEO': return <Video size={24} className="text-blue-500" />;
       case 'AUDIO': return <Headphones size={24} className="text-purple-500" />;
@@ -349,22 +421,57 @@ export default function ResourcesPage() {
     <div className="max-w-6xl mx-auto space-y-8 pb-20 px-2 md:px-0">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 px-2">
-        <div className="space-y-1">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources Pédagogiques</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base">
-            Cours, tutoriels vidéos et podcasts partagés.
-          </p>
+      <div className="flex flex-col gap-4 px-2">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-1">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources Pédagogiques</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base">
+                Cours, tutoriels vidéos et podcasts partagés.
+            </p>
+            </div>
+            {isAdmin && (
+            <div className="flex items-center gap-2 w-full md:w-auto">
+                <button 
+                    onClick={() => setIsFolderCreateOpen(true)}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl font-bold transition-all"
+                >
+                    <Folder size={18} />
+                    <span className="hidden sm:inline">Nouveau Dossier</span>
+                    <span className="sm:hidden">Dossier</span>
+                </button>
+                <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
+                >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Ajouter un fichier</span>
+                    <span className="sm:hidden">Ajouter</span>
+                </button>
+            </div>
+            )}
         </div>
-        {isAdmin && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
-          >
-            <Plus size={18} />
-            <span>Ajouter un fichier</span>
-          </button>
-        )}
+
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-1 text-sm text-zinc-500 overflow-x-auto no-scrollbar py-2">
+            <button 
+                onClick={() => handleNavigateBreadcrumb(-1)}
+                className={`flex items-center gap-1 hover:text-blue-600 transition-colors ${breadcrumbs.length === 0 ? 'font-bold text-zinc-900 dark:text-white' : ''}`}
+            >
+                <Folder size={14} />
+                Acceuil
+            </button>
+            {breadcrumbs.map((folder, index) => (
+                <div key={folder.id} className="flex items-center gap-1 shrink-0">
+                    <ChevronRight size={14} className="text-zinc-300" />
+                    <button 
+                        onClick={() => handleNavigateBreadcrumb(index)}
+                        className={`hover:text-blue-600 transition-colors max-w-[150px] truncate ${index === breadcrumbs.length - 1 ? 'font-bold text-zinc-900 dark:text-white' : ''}`}
+                    >
+                        {folder.title}
+                    </button>
+                </div>
+            ))}
+        </div>
       </div>
 
       {/* Filters */}
@@ -389,7 +496,7 @@ export default function ResourcesPage() {
         <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
       ) : filteredResources.length === 0 ? (
         <div className="mx-2 text-center py-20 text-zinc-400 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
-           <p>Aucune ressource trouvée.</p>
+           <p>Ce dossier est vide.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-2">
@@ -398,37 +505,43 @@ export default function ResourcesPage() {
               key={res.id}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="group bg-white dark:bg-zinc-900 p-5 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all"
+              onClick={() => res.type === 'FOLDER' ? handleEnterFolder(res) : null}
+              className={`group relative bg-white dark:bg-zinc-900 p-5 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all ${res.type === 'FOLDER' ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-md' : ''}`}
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                <div className={`p-2.5 rounded-xl border ${res.type === 'FOLDER' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800'}`}>
                   {getIcon(res.type)}
                 </div>
                 <div className="flex items-center gap-2">
                   {isAdmin && (
                     <button 
-                      onClick={() => handleDelete(res.id)}
-                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(res.id); }}
+                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors z-10 relative"
                     >
                       <Trash2 size={14} />
                     </button>
                   )}
-                  <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest bg-zinc-50 dark:bg-zinc-950 px-2 py-1 rounded">
-                    {res.type}
-                  </span>
+                  {res.type !== 'FOLDER' && (
+                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest bg-zinc-50 dark:bg-zinc-950 px-2 py-1 rounded">
+                        {res.type}
+                    </span>
+                  )}
                 </div>
               </div>
               
               <h3 className="text-base md:text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-1">{res.title}</h3>
-              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">{res.subject?.name || 'Général'} • {res.size || 'Unknown'}</p>
+              <p className="text-[10px] md:text-xs text-zinc-500 mb-4">
+                 {res.type === 'FOLDER' ? 'Dossier' : `${res.subject?.name || 'Général'} • ${res.size || 'Unknown'}`}
+              </p>
               
+              {res.type !== 'FOLDER' && (
               <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {/* Hide Preview for external drives to avoid iframe blocks */}
                     {!isExternalDrive(res.url) && (
                       <button 
-                        onClick={() => setPreviewFile(res)}
+                        onClick={(e) => { e.stopPropagation(); setPreviewFile(res); }}
                         className="flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors"
                       >
                         <Eye size={14} /> <span className="hidden sm:inline">Aperçu</span>
@@ -440,6 +553,7 @@ export default function ResourcesPage() {
                       download={!isExternalDrive(res.url)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
                     >
                       {isExternalDrive(res.url) ? <ExternalLink size={14} /> : <Download size={14} />} 
@@ -453,7 +567,7 @@ export default function ResourcesPage() {
                 {res.type === 'PDF' && (
                   <div className="grid grid-cols-2 gap-2">
                     <button 
-                      onClick={() => handleExplain(res.id)}
+                      onClick={(e) => { e.stopPropagation(); handleExplain(res.id); }}
                       disabled={explainingId === res.id}
                       className="py-2 bg-blue-500/10 text-blue-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
                     >
@@ -461,7 +575,7 @@ export default function ResourcesPage() {
                       IA : Expliquer
                     </button>
                     <button 
-                      onClick={() => handleGenerateQuiz(res.id)}
+                      onClick={(e) => { e.stopPropagation(); handleGenerateQuiz(res.id); }}
                       disabled={generatingId === res.id}
                       className="py-2 bg-emerald-500/10 text-emerald-600 rounded-lg transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-tighter"
                     >
@@ -471,10 +585,60 @@ export default function ResourcesPage() {
                   </div>
                 )}
               </div>
+              )}
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Create Folder Modal */}
+      <AnimatePresence>
+        {isFolderCreateOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsFolderCreateOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.95, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.95, y: 20 }}
+               className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
+            >
+                <h3 className="text-xl font-bold mb-4">Nouveau Dossier</h3>
+                
+                <form onSubmit={handleCreateFolder} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase text-zinc-500">Nom du dossier</label>
+                        <input 
+                            type="text" 
+                            required
+                            autoFocus
+                            className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Ex: Chapitre 1 - Algèbre"
+                            value={newFolderName}
+                            onChange={e => setNewFolderName(e.target.value)}
+                        />
+                    </div>
+                    {/* Optional: Add subject/level selectors here if we want to force folder context override */}
+                    
+                    <div className="flex gap-3 pt-4">
+                        <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>
+                        <button 
+                            type="submit" 
+                            disabled={creatingFolder} 
+                            className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                            {creatingFolder ? <Loader2 className="animate-spin" size={16} /> : <Folder size={16} />} 
+                            Créer
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* AI Explanation Modal */}
       <AnimatePresence>
@@ -605,7 +769,9 @@ export default function ResourcesPage() {
                exit={{ opacity: 0, scale: 0.95, y: 20 }}
                className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 border border-zinc-200 dark:border-zinc-800"
             >
-                            <h3 className="text-xl font-bold mb-4">Ajouter un document</h3>
+                            <h3 className="text-xl font-bold mb-4">
+                                {currentFolder ? `Ajouter dans "${currentFolder.title}"` : 'Ajouter un document'}
+                            </h3>
                             
                             {/* Tabs */}
                             <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl mb-4">
@@ -758,44 +924,6 @@ export default function ResourcesPage() {
                                      }
                                    </button>
                                 </div>              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Ad Reward Modal */}
-      <AnimatePresence>
-        {showAdModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-6 text-center space-y-6"
-            >
-              <div className="w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center">
-                <Video size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Quota Quizz Atteint</h3>
-                <p className="text-zinc-500 text-sm mt-2">Vous avez atteint votre limite de génération de quizz pour aujourd'hui.</p>
-              </div>
-              
-              <button 
-                onClick={handleWatchAd}
-                disabled={watchingAd}
-                className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
-              >
-                {watchingAd ? <Loader2 className="animate-spin" size={16} /> : <Video size={16} />}
-                {watchingAd ? 'Publicité en cours...' : 'Regarder une pub (+2 Quizz)'}
-              </button>
-
-              <button 
-                onClick={() => setShowAdModal(false)}
-                className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
-              >
-                Annuler
-              </button>
             </motion.div>
           </div>
         )}

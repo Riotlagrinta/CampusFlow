@@ -8,8 +8,22 @@ import path from 'path';
 
 const DAILY_AI_LIMIT = 10;
 
-// Fonction de recherche via Tavily (Optimisé pour l'IA)
+// Fonction de recherche optimisée avec CACHE
 async function searchWeb(query: string) {
+    const cleanQuery = query.toLowerCase().trim();
+    
+    // 1. Vérifier si on a déjà cherché ça récemment (Cache)
+    const cached = await prisma.searchCache.findUnique({ where: { query: cleanQuery } });
+    if (cached) {
+        // Si le cache a moins de 24h, on le réutilise
+        const isFresh = (new Date().getTime() - cached.createdAt.getTime()) < 24 * 60 * 60 * 1000;
+        if (isFresh) {
+            console.log("Utilisation du cache pour:", cleanQuery);
+            return cached.result;
+        }
+    }
+
+    // 2. Sinon, faire la vraie recherche
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return "";
 
@@ -27,12 +41,21 @@ async function searchWeb(query: string) {
         const data = await res.json();
         
         if (data.results && data.results.length > 0) {
-            return data.results.map((item: any) => 
+            const result = data.results.map((item: any) => 
                 `Titre: ${item.title}\nExtrait: ${item.content}\nLien: ${item.url}`
             ).join("\n\n");
+
+            // Sauvegarder dans le cache pour la prochaine fois
+            await prisma.searchCache.upsert({
+                where: { query: cleanQuery },
+                update: { result, createdAt: new Date() },
+                create: { query: cleanQuery, result }
+            });
+
+            return result;
         }
     } catch (e) {
-        console.error("Erreur Tavily Search:", e);
+        console.error("Erreur Tavily:", e);
     }
     return "";
 }
@@ -46,6 +69,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
 
+    // --- 1. LECTURE DOCUMENT ---
     let resourceContext = "";
     if (tempFilePath || externalLink || resourceId) {
         try {
@@ -53,29 +77,25 @@ export async function POST(req: Request) {
             if (tempFilePath) {
                 const fullTempPath = path.join(process.cwd(), 'public', tempFilePath);
                 if (fs.existsSync(fullTempPath)) {
-                    const dataBuffer = fs.readFileSync(fullTempPath);
-                    const data = await pdf(dataBuffer);
-                    resourceContext = data.text.substring(0, 10000);
+                    resourceContext = (await pdf(fs.readFileSync(fullTempPath))).text.substring(0, 10000);
                     try { fs.unlinkSync(fullTempPath); } catch(e) {}
                 }
             } else if (resourceId) {
-                const resource = await prisma.resource.findUnique({ where: { id: resourceId } });
-                if (resource && resource.type === 'PDF') {
-                    const filePath = path.join(process.cwd(), 'public', resource.url);
-                    if (fs.existsSync(filePath)) {
-                        const dataBuffer = fs.readFileSync(filePath);
-                        const data = await pdf(dataBuffer);
-                        resourceContext = data.text.substring(0, 10000);
-                    }
+                const res = await prisma.resource.findUnique({ where: { id: resourceId } });
+                if (res && res.type === 'PDF') {
+                    const fp = path.join(process.cwd(), 'public', res.url);
+                    if (fs.existsSync(fp)) resourceContext = (await pdf(fs.readFileSync(fp))).text.substring(0, 10000);
                 }
             }
         } catch (e) {}
     }
 
+    // --- 2. RECHERCHE WEB INTELLIGENTE ---
     let webContext = "";
-    const isGeneralQuestion = !resourceContext || message.toLowerCase().match(/(actu|président|qui est|météo|nouvelles|prix|internet|togo|usa|france|monde)/);
+    // On ne cherche sur le web que si c'est vraiment nécessaire (Actualité ou question complexe hors document)
+    const needsWeb = message.toLowerCase().match(/(actu|président|météo|nouvelles|prix|cours de|qui est|togo|usa|france|monde|aujourd'hui)/) || (!resourceContext && message.length < 100);
     
-    if (isGeneralQuestion) {
+    if (needsWeb) {
         webContext = await searchWeb(message);
     }
 
@@ -84,7 +104,7 @@ export async function POST(req: Request) {
     const dailyUsage = await prisma.dailyAIUsage.upsert({
       where: { userId_date: { userId: user.id, date: today } },
       update: {},
-      create: { userId: user.id, date: today, requestCount: 0 },
+      create: { userId: user.id, date: today },
     });
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
@@ -96,19 +116,15 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es un expert pédagogique.
-          
-          COURS PDF :
-          ${resourceContext ? resourceContext : "Aucun cours ouvert."}
-          
-          INTERNET (TAVILY SEARCH) :
-          ${webContext ? webContext : "Pas d'infos web."}
+          content: `Tu es l'IA de l'institut DEFITECH.
+          DOCUMENT : ${resourceContext || "Aucun."}
+          WEB : ${webContext || "Aucun."}
           
           DIRECTIVES :
-          1. Priorité au COURS PDF si l'info y est.
-          2. Utilise INTERNET pour compléter ou si l'info manque (ex: actualité).
-          3. Cite la source (Cours ou Web).
-          4. Sois factuel et précis.`
+          1. Priorité au DOCUMENT.
+          2. Si absent, utilise le WEB.
+          3. Si les deux sont absents, utilise tes connaissances générales.
+          4. Cite tes sources.`
         },
         { role: "user", content: message }
       ],
@@ -119,17 +135,13 @@ export async function POST(req: Request) {
     const text = completion.choices[0]?.message?.content || "";
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
-      data: { 
-        requestCount: { increment: 1 },
-        tokensUsed: completion.usage?.total_tokens || 0
-      },
+      data: { requestCount: { increment: 1 } },
     });
 
     await addXP(user.id, 5);
     return NextResponse.json({ reply: text });
 
   } catch (error: any) {
-    console.error("ERREUR CHAT:", error);
     return NextResponse.json({ reply: "Erreur technique." }, { status: 500 });
   }
 }

@@ -921,14 +921,78 @@ model User {
 
   
 
-    createdAt   DateTime  @default(now())
+      createdAt   DateTime  @default(now())
 
   
 
-    updatedAt   DateTime  @updatedAt
+  
 
   
 
-  }
+      updatedAt   DateTime  @updatedAt
+
+  
+
+  
+
+  
+
+    }
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+    model SearchCache {
+
+  
+
+  
+
+  
+
+      id        String   @id @default(uuid())
+
+  
+
+  
+
+  
+
+      query     String   @unique
+
+  
+
+  
+
+  
+
+      result    String   @db.Text
+
+  
+
+  
+
+  
+
+      createdAt DateTime @default(now())
+
+  
+
+  
+
+  
+
+    }
 
 

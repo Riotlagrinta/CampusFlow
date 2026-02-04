@@ -78,6 +78,8 @@ export default function ResourcesPage() {
   
   // New Folder Form State
   const [newFolderName, setNewFolderName] = useState('');
+  const [folderFieldId, setFolderFieldId] = useState('');
+  const [folderLevelId, setFolderLevelId] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
 
   // Ad Reward State
@@ -156,8 +158,8 @@ export default function ResourcesPage() {
         formData.append('parentId', currentFolder.id);
     }
     
-    if (fieldId) formData.append('fieldId', fieldId);
-    if (levelId) formData.append('levelId', levelId);
+    if (folderFieldId) formData.append('fieldId', folderFieldId);
+    if (folderLevelId) formData.append('levelId', folderLevelId);
 
     try {
         const res = await fetch('/api/resources', {
@@ -168,6 +170,8 @@ export default function ResourcesPage() {
         if (res.ok) {
             play('success');
             setNewFolderName('');
+            setFolderFieldId('');
+            setFolderLevelId('');
             setIsFolderCreateOpen(false);
             fetchResources(currentFolder?.id || null);
         } else {
@@ -621,7 +625,37 @@ export default function ResourcesPage() {
                             onChange={e => setNewFolderName(e.target.value)}
                         />
                     </div>
-                    {/* Optional: Add subject/level selectors here if we want to force folder context override */}
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold uppercase text-zinc-500">Filière</label>
+                            <select 
+                                required
+                                className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                value={folderFieldId}
+                                onChange={e => setFolderFieldId(e.target.value)}
+                            >
+                                <option value="">Choisir...</option>
+                                {options.fields.map(f => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold uppercase text-zinc-500">Niveau</label>
+                            <select 
+                                required
+                                className="w-full mt-1 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                value={folderLevelId}
+                                onChange={e => setFolderLevelId(e.target.value)}
+                            >
+                                <option value="">Choisir...</option>
+                                {options.levels.map(l => (
+                                    <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                     
                     <div className="flex gap-3 pt-4">
                         <button type="button" onClick={() => setIsFolderCreateOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-zinc-600 dark:text-zinc-300">Annuler</button>

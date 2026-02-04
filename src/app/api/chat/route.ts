@@ -8,22 +8,14 @@ import path from 'path';
 
 const DAILY_AI_LIMIT = 10;
 
-// Fonction de recherche optimisée avec CACHE
 async function searchWeb(query: string) {
     const cleanQuery = query.toLowerCase().trim();
-    
-    // 1. Vérifier si on a déjà cherché ça récemment (Cache)
     const cached = await prisma.searchCache.findUnique({ where: { query: cleanQuery } });
     if (cached) {
-        // Si le cache a moins de 24h, on le réutilise
         const isFresh = (new Date().getTime() - cached.createdAt.getTime()) < 24 * 60 * 60 * 1000;
-        if (isFresh) {
-            console.log("Utilisation du cache pour:", cleanQuery);
-            return cached.result;
-        }
+        if (isFresh) return cached.result;
     }
 
-    // 2. Sinon, faire la vraie recherche
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return "";
 
@@ -39,19 +31,15 @@ async function searchWeb(query: string) {
             })
         });
         const data = await res.json();
-        
         if (data.results && data.results.length > 0) {
-            const result = data.results.map((item: any) => 
-                `Titre: ${item.title}\nExtrait: ${item.content}\nLien: ${item.url}`
-            ).join("\n\n");
-
-            // Sauvegarder dans le cache pour la prochaine fois
+            const result = data.results.map((item: any) => `Titre: ${item.title}
+Info: ${item.content}
+Lien: ${item.url}`).join("\n\n");
             await prisma.searchCache.upsert({
                 where: { query: cleanQuery },
                 update: { result, createdAt: new Date() },
                 create: { query: cleanQuery, result }
             });
-
             return result;
         }
     } catch (e) {
@@ -65,13 +53,16 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session || !session.user?.email) return NextResponse.json({ reply: "Session expirée." }, { status: 401 });
 
-    const { message, resourceId, externalLink, tempFilePath } = await req.json();
+    const { message, resourceId, externalLink, tempFilePath, history } = await req.json();
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
 
-    // --- 1. LECTURE DOCUMENT ---
+    // --- 1. DETECTION SALUTATION (Économie de crédits) ---
+    const isGreeting = message.toLowerCase().trim().match(/^(bonjour|salut|hello|hi|hey|ça va|ca va|cc|coucou|merci|thanks|ok|d'accord|dac)$/i);
+
+    // --- 2. LECTURE DOCUMENT ---
     let resourceContext = "";
-    if (tempFilePath || externalLink || resourceId) {
+    if (!isGreeting && (tempFilePath || externalLink || resourceId)) {
         try {
             const pdf = require('pdf-parse');
             if (tempFilePath) {
@@ -90,10 +81,12 @@ export async function POST(req: Request) {
         } catch (e) {}
     }
 
-    // --- 2. RECHERCHE WEB INTELLIGENTE ---
+    // --- 3. RECHERCHE WEB (Seulement si nécessaire) ---
     let webContext = "";
-    // On ne cherche sur le web que si c'est vraiment nécessaire (Actualité ou question complexe hors document)
-    const needsWeb = message.toLowerCase().match(/(actu|président|météo|nouvelles|prix|cours de|qui est|togo|usa|france|monde|aujourd'hui)/) || (!resourceContext && message.length < 100);
+    const needsWeb = !isGreeting && (
+        message.toLowerCase().match(/(actu|président|météo|nouvelles|prix|cours de|qui est|togo|usa|france|monde|aujourd'hui)/) ||
+        (message.split(' ').length > 4 && !resourceContext) // Plus de 4 mots et pas de doc
+    );
     
     if (needsWeb) {
         webContext = await searchWeb(message);
@@ -103,7 +96,7 @@ export async function POST(req: Request) {
     today.setHours(0, 0, 0, 0);
     const dailyUsage = await prisma.dailyAIUsage.upsert({
       where: { userId_date: { userId: user.id, date: today } },
-      update: {},
+      update: {}, 
       create: { userId: user.id, date: today },
     });
 
@@ -112,24 +105,29 @@ export async function POST(req: Request) {
     }
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const completion = await groq.chat.completions.create({
-      messages: [
+    
+    // Construction de la mémoire de conversation
+    const messages = [
         {
           role: "system",
-          content: `Tu es l'IA de l'institut DEFITECH.
-          DOCUMENT : ${resourceContext || "Aucun."}
-          WEB : ${webContext || "Aucun."}
+          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es amical, professionnel et pédagogique.
+          ${resourceContext ? `DOCUMENT : ${resourceContext}` : ""}
+          ${webContext ? `INTERNET : ${webContext}` : ""}
           
           DIRECTIVES :
-          1. Priorité au DOCUMENT.
-          2. Si absent, utilise le WEB.
-          3. Si les deux sont absents, utilise tes connaissances générales.
-          4. Cite tes sources.`
+          1. Si l'étudiant te salue, réponds-lui poliment et propose ton aide.
+          2. Utilise le DOCUMENT en priorité.
+          3. Utilise INTERNET pour l'actualité ou les faits précis absents du document.
+          4. Reste concis et clair.`
         },
+        ...(history || []),
         { role: "user", content: message }
-      ],
+    ];
+
+    const completion = await groq.chat.completions.create({
+      messages: messages,
       model: "llama-3.3-70b-versatile",
-      temperature: 0.3,
+      temperature: 0.5,
     });
 
     const text = completion.choices[0]?.message?.content || "";

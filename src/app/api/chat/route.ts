@@ -8,27 +8,32 @@ import path from 'path';
 
 const DAILY_AI_LIMIT = 10;
 
-// Fonction pour rechercher sur Google (via API Google Custom Search)
+// Fonction de recherche ultra-puissante via Serper (Google Search)
 async function searchWeb(query: string) {
-    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
-    const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    
-    if (!apiKey || !cx) {
-        console.warn("Google Search API non configurée.");
+    const apiKey = process.env.SERPER_API_KEY;
+    if (!apiKey) {
+        console.warn("SERPER_API_KEY non configurée.");
         return "";
     }
 
     try {
-        const res = await fetch(`https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}`);
+        const res = await fetch("https://google.serper.dev/search", {
+            method: "POST",
+            headers: {
+                "X-API-KEY": apiKey,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ q: query, gl: "fr", hl: "fr" })
+        });
         const data = await res.json();
         
-        if (data.items && data.items.length > 0) {
-            return data.items.slice(0, 3).map((item: any) => 
-                `Titre: ${item.title}\nExtrait: ${item.snippet}\nLien: ${item.link}`
+        if (data.organic && data.organic.length > 0) {
+            return data.organic.slice(0, 4).map((item: any) => 
+                `Titre: ${item.title}\nInfo: ${item.snippet}\nSource: ${item.link}`
             ).join("\n\n");
         }
     } catch (e) {
-        console.error("Erreur Google Search:", e);
+        console.error("Erreur Serper Search:", e);
     }
     return "";
 }
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
 
-    // --- 1. CONTEXTE DOCUMENT (Priorité 1) ---
+    // --- 1. CONTEXTE DOCUMENT ---
     let resourceContext = "";
     if (tempFilePath || externalLink || resourceId) {
         try {
@@ -69,12 +74,12 @@ export async function POST(req: Request) {
         } catch (e) {}
     }
 
-    // --- 2. RECHERCHE WEB (Priorité 2 / Renfort) ---
-    // On lance la recherche si pas de document, ou si la question semble demander du web (actu, président, etc.)
+    // --- 2. RECHERCHE WEB (Serper) ---
+    // On cherche sur le web si on n'a pas de doc, ou si c'est une question d'actualité/générale
     let webContext = "";
-    const needsWeb = !resourceContext || message.toLowerCase().match(/(actu|président|qui est|météo|nouvelles|monde|aujourd'hui|google|internet|prix|cours)/);
+    const isGeneralQuestion = !resourceContext || message.length < 50 || message.toLowerCase().match(/(actu|président|qui est|météo|monde|prix|cours|google|internet|france|togo|usa)/);
     
-    if (needsWeb) {
+    if (isGeneralQuestion) {
         webContext = await searchWeb(message);
     }
 
@@ -97,24 +102,24 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu as accès à deux sources d'informations :
+          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es un expert pédagogique capable de fouiller dans les cours et sur Internet.
           
-          SOURCE 1 (DOCUMENT PDF) :
-          ${resourceContext ? resourceContext : "Aucun document joint."}
+          SOURCE 1 (COURS PDF) :
+          ${resourceContext ? resourceContext : "Aucun document n'est ouvert actuellement."}
           
-          SOURCE 2 (RECHERCHE GOOGLE EN TEMPS RÉEL) :
-          ${webContext ? webContext : "Aucun résultat web trouvé."}
+          SOURCE 2 (INTERNET - GOOGLE SEARCH) :
+          ${webContext ? webContext : "Aucune information trouvée sur le web."}
           
-          INSTRUCTIONS :
-          1. Si la réponse est dans le DOCUMENT (Source 1), utilise-le en priorité absolue.
-          2. Si la réponse n'est pas dans le document ou si l'étudiant pose une question générale, utilise les RÉSULTATS WEB (Source 2).
-          3. Cite tes sources (ex: "D'après le document..." ou "D'après les informations sur internet...").
-          4. Sois précis et factuel.`
+          DIRECTIVES :
+          1. Si la réponse est dans le COURS (Source 1), donne-la en priorité et précise "D'après votre cours...".
+          2. Si l'info manque dans le cours, utilise INTERNET (Source 2) et précise "D'après les recherches sur le web...".
+          3. Sois TRÈS PRÉCIS sur les faits historiques et l'actualité.
+          4. Si l'étudiant te demande "Qui est le président de...", utilise TOUJOURS la Source 2 pour être à jour.`
         },
         { role: "user", content: message }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.4,
+      temperature: 0.3, // Encore plus bas pour une précision maximale
     });
 
     const text = completion.choices[0]?.message?.content || "";
@@ -132,6 +137,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("ERREUR CHAT:", error);
-    return NextResponse.json({ reply: "Désolé, j'ai eu un problème technique." }, { status: 500 });
+    return NextResponse.json({ reply: "Une erreur est survenue." }, { status: 500 });
   }
 }

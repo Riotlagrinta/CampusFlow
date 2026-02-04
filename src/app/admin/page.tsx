@@ -4,9 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap,
-  BookOpen, GraduationCap, Plus, Save, X, BarChart3, FileText
+  BookOpen, GraduationCap, Plus, Save, X, BarChart3, FileText,
+  CreditCard, CheckCircle2, AlertCircle
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,51 +15,19 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type AdminUser = {  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  lastActive: string;
-  level: number;
-  xp: number;
-  role: string;
-  isActive: boolean;
-  otpCode?: string;
-  field?: { name: string, code: string };
-  academicLevel?: { name: string };
-  badges: { badge: { name: string; icon: string } }[];
-};
-
-type Field = { id: string; name: string; code: string; description: string | null; _count: { users: number } };
+// --- Types ---
+type AdminUser = { id: string; firstName: string; lastName: string; email: string; lastActive: string; level: number; xp: number; role: string; isActive: boolean; otpCode?: string; field?: { name: string, code: string }; academicLevel?: { name: string }; };
+type Transaction = { id: string; userId: string; amount: number; tokens: number; packName: string; status: string; reference: string | null; createdAt: string; user: { firstName: string; lastName: string; email: string }; };
+type Field = { id: string; name: string; code: string; _count: { users: number } };
 type Level = { id: string; name: string; _count: { users: number } };
-type Resource = {
-  id: string;
-  title: string;
-  type: string;
-  url: string;
-  createdAt: string;
-  subject: { name: string; code: string | null } | null;
-  author: { firstName: string; lastName: string };
-  field?: { code: string };
-  level?: { name: string };
-};
-
-type Subject = { id: string; name: string; code: string | null; fieldId: string; levelId: string; field: { name: string }; level: { name: string }; _count: { resources: number } };
+type Resource = { id: string; title: string; type: string; url: string; createdAt: string; subject: { name: string; code: string | null } | null; author: { firstName: string; lastName: string }; };
+type Subject = { id: string; name: string; code: string | null; field: { name: string }; level: { name: string }; _count: { resources: number } };
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects' | 'resources'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects' | 'resources' | 'transactions'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-
-  const handleActivateUser = async (userId: string) => {
-    try {
-      const res = await fetch(`/api/admin/users/${userId}/activate`, { method: 'POST' });
-      if (res.ok) {
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: true, otpCode: undefined } : u));
-      }
-    } catch (err) { console.error(err); }
-  };
-
   const [fields, setFields] = useState<Field[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -66,23 +35,13 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal States
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newField, setNewField] = useState({ name: '', code: '', description: '' });
-  const [newLevel, setNewLevel] = useState({ name: '' });
-  const [newSubject, setNewSubject] = useState({ name: '', code: '', fieldId: '', levelId: '' });
-
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => {
-      if (activeTab === 'users') fetchUsers();
-    }, 10000);
-    return () => clearInterval(interval);
   }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects(), fetchResources()]);
+    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects(), fetchResources(), fetchTransactions()]);
     setLoading(false);
   };
 
@@ -90,566 +49,168 @@ export default function AdminDashboard() {
     try {
       const res = await fetch('/api/admin/users');
       const data = await res.json();
+      if (res.ok) { setUsers(data.users); setTotalTokens(data.totalTokensToday); setChartData(data.chartData); }
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const res = await fetch('/api/admin/transactions');
+      const data = await res.json();
+      if (res.ok) setTransactions(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleApproveTransaction = async (id: string) => {
+    if (!confirm('Voulez-vous valider ce paiement et créditer les jetons ?')) return;
+    try {
+      const res = await fetch(`/api/admin/transactions/${id}/approve`, { method: 'POST' });
       if (res.ok) {
-        setUsers(data.users);
-        setTotalTokens(data.totalTokensToday);
-        setChartData(data.chartData);
+        alert('Transaction approuvée ! L\'étudiant a reçu ses jetons.');
+        fetchTransactions();
       }
     } catch (err) { console.error(err); }
   };
 
-  const fetchResources = async () => {
-    try {
-      const res = await fetch('/api/resources');
-      const data = await res.json();
-      if (res.ok) setResources(data);
-    } catch (err) { console.error(err); }
-  };
+  // --- Mock Functions pour la démo ---
+  const fetchResources = async () => { try { const res = await fetch('/api/resources'); if (res.ok) setResources(await res.json()); } catch (e) {} };
+  const fetchFields = async () => { try { const res = await fetch('/api/admin/academic/fields'); if (res.ok) setFields(await res.json()); } catch (e) {} };
+  const fetchLevels = async () => { try { const res = await fetch('/api/admin/academic/levels'); if (res.ok) setLevels(await res.json()); } catch (e) {} };
+  const fetchSubjects = async () => { try { const res = await fetch('/api/admin/academic/subjects'); if (res.ok) setSubjects(await res.json()); } catch (e) {} };
 
-  const fetchFields = async () => {
-    try {
-      const res = await fetch('/api/admin/academic/fields');
-      const data = await res.json();
-      if (res.ok) setFields(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchLevels = async () => {
-    try {
-      const res = await fetch('/api/admin/academic/levels');
-      const data = await res.json();
-      if (res.ok) setLevels(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchSubjects = async () => {
-    try {
-      const res = await fetch('/api/admin/academic/subjects');
-      const data = await res.json();
-      if (res.ok) setSubjects(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const handleAddField = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/admin/academic/fields', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newField),
-      });
-      if (res.ok) {
-        fetchFields();
-        setIsModalOpen(false);
-        setNewField({ name: '', code: '', description: '' });
-      }
-    } catch (err) { console.error(err); }
-  };
-
-  const handleAddLevel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/admin/academic/levels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLevel),
-      });
-      if (res.ok) {
-        fetchLevels();
-        setIsModalOpen(false);
-        setNewLevel({ name: '' });
-      }
-    } catch (err) { console.error(err); }
-  };
-
-  const handleAddSubject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/admin/academic/subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSubject),
-      });
-      if (res.ok) {
-        fetchSubjects();
-        setIsModalOpen(false);
-        setNewSubject({ name: '', code: '', fieldId: '', levelId: '' });
-      }
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer cet utilisateur ?')) return;
-    try {
-      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
-      if (res.ok) setUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteField = async (fieldId: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer cette filière ? Attention : Cela supprimera les emplois du temps associés.')) return;
-    try {
-      const res = await fetch(`/api/admin/academic/fields/${fieldId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok) {
-        setFields(prev => prev.filter(f => f.id !== fieldId));
-      } else {
-        alert(data.error || "Impossible de supprimer");
-      }
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteSubject = async (id: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer cette matière ?')) return;
-    try {
-      const res = await fetch(`/api/admin/academic/subjects/${id}`, { method: 'DELETE' });
-      if (res.ok) setSubjects(prev => prev.filter(s => s.id !== id));
-    } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteResource = async (id: string) => {
-    if (!confirm('Voulez-vous vraiment supprimer ce document ?')) return;
-    try {
-      const res = await fetch(`/api/resources/${id}`, { method: 'DELETE' });
-      if (res.ok) setResources(prev => prev.filter(r => r.id !== id));
-    } catch (err) { console.error(err); }
-  };
-
-  const isOnline = (lastActive: string) => {
-    const last = new Date(lastActive).getTime();
-    const now = Date.now();
-    return (now - last) < 120000;
-  };
-
-  if (loading && users.length === 0) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" /></div>;
+  const isOnline = (lastActive: string) => (Date.now() - new Date(lastActive).getTime()) < 120000;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 md:px-0">
+    <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 md:px-0 text-zinc-900 dark:text-zinc-100">
+      
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl shadow-xl">
-             <Shield size={24} className="md:w-8 md:h-8" />
-          </div>
+          <div className="p-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl shadow-xl"><Shield size={24} /></div>
           <div>
              <h1 className="text-2xl md:text-3xl font-black tracking-tight">Console Admin</h1>
-             <p className="text-zinc-500 text-sm italic">Gestion institutionnelle de DEFITECH</p>
+             <p className="text-zinc-500 text-sm">Gestion globale DEFITECH</p>
           </div>
         </div>
-        
-        {activeTab !== 'users' && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg transition-all"
-          >
-            <Plus size={18} />
-            <span>{activeTab === 'fields' ? 'Ajouter une Filière' : 'Ajouter un Niveau'}</span>
-          </button>
-        )}
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-2">
-        <div className="card-pro p-6 flex items-center gap-4 bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900/30">
-           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center">
-              <Activity size={24} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Live</p>
-              <h3 className="text-2xl font-bold">{users.filter(u => isOnline(u.lastActive)).length} en ligne</h3>
-           </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-2">
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
+           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><Activity size={24}/></div>
+           <div><p className="text-[10px] font-black uppercase text-zinc-400">Live</p><h3 className="text-xl font-bold">{users.filter(u=>isOnline(u.lastActive)).length}</h3></div>
         </div>
-        <div className="card-pro p-6 flex items-center gap-4">
-           <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center">
-              <Users size={24} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Population</p>
-              <h3 className="text-2xl font-bold">{users.length} Étudiants</h3>
-           </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
+           <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center"><Users size={24}/></div>
+           <div><p className="text-[10px] font-black uppercase text-zinc-400">Étudiants</p><h3 className="text-xl font-bold">{users.length}</h3></div>
         </div>
-        <div className="card-pro p-6 flex flex-col gap-2">
-           <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/30 text-amber-600 rounded-full flex items-center justify-center">
-                 <Zap size={24} />
-              </div>
-              <div className="flex-1">
-                 <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em]">IA Global (Tokens)</p>
-                 <div className="flex items-end gap-2">
-                    <h3 className="text-2xl font-bold">{totalTokens.toLocaleString()}</h3>
-                    <span className="text-[10px] text-zinc-400 mb-1">/ 100k</span>
-                 </div>
-              </div>
-           </div>
-           <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-2">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, (totalTokens / 100000) * 100)}%` }}
-                className={`h-full ${totalTokens > 80000 ? 'bg-red-500' : 'bg-amber-500'}`}
-              />
-           </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
+           <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center"><Zap size={24}/></div>
+           <div><p className="text-[10px] font-black uppercase text-zinc-400">Paiements Attente</p><h3 className="text-xl font-bold text-amber-600">{transactions.filter(t=>t.status==='PENDING').length}</h3></div>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
+           <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-2xl flex items-center justify-center"><CreditCard size={24}/></div>
+           <div><p className="text-[10px] font-black uppercase text-zinc-400">Ventes</p><h3 className="text-xl font-bold">{transactions.filter(t=>t.status==='COMPLETED').length}</h3></div>
         </div>
       </div>
 
-      {/* Analytics Chart */}
-      <div className="card-pro p-6 md:p-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-500/10 text-blue-600 rounded-lg">
-            <BarChart3 size={20} />
-          </div>
-          <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Activité IA (7 derniers jours)</h3>
-        </div>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} stroke="#94a3b8" />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} stroke="#94a3b8" />
-              <Tooltip 
-                cursor={{ fill: '#f8fafc' }} 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
-              />
-              <Bar dataKey="tokens" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl w-fit ml-2">
-        {[
+      {/* Tabs */}
+      <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl w-fit ml-2">
+        {[ 
           { id: 'users', label: 'Étudiants', icon: Users },
+          { id: 'transactions', label: 'Transactions', icon: CreditCard },
           { id: 'fields', label: 'Filières', icon: BookOpen },
-          { id: 'levels', label: 'Niveaux', icon: GraduationCap },
-          { id: 'subjects', label: 'Matières', icon: BookOpen },
           { id: 'resources', label: 'Documents', icon: FileText },
         ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all",
-              activeTab === tab.id 
-                ? "bg-white dark:bg-zinc-800 text-blue-600 shadow-sm" 
-                : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            )}
-          >
-            <tab.icon size={14} />
-            {tab.label}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={cn("flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all", activeTab === tab.id ? "bg-white dark:bg-zinc-800 text-blue-600 shadow-lg" : "text-zinc-500")}>
+            <tab.icon size={14} /> {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
-      <div className="space-y-6 px-2">
+      {/* Content */}
+      <div className="px-2">
         {activeTab === 'users' && (
+          <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+                <tr><th className="px-8 py-5">Utilisateur</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Actions</th></tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-500">{u.firstName?.[0]}{u.lastName?.[0]}</div>
+                        <div><p className="text-sm font-bold">{u.firstName} {u.lastName}</p><p className="text-[10px] text-zinc-500">{u.email}</p></div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      {isOnline(u.lastActive) ? <span className="text-emerald-500 text-xs font-bold flex items-center gap-1.5"><Circle size={6} fill="currentColor"/> En ligne</span> : <span className="text-zinc-400 text-xs font-medium">Hors ligne</span>}
+                    </td>
+                    <td className="px-8 py-5 text-right"><button className="p-2 text-zinc-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeTab === 'transactions' && (
           <div className="space-y-4">
-            {/* Desktop Table */}
-            <div className="hidden lg:block card-pro overflow-hidden border border-zinc-200 dark:border-zinc-800">
+            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
               <table className="w-full text-left">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
+                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
-                    <th className="px-6 py-4">Utilisateur</th>
-                    <th className="px-6 py-4">Classe</th>
-                    <th className="px-6 py-4">Progression</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Validation</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
+                    <th className="px-8 py-5">Étudiant</th>
+                    <th className="px-8 py-5">Pack / Montant</th>
+                    <th className="px-8 py-5">Status</th>
+                    <th className="px-8 py-5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 bg-white dark:bg-zinc-900/50">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/80 transition-colors">
-                      <td className="px-6 py-4">
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {transactions.map(t => (
+                    <tr key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors">
+                      <td className="px-8 py-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                            {u.firstName?.[0]}{u.lastName?.[0]}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                              {u.firstName} {u.lastName}
-                              {u.role === 'ADMIN' && <Shield size={10} className="text-blue-500" />}
-                            </p>
-                            <p className="text-[10px] text-zinc-500">{u.email}</p>
-                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><User size={20}/></div>
+                          <div><p className="text-sm font-bold">{t.user.firstName} {t.user.lastName}</p><p className="text-[10px] text-zinc-500">{new Date(t.createdAt).toLocaleString()}</p></div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{u.field?.name || 'N/A'}</p>
-                        <p className="text-[10px] text-zinc-500">{u.academicLevel?.name || '-'}</p>
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold">{t.packName}</p>
+                        <p className="text-xs text-blue-600 font-black">{t.amount} FCFA • {t.tokens} Jetons</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="text-xs font-bold">LVL {u.level}</p>
-                        <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-medium">
-                        {isOnline(u.lastActive) ? (
-                          <span className="text-emerald-500 flex items-center gap-1.5"><Circle size={6} fill="currentColor" /> En ligne</span>
+                      <td className="px-8 py-5">
+                        {t.status === 'COMPLETED' ? (
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase">Payé</span>
+                        ) : t.status === 'FAILED' ? (
+                          <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-black uppercase">Échoué</span>
                         ) : (
-                          <span className="text-zinc-400 flex items-center gap-1.5"><Circle size={6} fill="currentColor" /> Hors ligne</span>
+                          <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase animate-pulse">En attente</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        {u.isActive ? (
-                          <span className="px-2 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded text-[10px] font-black uppercase">Actif</span>
-                        ) : (
-                          <div className="flex flex-col gap-1.5">
-                            <span className="px-2 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded text-[10px] font-black uppercase w-fit">Code: {u.otpCode}</span>
-                            <button 
-                              onClick={() => handleActivateUser(u.id)}
-                              className="text-[9px] font-bold text-blue-600 hover:underline text-left"
-                            >
-                              Activer manuellement
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {u.role !== 'ADMIN' && (
-                          <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-zinc-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      <td className="px-8 py-5 text-right">
+                        {t.status === 'PENDING' && (
+                          <button 
+                            onClick={() => handleApproveTransaction(t.id)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 ml-auto"
+                          >
+                            <CheckCircle2 size={14}/> Approuver
+                          </button>
                         )}
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="lg:hidden space-y-3">
-              {users.map((u) => (
-                <div key={u.id} className="card-pro p-4 space-y-3 relative">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-zinc-500">{u.firstName?.[0]}{u.lastName?.[0]}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate">{u.firstName} {u.lastName}</p>
-                      <p className="text-[10px] text-zinc-500 truncate">{u.field?.code} • {u.academicLevel?.name}</p>
-                    </div>
-                    {isOnline(u.lastActive) && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
-                  </div>
-                  {u.role !== 'ADMIN' && (
-                    <button onClick={() => handleDeleteUser(u.id)} className="absolute top-2 right-2 p-2 text-zinc-300"><Trash2 size={14} /></button>
+                  {transactions.length === 0 && (
+                    <tr><td colSpan={4} className="px-8 py-20 text-center text-zinc-400 font-bold italic">Aucune transaction enregistrée.</td></tr>
                   )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'fields' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {fields.map((f) => (
-              <div key={f.id} className="card-pro p-6 space-y-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
-                <div className="flex justify-between items-start">
-                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center font-black text-xs border border-blue-100 dark:border-blue-800/30">
-                    {f.code}
-                  </div>
-                  <span className="text-[10px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-1 rounded uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
-                    {f._count.users} Étudiants
-                  </span>
-                </div>
-                <div>
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{f.name}</h3>
-                    <button onClick={() => handleDeleteField(f.id)} className="text-zinc-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 mt-1 line-clamp-2 italic">{f.description || 'Pas de description.'}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'levels' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {levels.map((l) => (
-              <div key={l.id} className="card-pro p-6 flex items-center justify-between group">
-                <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{l.name}</h3>
-                  <p className="text-[10px] text-zinc-500">{l._count.users} Inscrits</p>
-                </div>
-                <GraduationCap size={20} className="text-zinc-200 group-hover:text-blue-500 transition-colors" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'subjects' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjects.map((s) => (
-              <div key={s.id} className="card-pro p-6 space-y-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
-                <div className="flex justify-between items-start">
-                  <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl flex items-center justify-center font-black text-[10px] border border-amber-100 dark:border-amber-800/30">
-                    {s.code || 'MAT'}
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[10px] font-black text-zinc-400 uppercase">{s.field.name}</span>
-                    <span className="block text-[9px] font-bold text-blue-500">{s.level.name}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{s.name}</h3>
-                    <button onClick={() => handleDeleteSubject(s.id)} className="text-zinc-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 mt-1 italic">{s._count.resources} documents disponibles</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'resources' && (
-          <div className="space-y-4">
-            {/* Desktop Table */}
-            <div className="hidden lg:block card-pro overflow-hidden border border-zinc-200 dark:border-zinc-800">
-              <table className="w-full text-left">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-[10px] font-black uppercase text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th className="px-6 py-4">Titre</th>
-                    <th className="px-6 py-4">Matière</th>
-                    <th className="px-6 py-4">Type</th>
-                    <th className="px-6 py-4">Auteur</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 bg-white dark:bg-zinc-900/50">
-                  {resources.map((r) => (
-                    <tr key={r.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-900/80 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${r.type === 'PDF' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                            {r.type === 'PDF' ? 'PDF' : r.type === 'VIDEO' ? 'VID' : 'LNK'}
-                          </div>
-                          <div className="max-w-[200px]">
-                            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate" title={r.title}>{r.title}</p>
-                            <a href={r.url} target="_blank" className="text-[10px] text-blue-500 hover:underline truncate block">{r.url}</a>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{r.subject?.name || 'Général'}</p>
-                        <p className="text-[10px] text-zinc-500">{r.field?.code} • {r.level?.name}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px] font-bold text-zinc-500">{r.type}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                         <p className="text-xs font-medium">{r.author?.firstName} {r.author?.lastName}</p>
-                         <p className="text-[10px] text-zinc-400">{new Date(r.createdAt).toLocaleDateString()}</p>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleDeleteResource(r.id)} className="p-2 text-zinc-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
-            
-             {/* Mobile Cards */}
-             <div className="lg:hidden space-y-3">
-               {resources.map((r) => (
-                 <div key={r.id} className="card-pro p-4 space-y-3 relative">
-                   <div className="flex items-center gap-3">
-                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${r.type === 'PDF' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {r.type === 'PDF' ? 'PDF' : 'VID'}
-                     </div>
-                     <div className="flex-1 min-w-0">
-                       <p className="text-sm font-bold truncate">{r.title}</p>
-                       <p className="text-[10px] text-zinc-500 truncate">{r.subject?.name} • {new Date(r.createdAt).toLocaleDateString()}</p>
-                     </div>
-                   </div>
-                   <button onClick={() => handleDeleteResource(r.id)} className="absolute top-2 right-2 p-2 text-zinc-300"><Trash2 size={14} /></button>
-                 </div>
-               ))}
-             </div>
           </div>
         )}
       </div>
-
-      {/* Creation Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
-              <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                <h3 className="text-xl font-bold">
-                  Ajouter {activeTab === 'fields' ? 'une Filière' : activeTab === 'levels' ? 'un Niveau' : 'une Matière'}
-                </h3>
-                <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
-              </div>
-              
-              <form onSubmit={activeTab === 'fields' ? handleAddField : activeTab === 'levels' ? handleAddLevel : handleAddSubject} className="p-6 space-y-4">
-                {activeTab === 'fields' && (
-                  <>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom complet</label>
-                      <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: Génie Logiciel" value={newField.name} onChange={e => setNewField({...newField, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Code court</label>
-                      <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: GL" value={newField.code} onChange={e => setNewField({...newField, code: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Description</label>
-                      <textarea className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none" placeholder="Description de la filière..." value={newField.description} onChange={e => setNewField({...newField, description: e.target.value})} />
-                    </div>
-                  </>
-                )}
-
-                {activeTab === 'levels' && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom du niveau</label>
-                    <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: Licence 1" value={newLevel.name} onChange={e => setNewLevel({...newLevel, name: e.target.value})} />
-                  </div>
-                )}
-
-                {activeTab === 'subjects' && (
-                  <>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Nom de la matière</label>
-                      <input required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: Algorithmique" value={newSubject.name} onChange={e => setNewSubject({...newSubject, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Code court (Optionnel)</label>
-                      <input className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="ex: ALGO" value={newSubject.code || ''} onChange={e => setNewSubject({...newSubject, code: e.target.value})} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Filière</label>
-                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-xs outline-none" value={newSubject.fieldId} onChange={e => setNewSubject({...newSubject, fieldId: e.target.value})}>
-                          <option value="">Choisir...</option>
-                          {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-zinc-500 ml-1">Niveau</label>
-                        <select required className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-xs outline-none" value={newSubject.levelId} onChange={e => setNewSubject({...newSubject, levelId: e.target.value})}>
-                          <option value="">Choisir...</option>
-                          {levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl font-bold text-xs text-zinc-600 dark:text-zinc-300">Annuler</button>
-                  <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                    <Save size={14} /> Confirmer
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

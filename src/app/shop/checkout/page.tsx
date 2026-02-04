@@ -22,10 +22,9 @@ const PACKS: Record<string, { name: string, price: number, tokens: number }> = {
 };
 
 // --- CONFIGURATION ADMIN ---
-const ADMIN_PHONE = "+22890000000"; // Votre numéro WhatsApp
-const TMONEY_NUMBER = "90 00 00 00"; // Votre numéro T-Money
-const FLOOZ_NUMBER = "99 00 00 00";  // Votre numéro Flooz
-const ACCOUNT_NAME = "M. VOTRE NOM"; // Le nom qui s'affiche lors du transfert
+const ADMIN_PHONE = "+22871796050"; // Votre WhatsApp Business
+const TMONEY_NUMBER = "71796050"; 
+const FLOOZ_NUMBER = "79683081";  
 
 export default function CheckoutPage() {
   const { play } = useSound();
@@ -153,14 +152,9 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em]">Nom du destinataire</p>
-                  <p className="text-lg font-bold">{ACCOUNT_NAME}</p>
-                </div>
-
                 <div className="pt-4 flex items-start gap-3 text-xs text-zinc-400 bg-white/5 p-4 rounded-2xl border border-white/5">
                   <Info size={16} className="shrink-0 text-blue-400" />
-                  <p>Vérifiez bien le nom <b>{ACCOUNT_NAME}</b> avant de confirmer le transfert sur votre téléphone.</p>
+                  <p>Veuillez vérifier le numéro avant de confirmer le transfert sur votre téléphone.</p>
                 </div>
               </div>
 

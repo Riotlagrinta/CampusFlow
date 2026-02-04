@@ -39,28 +39,9 @@ export default function ShopPage() {
   const { play } = useSound();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const handleBuy = async (packId: string) => {
-    setLoadingId(packId);
+  const handleBuy = (packId: string) => {
     play('xp');
-    
-    try {
-      const res = await fetch('/api/payment/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packId })
-      });
-      const data = await res.json();
-      
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || "Erreur lors de l'initialisation du paiement.");
-      }
-    } catch (err) {
-      alert("Erreur de connexion au serveur.");
-    } finally {
-      setLoadingId(null);
-    }
+    window.location.href = `/shop/checkout?packId=${packId}`;
   };
 
   return (

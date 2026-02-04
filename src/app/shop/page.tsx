@@ -41,7 +41,7 @@ export default function ShopPage() {
 
   const handleBuy = async (packId: string) => {
     setLoadingId(packId);
-    play('click');
+    play('xp');
     
     try {
       const res = await fetch('/api/payment/create', {

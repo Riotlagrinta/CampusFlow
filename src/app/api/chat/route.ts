@@ -8,32 +8,31 @@ import path from 'path';
 
 const DAILY_AI_LIMIT = 10;
 
-// Fonction de recherche ultra-puissante via Serper (Google Search)
+// Fonction de recherche via Tavily (Optimisé pour l'IA)
 async function searchWeb(query: string) {
-    const apiKey = process.env.SERPER_API_KEY;
-    if (!apiKey) {
-        console.warn("SERPER_API_KEY non configurée.");
-        return "";
-    }
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey) return "";
 
     try {
-        const res = await fetch("https://google.serper.dev/search", {
+        const res = await fetch("https://api.tavily.com/search", {
             method: "POST",
-            headers: {
-                "X-API-KEY": apiKey,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ q: query, gl: "fr", hl: "fr" })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                api_key: apiKey,
+                query: query,
+                search_depth: "basic",
+                max_results: 3
+            })
         });
         const data = await res.json();
         
-        if (data.organic && data.organic.length > 0) {
-            return data.organic.slice(0, 4).map((item: any) => 
-                `Titre: ${item.title}\nInfo: ${item.snippet}\nSource: ${item.link}`
+        if (data.results && data.results.length > 0) {
+            return data.results.map((item: any) => 
+                `Titre: ${item.title}\nExtrait: ${item.content}\nLien: ${item.url}`
             ).join("\n\n");
         }
     } catch (e) {
-        console.error("Erreur Serper Search:", e);
+        console.error("Erreur Tavily Search:", e);
     }
     return "";
 }
@@ -47,7 +46,6 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
 
-    // --- 1. CONTEXTE DOCUMENT ---
     let resourceContext = "";
     if (tempFilePath || externalLink || resourceId) {
         try {
@@ -74,16 +72,13 @@ export async function POST(req: Request) {
         } catch (e) {}
     }
 
-    // --- 2. RECHERCHE WEB (Serper) ---
-    // On cherche sur le web si on n'a pas de doc, ou si c'est une question d'actualité/générale
     let webContext = "";
-    const isGeneralQuestion = !resourceContext || message.length < 50 || message.toLowerCase().match(/(actu|président|qui est|météo|monde|prix|cours|google|internet|france|togo|usa)/);
+    const isGeneralQuestion = !resourceContext || message.toLowerCase().match(/(actu|président|qui est|météo|nouvelles|prix|internet|togo|usa|france|monde)/);
     
     if (isGeneralQuestion) {
         webContext = await searchWeb(message);
     }
 
-    // --- 3. LOGIQUE DE QUOTA ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dailyUsage = await prisma.dailyAIUsage.upsert({
@@ -96,39 +91,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: "Quota épuisé.", quotaExceeded: true }, { status: 429 });
     }
 
-    // --- 4. GENERATION REPONSE ---
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const completion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es un expert pédagogique capable de fouiller dans les cours et sur Internet.
+          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es un expert pédagogique.
           
-          SOURCE 1 (COURS PDF) :
-          ${resourceContext ? resourceContext : "Aucun document n'est ouvert actuellement."}
+          COURS PDF :
+          ${resourceContext ? resourceContext : "Aucun cours ouvert."}
           
-          SOURCE 2 (INTERNET - GOOGLE SEARCH) :
-          ${webContext ? webContext : "Aucune information trouvée sur le web."}
+          INTERNET (TAVILY SEARCH) :
+          ${webContext ? webContext : "Pas d'infos web."}
           
           DIRECTIVES :
-          1. Si la réponse est dans le COURS (Source 1), donne-la en priorité et précise "D'après votre cours...".
-          2. Si l'info manque dans le cours, utilise INTERNET (Source 2) et précise "D'après les recherches sur le web...".
-          3. Sois TRÈS PRÉCIS sur les faits historiques et l'actualité.
-          4. Si l'étudiant te demande "Qui est le président de...", utilise TOUJOURS la Source 2 pour être à jour.`
+          1. Priorité au COURS PDF si l'info y est.
+          2. Utilise INTERNET pour compléter ou si l'info manque (ex: actualité).
+          3. Cite la source (Cours ou Web).
+          4. Sois factuel et précis.`
         },
         { role: "user", content: message }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.3, // Encore plus bas pour une précision maximale
+      temperature: 0.3,
     });
 
     const text = completion.choices[0]?.message?.content || "";
-
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
       data: { 
         requestCount: { increment: 1 },
-        tokensUsed: { increment: completion.usage?.total_tokens || 0 }
+        tokensUsed: completion.usage?.total_tokens || 0
       },
     });
 
@@ -137,6 +130,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("ERREUR CHAT:", error);
-    return NextResponse.json({ reply: "Une erreur est survenue." }, { status: 500 });
+    return NextResponse.json({ reply: "Erreur technique." }, { status: 500 });
   }
 }

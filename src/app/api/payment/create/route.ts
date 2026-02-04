@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from "@/../auth";
 import { prisma } from "@/lib/prisma";
 
-// On utilise require pour éviter les problèmes de typage ou d'export sur le SDK FedaPay
-const { FedaPay, Transaction } = require('fedapay');
+const { FedaPay, Transaction: FedaTransaction } = require('fedapay');
 
 export async function POST(req: Request) {
   try {
@@ -14,36 +13,54 @@ export async function POST(req: Request) {
 
     const { packId } = await req.json();
 
-    // Définition des packs
     const PACKS: Record<string, { amount: number, tokens: number, name: string }> = {
-      'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant (50 jetons)' },
-      'pro': { amount: 1000, tokens: 150, name: 'Pack Révision (150 jetons)' },
-      'master': { amount: 2000, tokens: 500, name: 'Pack Master (500 jetons)' }
+      'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
+      'pro': { amount: 1000, tokens: 150, name: 'Pack Révision' },
+      'master': { amount: 2000, tokens: 500, name: 'Pack Master' }
     };
 
     const selectedPack = PACKS[packId];
     if (!selectedPack) return NextResponse.json({ error: 'Pack invalide' }, { status: 400 });
 
-    /* 
-       Configuration FedaPay
-       Il faudra ajouter FEDAPAY_SECRET_KEY dans Vercel/ .env
-    */
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+
+    // 1. Création de la transaction en base de données (Statut PENDING)
+    const dbTransaction = await prisma.transaction.create({
+        data: {
+            userId: user.id,
+            amount: selectedPack.amount,
+            tokens: selectedPack.tokens,
+            packName: selectedPack.name,
+            status: 'PENDING'
+        }
+    });
+
+    // 2. Configuration FedaPay
     FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY);
     FedaPay.setEnvironment(process.env.NODE_ENV === 'production' ? 'live' : 'sandbox');
 
-    const transaction = await Transaction.create({
+    // 3. Création de la transaction FedaPay
+    const fedaTransaction = await FedaTransaction.create({
       amount: selectedPack.amount,
       currency: { iso: 'XOF' },
-      description: `Achat de ${selectedPack.name} sur Student Hub`,
+      description: `Achat de ${selectedPack.name} - DEFITECH Student Hub`,
       customer: {
-        email: session.user.email,
-        firstname: session.user.name?.split(' ')[0] || 'Étudiant',
-        lastname: session.user.name?.split(' ')[1] || 'Hub'
+        email: user.email,
+        firstname: user.firstName || 'Étudiant',
+        lastname: user.lastName || 'DEFITECH'
       },
-      callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/callback?packId=${packId}&userId=${(session.user as any).id}`
+      callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/callback?transactionId=${dbTransaction.id}`
     });
 
-    const token = await transaction.generateToken();
+    const token = await fedaTransaction.generateToken();
+
+    // 4. On met à jour la référence externe pour pouvoir vérifier plus tard
+    // Note: fedaTransaction.id est l'ID chez FedaPay
+    await prisma.transaction.update({
+        where: { id: dbTransaction.id },
+        data: { reference: String(fedaTransaction.id) }
+    });
 
     return NextResponse.json({ url: token.url });
   } catch (error: any) {

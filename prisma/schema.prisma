@@ -87,13 +87,15 @@ model User {
 
   answers         Answer[]
 
-    resources       Resource[]
+        resources       Resource[]
 
-    quizAttempts    QuizAttempt[]
+        quizAttempts    QuizAttempt[]
 
-    bookmarks       Bookmark[]
+        bookmarks       Bookmark[]
 
-  }
+        transactions    Transaction[]
+
+      }
 
   
 
@@ -961,7 +963,23 @@ model User {
 
   
 
+    
+
+  
+
+  
+
+  
+
       id        String   @id @default(uuid())
+
+  
+
+  
+
+  
+
+    
 
   
 
@@ -977,6 +995,14 @@ model User {
 
   
 
+    
+
+  
+
+  
+
+  
+
       result    String   @db.Text
 
   
@@ -985,7 +1011,231 @@ model User {
 
   
 
+    
+
+  
+
+  
+
+  
+
       createdAt DateTime @default(now())
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+    }
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+    model Transaction {
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      id          String   @id @default(uuid())
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      userId      String
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      user        User     @relation(fields: [userId], references: [id])
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      amount      Int      // Prix en FCFA
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      tokens      Int      // Nombre de jetons achetés
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      packName    String
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      reference   String?  @unique // ID de transaction FedaPay
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      createdAt   DateTime @default(now())
+
+  
+
+  
+
+  
+
+    
+
+  
+
+  
+
+  
+
+      updatedAt   DateTime @updatedAt
+
+  
+
+  
+
+  
+
+    
 
   
 

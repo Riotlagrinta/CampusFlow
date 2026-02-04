@@ -27,11 +27,16 @@ export async function GET(req: Request) {
 
     const resources = await prisma.resource.findMany({
       where: {
-        ...(user.role === 'ADMIN' ? {} : {
-          fieldId: user.fieldId,
-          levelId: user.academicLevelId
-        }),
-        parentId: parentId === 'null' || !parentId ? null : parentId
+        ...(parentId && parentId !== 'null' 
+          ? { parentId } 
+          : {
+              parentId: null,
+              ...(user.role === 'ADMIN' ? {} : {
+                fieldId: user.fieldId,
+                levelId: user.academicLevelId
+              })
+            }
+        )
       },
       include: {
         author: { select: { firstName: true, lastName: true, level: true } },

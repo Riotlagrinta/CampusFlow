@@ -11,7 +11,6 @@ import {
   Github, 
   Linkedin, 
   Globe, 
-  Sparkles,
   Cpu,
   Smartphone,
   Rocket
@@ -23,7 +22,7 @@ export default function AboutPage() {
 
   const handleContact = () => {
     play('xp');
-    window.open("https://wa.me/22871796050", "_blank"); // Utilisation de votre numéro T-Money/WhatsApp
+    window.open("https://wa.me/22871796050", "_blank"); 
   };
 
   return (
@@ -36,8 +35,8 @@ export default function AboutPage() {
             initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }}
             className="relative"
           >
-            <div className="w-40 h-40 md:w-56 md:h-46 bg-gradient-to-br from-blue-600 to-purple-600 rounded-[3rem] shadow-2xl flex items-center justify-center text-white overflow-hidden border-4 border-white dark:border-zinc-800">
-               <span className="text-6xl font-black">R</span> {/* Initiale de Riotlagrinta ou votre nom */}
+            <div className="w-40 h-40 md:w-56 md:h-56 bg-gradient-to-br from-blue-600 to-purple-600 rounded-[3rem] shadow-2xl flex items-center justify-center text-white overflow-hidden border-4 border-white dark:border-zinc-800 text-7xl font-black">
+               K
             </div>
             <div className="absolute -bottom-4 -right-4 bg-emerald-500 text-white p-3 rounded-2xl shadow-xl animate-bounce">
                 <Code2 size={24} />
@@ -55,7 +54,7 @@ export default function AboutPage() {
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
               className="text-4xl md:text-6xl font-black tracking-tighter"
             >
-              Salut, je suis <span className="text-blue-600">votre développeur</span>.
+              Salut, je suis <span className="text-blue-600">KARABOKA Kelvyn</span>.
             </motion.h1>
             <motion.p 
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}

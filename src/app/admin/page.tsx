@@ -78,7 +78,12 @@ export default function AdminDashboard() {
   const fetchLevels = async () => { try { const res = await fetch('/api/admin/academic/levels'); if (res.ok) setLevels(await res.json()); } catch (e) {} };
   const fetchSubjects = async () => { try { const res = await fetch('/api/admin/academic/subjects'); if (res.ok) setSubjects(await res.json()); } catch (e) {} };
 
-  const isOnline = (lastActive: string) => (Date.now() - new Date(lastActive).getTime()) < 120000;
+  const isOnline = (lastActive: string) => {
+    if (!lastActive) return false;
+    const last = new Date(lastActive).getTime();
+    const now = Date.now();
+    return (now - last) < 300000; // 5 minutes
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 md:px-0 text-zinc-900 dark:text-zinc-100">

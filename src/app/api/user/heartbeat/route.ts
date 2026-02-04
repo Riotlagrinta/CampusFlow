@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from "@/../auth";
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const { email } = await req.json();
-    if (!email) return NextResponse.json({ error: 'Email requis' }, { status: 400 });
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
 
+    // Mettre à jour la date de dernière activité
     await prisma.user.update({
-      where: { email },
+      where: { email: session.user.email },
       data: { lastActive: new Date() }
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('Erreur Heartbeat:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

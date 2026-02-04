@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import AIChat from "@/components/AIChat";
+import Heartbeat from "@/components/Heartbeat";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/../auth";
 import Script from "next/script";
@@ -45,6 +46,7 @@ export default async function RootLayout({
         /> */}
         
         <SessionProvider session={session}>
+          <Heartbeat />
           <ThemeProvider
             attribute="class"
             defaultTheme="light"

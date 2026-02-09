@@ -161,8 +161,21 @@ export default function ResourcesPage() {
             successCount++;
         } else {
             failCount++;
-            const errorData = await res.json();
-            console.error("Détails erreur serveur:", errorData);
+            let errorMessage = `Erreur ${res.status}: ${res.statusText}`;
+            try {
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    const errorData = await res.json();
+                    errorMessage = errorData.error || errorMessage;
+                } else {
+                    const text = await res.text();
+                    console.error("Erreur non-JSON reçue:", text);
+                    errorMessage += " (Réponse serveur invalide)";
+                }
+            } catch (e) {
+                console.error("Erreur lecture réponse:", e);
+            }
+            alert(`Échec de l'envoi : ${errorMessage}`);
         }
       }
 
@@ -177,9 +190,9 @@ export default function ResourcesPage() {
       } else if (failCount > 0) {
         alert("L'importation a échoué. Vérifiez la console pour plus de détails.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur critique upload:", error);
-      alert("Erreur de connexion au serveur.");
+      alert(`Erreur technique : ${error.message || "Impossible de contacter le serveur"}`);
     } finally {
       setUploading(false);
     }

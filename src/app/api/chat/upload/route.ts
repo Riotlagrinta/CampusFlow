@@ -20,8 +20,9 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Dossier temporaire sécurisé
-    const tempDir = path.join(process.cwd(), "public", "uploads", "temp");
+    // Dossier temporaire sécurisé (Utilise /tmp sur Vercel, public/uploads/temp en local)
+    const isProd = process.env.NODE_ENV === 'production';
+    const tempDir = isProd ? "/tmp" : path.join(process.cwd(), "public", "uploads", "temp");
     await mkdir(tempDir, { recursive: true });
 
     // Nom de fichier unique pour éviter les collisions
@@ -30,10 +31,11 @@ export async function POST(req: Request) {
 
     await writeFile(filePath, buffer);
 
-    // On renvoie le chemin RELATIF pour que l'API chat puisse le retrouver
-    // Note: On force les '/' pour la compatibilité Windows/Web
+    // On renvoie le chemin pour que l'API chat puisse le retrouver
+    // Si c'est prod, on renvoie le chemin absolu /tmp/...
+    // Si c'est local, on renvoie uploads/temp/...
     return NextResponse.json({ 
-        tempPath: `uploads/temp/${uniqueName}`,
+        tempPath: isProd ? filePath : `uploads/temp/${uniqueName}`,
         originalName: file.name
     });
 

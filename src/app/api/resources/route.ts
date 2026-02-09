@@ -100,13 +100,19 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: "Erreur lors de l'upload vers le stockage cloud." }, { status: 500 });
             }
         } 
-        // FALLBACK : Local (Si pas de Blob, on stocke en local quel que soit l'env pour éviter les blocages)
-        else {
+        // FALLBACK : Local (Uniquement pour le développement local)
+        else if (process.env.NODE_ENV === 'development') {
             const uploadDir = path.join(process.cwd(), 'public', 'uploads');
             await mkdir(uploadDir, { recursive: true }).catch(() => {}); 
             const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
             await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()));
             fileUrl = `/uploads/${fileName}`;
+        } 
+        // ERREUR : Production sans stockage cloud
+        else {
+            return NextResponse.json({ 
+                error: "Stockage non configuré. Veuillez activer 'Vercel Blob' dans votre tableau de bord Vercel (Onglet Storage)." 
+            }, { status: 500 });
         }
     }
 

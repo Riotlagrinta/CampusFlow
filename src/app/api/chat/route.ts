@@ -66,26 +66,34 @@ export async function POST(req: Request) {
         try {
             const pdf = require('pdf-parse');
             if (tempFilePath) {
-                const fullTempPath = path.join(process.cwd(), 'public', tempFilePath);
+                // Si c'est un chemin absolu (commence par /tmp ou c:/), on l'utilise direct
+                // Sinon on construit par rapport à public
+                const isAbsolute = tempFilePath.startsWith('/tmp') || tempFilePath.includes(':');
+                const fullTempPath = isAbsolute ? tempFilePath : path.join(process.cwd(), 'public', tempFilePath);
+                
                 if (fs.existsSync(fullTempPath)) {
-                    resourceContext = (await pdf(fs.readFileSync(fullTempPath))).text.substring(0, 10000);
+                    const dataBuffer = fs.readFileSync(fullTempPath);
+                    const pdfData = await pdf(dataBuffer);
+                    resourceContext = pdfData.text.substring(0, 10000);
                     try { fs.unlinkSync(fullTempPath); } catch(e) {}
                 }
             } else if (resourceId) {
                 const res = await prisma.resource.findUnique({ where: { id: resourceId } });
                 if (res && res.type === 'PDF') {
-                    // Si c'est une URL distante (Vercel Blob), on ne peut pas la lire avec fs (limitation actuelle)
-                    // Si c'est local, on nettoie le chemin (enlever le '/' au début pour path.join)
                     if (!res.url.startsWith('http')) {
                         const relativePath = res.url.startsWith('/') ? res.url.slice(1) : res.url;
                         const fp = path.join(process.cwd(), 'public', relativePath);
                         if (fs.existsSync(fp)) {
-                             resourceContext = (await pdf(fs.readFileSync(fp))).text.substring(0, 10000);
+                             const pdfData = await pdf(fs.readFileSync(fp));
+                             resourceContext = pdfData.text.substring(0, 10000);
                         }
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e: any) {
+            console.error("Erreur lecture PDF:", e);
+            // On continue sans contexte au lieu de crasher
+        }
     }
 
     // --- 3. RECHERCHE WEB (Seulement si nécessaire) ---

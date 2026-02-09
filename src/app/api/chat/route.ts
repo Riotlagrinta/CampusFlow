@@ -74,8 +74,15 @@ export async function POST(req: Request) {
             } else if (resourceId) {
                 const res = await prisma.resource.findUnique({ where: { id: resourceId } });
                 if (res && res.type === 'PDF') {
-                    const fp = path.join(process.cwd(), 'public', res.url);
-                    if (fs.existsSync(fp)) resourceContext = (await pdf(fs.readFileSync(fp))).text.substring(0, 10000);
+                    // Si c'est une URL distante (Vercel Blob), on ne peut pas la lire avec fs (limitation actuelle)
+                    // Si c'est local, on nettoie le chemin (enlever le '/' au début pour path.join)
+                    if (!res.url.startsWith('http')) {
+                        const relativePath = res.url.startsWith('/') ? res.url.slice(1) : res.url;
+                        const fp = path.join(process.cwd(), 'public', relativePath);
+                        if (fs.existsSync(fp)) {
+                             resourceContext = (await pdf(fs.readFileSync(fp))).text.substring(0, 10000);
+                        }
+                    }
                 }
             }
         } catch (e) {}
@@ -110,15 +117,22 @@ export async function POST(req: Request) {
     const messages = [
         {
           role: "system",
-          content: `Tu es l'IA de l'institut DEFITECH au Togo. Tu es amical, professionnel et pédagogique.
-          ${resourceContext ? `DOCUMENT : ${resourceContext}` : ""}
-          ${webContext ? `INTERNET : ${webContext}` : ""}
-          
-          DIRECTIVES :
-          1. Si l'étudiant te salue, réponds-lui poliment et propose ton aide.
-          2. Utilise le DOCUMENT en priorité.
-          3. Utilise INTERNET pour l'actualité ou les faits précis absents du document.
-          4. Reste concis et clair.`
+          content: `Tu es le Tuteur IA Expert de l'institut DEFITECH (Lomé, Togo). Ta mission est de guider les étudiants vers l'excellence académique.
+
+          CONTEXTE ACTUEL :
+          ${resourceContext ? `📄 DOCUMENT JOINT (Source PRIORITAIRE) :\n${resourceContext}\n---` : ""}
+          ${webContext ? `🌐 RECHERCHE WEB (Source SECONDAIRE) :\n${webContext}\n---` : ""}
+
+          DIRECTIVES PÉDAGOGIQUES :
+          1. **Rôle** : Tu es un professeur bienveillant, précis et encourageant.
+          2. **Priorité** : Si un DOCUMENT est fourni, base ta réponse EXCLUSIVEMENT dessus pour les questions qui s'y rapportent.
+          3. **Structure** :
+             - Utilise le **Markdown** pour la clarté (Gras pour les concepts clés, Listes à puces pour les énumérations).
+             - Si la question est technique, fournis des exemples de code ou des étapes concrètes.
+          4. **Langue** : Français académique et professionnel.
+          5. **Interaction** : Si l'utilisateur salue, sois bref et propose ton aide ("Bonjour ! Prêt à travailler ?").
+
+          TA RÉPONSE DOIT ÊTRE : Claire, structurée et directement utile.`
         },
         ...(history || []),
         { role: "user", content: message }

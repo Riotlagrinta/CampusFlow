@@ -31,8 +31,9 @@ export async function POST(req: Request) {
     await writeFile(filePath, buffer);
 
     // On renvoie le chemin RELATIF pour que l'API chat puisse le retrouver
+    // Note: On force les '/' pour la compatibilité Windows/Web
     return NextResponse.json({ 
-        tempPath: path.join("uploads", "temp", uniqueName),
+        tempPath: `uploads/temp/${uniqueName}`,
         originalName: file.name
     });
 

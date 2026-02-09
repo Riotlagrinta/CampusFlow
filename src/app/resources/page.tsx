@@ -133,12 +133,6 @@ export default function ResourcesPage() {
         return;
     }
 
-  const handleUpload = async () => {
-    if (!fieldId || !levelId) {
-        alert("Veuillez sélectionner une filière et un niveau.");
-        return;
-    }
-
     setUploading(true);
     let successCount = 0;
     let failCount = 0;
@@ -152,7 +146,6 @@ export default function ResourcesPage() {
                 
                 let finalPayload: any = null;
                 let isJson = false;
-                let uploadSuccess = false;
 
                 try {
                     // TENTATIVE 1 : UPLOAD DIRECT (BLOB)
@@ -172,7 +165,6 @@ export default function ResourcesPage() {
                         parentId: currentFolder?.id || null,
                     };
                     isJson = true;
-                    uploadSuccess = true;
 
                 } catch (blobError) {
                     console.warn("Echec Upload Direct, passage en mode Secours (FormData)", blobError);

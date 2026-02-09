@@ -55,84 +55,89 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session || !session.user?.email) return NextResponse.json({ error: 'Session expirée' }, { status: 401 });
 
-    const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const title = formData.get('title') as string;
-    const type = formData.get('type') as string;
-    const fieldId = formData.get('fieldId') as string;
-    const levelId = formData.get('levelId') as string;
-    let parentId = formData.get('parentId') as string | null;
-    if (parentId === 'null' || !parentId) parentId = null;
+    const contentType = req.headers.get("content-type") || "";
+    let data: any = {};
+    let isJson = false;
+
+    // Gestion JSON (Upload Direct) ou FormData (Ancien système/Petit fichiers)
+    if (contentType.includes("application/json")) {
+        data = await req.json();
+        isJson = true;
+    } else {
+        const formData = await req.formData();
+        data = Object.fromEntries(formData);
+        data.file = formData.get('file'); // Récupérer le fichier spécifiquement
+    }
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
-    if (type === 'FOLDER') {
+    // Création de DOSSIER
+    if (data.type === 'FOLDER') {
          const folder = await prisma.resource.create({
             data: {
-                title: title || "Nouveau Dossier",
+                title: data.title || "Nouveau Dossier",
                 type: 'FOLDER',
                 url: '#',
                 authorId: user.id,
-                fieldId: fieldId || null,
-                levelId: levelId || null,
-                parentId: parentId,
+                fieldId: data.fieldId || null,
+                levelId: data.levelId || null,
+                parentId: (data.parentId === 'null' || !data.parentId) ? null : data.parentId,
             }
          });
          return NextResponse.json(folder);
     }
 
-    let fileUrl = formData.get('externalUrl') as string || '';
+    // Gestion FICHIER
+    let fileUrl = data.externalUrl || '';
     let sizeStr = '0 MB';
 
-    if (file) {
+    // CAS 1: Upload Direct (Déjà fait côté client, on reçoit l'URL)
+    if (isJson && data.url) {
+        fileUrl = data.url;
+        sizeStr = data.size || '0 MB';
+    }
+    // CAS 2: Upload Classique (Via serveur - Limité à 4.5MB sur Vercel)
+    else if (data.file && typeof data.file !== 'string') {
+        const file = data.file as File;
         sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
         
-        // PRIORITÉ : Vercel Blob (Production)
         if (process.env.BLOB_READ_WRITE_TOKEN) {
             try {
-                const blob = await put(`resources/${Date.now()}-${file.name}`, file, {
-                    access: 'public',
-                });
+                const blob = await put(`resources/${Date.now()}-${file.name}`, file, { access: 'public' });
                 fileUrl = blob.url;
             } catch (e) {
-                console.error("Erreur Vercel Blob:", e);
-                return NextResponse.json({ error: "Erreur lors de l'upload vers le stockage cloud." }, { status: 500 });
+                console.error("Erreur Blob:", e);
+                return NextResponse.json({ error: "Erreur stockage cloud." }, { status: 500 });
             }
-        } 
-        // FALLBACK : Local (Uniquement pour le développement local)
-        else if (process.env.NODE_ENV === 'development') {
+        } else if (process.env.NODE_ENV === 'development') {
             const uploadDir = path.join(process.cwd(), 'public', 'uploads');
             await mkdir(uploadDir, { recursive: true }).catch(() => {}); 
             const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
             await writeFile(path.join(uploadDir, fileName), Buffer.from(await file.arrayBuffer()));
             fileUrl = `/uploads/${fileName}`;
-        } 
-        // ERREUR : Production sans stockage cloud
-        else {
-            return NextResponse.json({ 
-                error: "Stockage non configuré. Veuillez activer 'Vercel Blob' dans votre tableau de bord Vercel (Onglet Storage)." 
-            }, { status: 500 });
+        } else {
+            return NextResponse.json({ error: "Stockage non configuré (Blob requis en prod)." }, { status: 500 });
         }
     }
 
     const resource = await prisma.resource.create({
       data: {
-        title: title || (file ? file.name : "Sans titre"),
-        type: type || 'PDF',
+        title: data.title || "Sans titre",
+        type: data.type || 'PDF',
         url: fileUrl,
         size: sizeStr,
         authorId: user.id,
-        fieldId: fieldId || null,
-        levelId: levelId || null,
-        parentId: parentId,
+        fieldId: data.fieldId || null,
+        levelId: data.levelId || null,
+        parentId: (data.parentId === 'null' || !data.parentId) ? null : data.parentId,
       }
     });
 
     await addXP(user.id, 30);
     return NextResponse.json(resource);
   } catch (error: any) {
-    console.error('Crash complet API:', error);
+    console.error('Crash API:', error);
     return NextResponse.json({ error: error.message || 'Erreur interne' }, { status: 500 });
   }
 }

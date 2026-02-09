@@ -18,6 +18,7 @@ import {
   Upload,
   RefreshCw
 } from 'lucide-react';
+import { upload } from '@vercel/blob/client';
 import { useSound } from '@/hooks/useSound';
 
 type Resource = {
@@ -132,69 +133,111 @@ export default function ResourcesPage() {
         return;
     }
 
+  const handleUpload = async () => {
+    if (!fieldId || !levelId) {
+        alert("Veuillez sélectionner une filière et un niveau.");
+        return;
+    }
+
     setUploading(true);
     let successCount = 0;
     let failCount = 0;
-    
+
     try {
-      const total = inputType === 'FILE' ? files!.length : 1;
+        if (inputType === 'FILE' && files && files.length > 0) {
+            // --- TRAITEMENT DES FICHIERS ---
+            for (let i = 0; i < files.length; i++) {
+                const currentFile = files[i];
+                const fileTitle = files.length > 1 ? currentFile.name : (title || currentFile.name);
+                
+                let finalPayload: any = null;
+                let isJson = false;
+                let uploadSuccess = false;
 
-      for (let i = 0; i < total; i++) {
-        const formData = new FormData();
-        if (inputType === 'FILE') {
-            formData.append('file', files![i]);
-            formData.append('title', total > 1 ? files![i].name : (title || files![i].name));
-        } else {
-            formData.append('externalUrl', externalUrl);
-            formData.append('title', title || "Lien externe");
-        }
+                try {
+                    // TENTATIVE 1 : UPLOAD DIRECT (BLOB)
+                    console.log(`Upload direct vers Vercel Blob (${i+1}/${files.length})...`);
+                    const newBlob = await upload(currentFile.name, currentFile, {
+                        access: 'public',
+                        handleUploadUrl: '/api/upload',
+                    });
 
-        formData.append('type', type);
-        formData.append('fieldId', fieldId);
-        formData.append('levelId', levelId);
-        if (currentFolder) formData.append('parentId', currentFolder.id);
+                    finalPayload = {
+                        title: fileTitle,
+                        type: type,
+                        url: newBlob.url,
+                        size: `${(currentFile.size / (1024 * 1024)).toFixed(2)} MB`,
+                        fieldId: fieldId,
+                        levelId: levelId,
+                        parentId: currentFolder?.id || null,
+                    };
+                    isJson = true;
+                    uploadSuccess = true;
 
-        console.log(`Envoi du fichier ${i+1}/${total}...`);
-        const res = await fetch('/api/resources', { method: 'POST', body: formData });
-        
-        if (res.ok) {
-            successCount++;
-        } else {
-            failCount++;
-            let errorMessage = `Erreur ${res.status}: ${res.statusText}`;
-            try {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    const errorData = await res.json();
-                    errorMessage = errorData.error || errorMessage;
-                } else {
-                    const text = await res.text();
-                    console.error("Erreur non-JSON reçue:", text);
-                    errorMessage += " (Réponse serveur invalide)";
+                } catch (blobError) {
+                    console.warn("Echec Upload Direct, passage en mode Secours (FormData)", blobError);
+                    // TENTATIVE 2 : FALLBACK CLASSIQUE
+                    const formData = new FormData();
+                    formData.append('file', currentFile);
+                    formData.append('title', fileTitle);
+                    formData.append('type', type);
+                    formData.append('fieldId', fieldId);
+                    formData.append('levelId', levelId);
+                    if (currentFolder) formData.append('parentId', currentFolder.id);
+                    
+                    finalPayload = formData;
+                    isJson = false;
                 }
-            } catch (e) {
-                console.error("Erreur lecture réponse:", e);
-            }
-            alert(`Échec de l'envoi : ${errorMessage}`);
-        }
-      }
 
-      if (successCount > 0) {
-        play('success');
-        alert(`${successCount} élément(s) ajouté(s) !`);
-        setIsModalOpen(false);
-        setTitle('');
-        setFiles(null);
-        setExternalUrl('');
-        fetchResources(currentFolder?.id || null);
-      } else if (failCount > 0) {
-        alert("L'importation a échoué. Vérifiez la console pour plus de détails.");
-      }
+                // ENREGISTREMENT EN BASE DE DONNÉES
+                const res = await fetch('/api/resources', {
+                    method: 'POST',
+                    headers: isJson ? { 'Content-Type': 'application/json' } : undefined,
+                    body: isJson ? JSON.stringify(finalPayload) : finalPayload
+                });
+
+                if (res.ok) successCount++;
+                else failCount++;
+            }
+
+        } else {
+            // --- TRAITEMENT LIEN EXTERNE ---
+            const payload = {
+                title: title || "Lien externe",
+                type: type,
+                externalUrl: externalUrl,
+                fieldId: fieldId,
+                levelId: levelId,
+                parentId: currentFolder?.id || null,
+            };
+
+            const res = await fetch('/api/resources', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) successCount++;
+            else failCount++;
+        }
+
+        if (successCount > 0) {
+            play('success');
+            alert(`${successCount} ressource(s) ajoutée(s) avec succès !`);
+            setIsModalOpen(false);
+            setTitle('');
+            setFiles(null);
+            setExternalUrl('');
+            fetchResources(currentFolder?.id || null);
+        } else if (failCount > 0) {
+            alert("Certains éléments n'ont pas pu être ajoutés.");
+        }
+
     } catch (error: any) {
-      console.error("Erreur critique upload:", error);
-      alert(`Erreur technique : ${error.message || "Impossible de contacter le serveur"}`);
+        console.error("Erreur critique upload:", error);
+        alert(`Erreur technique : ${error.message || "Impossible de contacter le serveur"}`);
     } finally {
-      setUploading(false);
+        setUploading(false);
     }
   };
 

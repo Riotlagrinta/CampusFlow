@@ -22,7 +22,7 @@ export async function PATCH(req: Request) {
       };
     } else {
       const { put } = require('@vercel/blob');
-      const formData = await req.formData();
+      const formData = (await req.formData()) as any;
       const firstName = formData.get('firstName') as string;
       const lastName = formData.get('lastName') as string;
       const bio = formData.get('bio') as string;

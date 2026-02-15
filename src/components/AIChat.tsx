@@ -109,7 +109,7 @@ export default function AIChat() {
   const [adTimer, setAdTimer] = useState(0);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: any;
     if (watchingAd && adTimer > 0) {
       interval = setInterval(() => {
         setAdTimer((prev) => prev - 1);

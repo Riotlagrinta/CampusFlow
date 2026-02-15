@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         data = await req.json();
         isJson = true;
     } else {
-        const formData = await req.formData();
+        const formData = (await req.formData()) as any;
         data = Object.fromEntries(formData);
         data.file = formData.get('file'); // Récupérer le fichier spécifiquement
     }

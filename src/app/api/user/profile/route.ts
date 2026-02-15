@@ -4,36 +4,49 @@ import { auth } from "@/../auth";
 
 export async function PATCH(req: Request) {
   try {
-    const { put } = require('@vercel/blob');
     const session = await auth();
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const formData = await req.formData();
-    const firstName = formData.get('firstName') as string;
-    const lastName = formData.get('lastName') as string;
-    const bio = formData.get('bio') as string;
-    const file = formData.get('image') as File | null;
+    const contentType = req.headers.get('content-type') || '';
+    let updateData: any = {};
 
-    let imageUrl = undefined;
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      updateData = {
+        firstName: body.firstName || undefined,
+        lastName: body.lastName || undefined,
+        bio: body.bio !== undefined ? body.bio : undefined,
+        pushToken: body.pushToken || undefined
+      };
+    } else {
+      const { put } = require('@vercel/blob');
+      const formData = await req.formData();
+      const firstName = formData.get('firstName') as string;
+      const lastName = formData.get('lastName') as string;
+      const bio = formData.get('bio') as string;
+      const pushToken = formData.get('pushToken') as string;
+      const file = formData.get('image') as File | null;
 
-    // Si une nouvelle image est fournie, on l'uploade sur Vercel Blob
-    if (file && file.size > 0) {
-      const blob = await put(`avatars/${session.user.id}-${Date.now()}`, file, {
-        access: 'public',
-      });
-      imageUrl = blob.url;
+      updateData = {
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        bio: bio !== null ? bio : undefined,
+        pushToken: pushToken || undefined
+      };
+
+      if (file && file.size > 0) {
+        const blob = await put(`avatars/${session.user.id}-${Date.now()}`, file, {
+          access: 'public',
+        });
+        updateData.image = blob.url;
+      }
     }
 
     const updatedUser = await prisma.user.update({
       where: { email: session.user.email },
-      data: {
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        bio: bio !== null ? bio : undefined,
-        image: imageUrl || undefined
-      }
+      data: updateData
     });
 
     return NextResponse.json({ success: true, user: updatedUser });

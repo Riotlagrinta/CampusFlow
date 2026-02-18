@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
@@ -12,6 +13,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '15mb',
     },
   },
+  // Désactiver explicitement Turbopack pour la compatibilité next-pwa
+  // En Next.js 16+, une config turbopack vide peut aider à basculer
+  turbopack: {}, 
   async headers() {
     return [
       {
@@ -27,4 +31,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+module.exports = withPWA(nextConfig);

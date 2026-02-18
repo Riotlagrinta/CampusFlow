@@ -22,6 +22,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DefiTech Student Hub",
   description: "Plateforme éducative et sociale pour la classe de Génie Logiciel de DEFITECH.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DefiTech Hub",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default async function RootLayout({

@@ -51,9 +51,9 @@ export async function POST(req: Request) {
       }
     };
 
-    // Forcer la méthode de paiement si spécifiée (tmoney, flooz)
+    // Forcer la méthode de paiement si spécifiée (TMONEY, FLOOZ)
     if (method) {
-        payload.payment_method = method.toLowerCase();
+        payload.payment_method = method.toUpperCase();
     }
 
     // 3. Appel API Genius Pay

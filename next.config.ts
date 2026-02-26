@@ -13,9 +13,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '15mb',
     },
   },
-  // Désactiver explicitement Turbopack pour la compatibilité next-pwa
-  // En Next.js 16+, une config turbopack vide peut aider à basculer
-  turbopack: {}, 
   async headers() {
     return [
       {

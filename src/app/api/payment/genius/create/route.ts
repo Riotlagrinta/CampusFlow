@@ -51,8 +51,8 @@ export async function POST(req: Request) {
     };
 
     // 3. Appel API Genius Pay
-    // Nouvelle URL d'API (Initiate)
-    const GENIUS_API_URL = 'https://api.geniuspay.ci/api/v1/payment/initiate';
+    // URL corrigée sans le préfixe 'api.' qui ne résolvait pas
+    const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/payments/create';
     
     console.log('Appel Genius Pay vers:', GENIUS_API_URL);
 

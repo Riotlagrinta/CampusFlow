@@ -77,6 +77,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: result.payment_url });
   } catch (error: any) {
     console.error('Crash Genius Pay Create:', error);
-    return NextResponse.json({ error: 'Erreur lors de l'initialisation du paiement' }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors de l'initialisation du paiement" }, { status: 500 });
   }
 }

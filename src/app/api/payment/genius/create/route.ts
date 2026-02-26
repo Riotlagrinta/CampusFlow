@@ -51,11 +51,6 @@ export async function POST(req: Request) {
       }
     };
 
-    // Forcer la méthode de paiement si spécifiée (TMONEY, FLOOZ)
-    if (method) {
-        payload.payment_method = method.toUpperCase();
-    }
-
     // 3. Appel API Genius Pay
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();

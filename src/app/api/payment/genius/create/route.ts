@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       description: `Recharge Jetons IA (${selectedPack.name}) - StudentHub`,
       customer_name: `${user.firstName} ${user.lastName}`,
       customer_email: user.email,
-      return_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
+      success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
       cancel_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
       callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/genius/callback`,
       metadata: {
@@ -60,23 +60,32 @@ export async function POST(req: Request) {
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json();
+    let result;
+    try {
+        result = await response.json();
+    } catch (e) {
+        throw new Error("Réponse Genius Pay invalide (pas du JSON)");
+    }
 
     if (!response.ok) {
       console.error('Erreur Genius Pay:', result);
-      return NextResponse.json({ error: result.message || 'Erreur Genius Pay' }, { status: 500 });
+      return NextResponse.json({ error: result.message || 'Erreur API Genius Pay' }, { status: response.status });
     }
 
     // 4. On met à jour la référence externe (ID Genius Pay)
     await prisma.transaction.update({
         where: { id: dbTransaction.id },
-        data: { reference: String(result.id || result.transaction_id) }
+        data: { reference: String(result.id || result.transaction_id || result.data?.id) }
     });
 
     // Renvoie l'URL de paiement à l'utilisateur
-    return NextResponse.json({ url: result.payment_url });
+    return NextResponse.json({ url: result.payment_url || result.data?.payment_url });
   } catch (error: any) {
     console.error('Crash Genius Pay Create:', error);
-    return NextResponse.json({ error: "Erreur lors de l'initialisation du paiement" }, { status: 500 });
+    return NextResponse.json({ 
+        error: "Erreur d'initialisation", 
+        details: error.message,
+        debug: { hasKey: !!process.env.GENIUS_PAY_SECRET_KEY }
+    }, { status: 500 });
   }
 }

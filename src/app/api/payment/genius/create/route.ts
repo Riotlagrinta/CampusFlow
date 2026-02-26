@@ -9,7 +9,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const { packId } = await req.json();
+    const { packId, method } = await req.json();
 
     const PACKS: Record<string, { amount: number, tokens: number, name: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
@@ -35,28 +35,32 @@ export async function POST(req: Request) {
     });
 
     // 2. Préparation de la requête Genius Pay
-    const payload = {
+    const payload: any = {
       amount: selectedPack.amount,
       currency: 'XOF',
-      description: `Recharge Jetons IA (${selectedPack.name}) - StudentHub`,
-      customer_name: `${user.firstName} ${user.lastName}`,
-      customer_email: user.email,
+      description: `Achat ${selectedPack.name} - StudentHub`,
+      customer: {
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email
+      },
       success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-      cancel_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-      callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/genius/callback`,
+      error_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
       metadata: {
         dbTransactionId: dbTransaction.id,
         userId: user.id
       }
     };
 
+    // Forcer la méthode de paiement si spécifiée (tmoney, flooz)
+    if (method) {
+        payload.payment_method = method.toLowerCase();
+    }
+
     // 3. Appel API Genius Pay
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
     
-    console.log('--- APPEL GENIUS PAY (DOC COMPLIANT) ---');
-
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
@@ -65,21 +69,7 @@ export async function POST(req: Request) {
         'X-API-Key': publicKey,
         'X-API-Secret': secretKey
       },
-      body: JSON.stringify({
-        amount: selectedPack.amount,
-        currency: 'XOF',
-        description: `Achat ${selectedPack.name} - StudentHub`,
-        customer: {
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email
-        },
-        success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-        error_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-        metadata: {
-          dbTransactionId: dbTransaction.id,
-          userId: user.id
-        }
-      })
+      body: JSON.stringify(payload)
     });
 
     let result;
@@ -94,21 +84,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error?.message || result.message || 'Erreur API Genius Pay' }, { status: response.status });
     }
 
-    // 4. On met à jour la référence externe (ID Genius Pay)
+    // 4. On met à jour la référence externe
     const geniusData = result.data;
     await prisma.transaction.update({
         where: { id: dbTransaction.id },
         data: { reference: String(geniusData.reference || geniusData.id) }
     });
 
-    // Renvoie l'URL de paiement (checkout_url dans la doc)
     return NextResponse.json({ url: geniusData.checkout_url });
   } catch (error: any) {
     console.error('Crash Genius Pay Create:', error);
     return NextResponse.json({ 
         error: "Erreur d'initialisation", 
-        details: error.message,
-        debug: { hasKey: !!process.env.GENIUS_PAY_SECRET_KEY }
+        details: error.message
     }, { status: 500 });
   }
 }

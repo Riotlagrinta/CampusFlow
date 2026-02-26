@@ -17,19 +17,20 @@ export async function GET(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    // Construction sécurisée du filtre sujet
+    const subjectFilter: any = { semester };
+    
+    // Si l'utilisateur n'est pas ADMIN, on filtre par sa filière et son niveau
+    if (user.role !== 'ADMIN') {
+      if (user.fieldId) subjectFilter.fieldId = user.fieldId;
+      if (user.academicLevelId) subjectFilter.levelId = user.academicLevelId;
+    }
+
     const quizzes = await prisma.quiz.findMany({
       where: {
         OR: [
-          { subjectId: null }, // Quizz généraux (ex: Culture Générale)
-          {
-            subject: {
-              semester,
-              ...(user.role === 'ADMIN' ? {} : {
-                fieldId: user.fieldId,
-                levelId: user.academicLevelId
-              })
-            }
-          }
+          { subjectId: null }, // Quizz généraux
+          { subject: subjectFilter }
         ]
       },
       include: {

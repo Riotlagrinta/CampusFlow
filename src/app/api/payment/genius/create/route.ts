@@ -51,9 +51,15 @@ export async function POST(req: Request) {
     };
 
     // 3. Appel API Genius Pay
-    const response = await fetch('https://api.pay.genius.ci/v1/payments/create', {
+    // Tentative avec l'URL standard GeniusPay
+    const GENIUS_API_URL = 'https://api.geniuspay.ci/api/v1/payments/create';
+    
+    console.log('Tentative d\'appel Genius Pay:', GENIUS_API_URL);
+
+    const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.GENIUS_PAY_SECRET_KEY}`
       },

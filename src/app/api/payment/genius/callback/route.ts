@@ -3,13 +3,18 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
-    const data = await req.json();
-    console.log('Webhook Genius Pay reçu:', data);
+    const body = await req.json();
+    console.log('Webhook Genius Pay reçu:', body);
 
-    const transactionId = data.metadata?.dbTransactionId;
-    const status = data.status; // 'SUCCESS', 'FAILED', 'PENDING', 'CANCELLED'
+    // Genius Pay peut envoyer les infos directement ou dans un objet "data"
+    const payload = body.data || body;
+    const transactionId = payload.metadata?.dbTransactionId;
+    const status = (payload.status || '').toUpperCase(); 
 
-    if (!transactionId) return NextResponse.json({ error: 'Transaction ID manquant' }, { status: 400 });
+    if (!transactionId) {
+        console.error('ID de transaction manquant dans le Webhook');
+        return NextResponse.json({ error: 'Transaction ID manquant' }, { status: 400 });
+    }
 
     const dbTransaction = await prisma.transaction.findUnique({
       where: { id: transactionId },

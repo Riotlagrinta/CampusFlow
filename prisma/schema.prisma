@@ -909,11 +909,7 @@ model User {
 
     level       Level?    @relation(fields: [levelId], references: [id])
 
-  
-
-  
-
-  
+    semester    Int       @default(1)
 
       createdAt   DateTime  @default(now())
 

@@ -51,6 +51,7 @@ export default function PlanningPage() {
   const [activeTab, setActiveTab] = useState<'academic' | 'personal' | 'combined'>('combined');
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentSemester, setCurrentSemester] = useState<number>(2); // S2 par défaut
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -91,17 +92,15 @@ export default function PlanningPage() {
 
   // Recharge quand les filtres changent (manuellement)
   useEffect(() => {
-    if (isAdmin && filterFieldId && filterLevelId) {
-        fetchPersonalEvents(filterFieldId, filterLevelId);
-    }
-  }, [filterFieldId, filterLevelId]);
+    fetchPersonalEvents(filterFieldId, filterLevelId);
+  }, [filterFieldId, filterLevelId, currentSemester]);
 
   const fetchPersonalEvents = async (fId?: string, lId?: string) => {
     setIsLoading(true);
     try {
-      let url = '/api/planning/personal';
+      let url = `/api/planning/personal?semester=${currentSemester}`;
       if (fId && lId) {
-        url += `?fieldId=${fId}&levelId=${lId}`;
+        url += `&fieldId=${fId}&levelId=${lId}`;
         // Mettre à jour l'état local si ce n'est pas déjà fait (pour l'UI)
         if (fId !== filterFieldId) setFilterFieldId(fId);
         if (lId !== filterLevelId) setFilterLevelId(lId);
@@ -126,7 +125,7 @@ export default function PlanningPage() {
     setIsSubmitting(true);
     try {
       const method = editingId ? 'PUT' : 'POST';
-      const body = editingId ? { ...newEvent, id: editingId } : newEvent;
+      const body = editingId ? { ...newEvent, id: editingId, semester: currentSemester } : { ...newEvent, semester: currentSemester };
 
       const res = await fetch('/api/planning/personal', {
         method,
@@ -244,6 +243,20 @@ export default function PlanningPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+             <button 
+               onClick={() => setCurrentSemester(1)}
+               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
+             >
+               S1
+             </button>
+             <button 
+               onClick={() => setCurrentSemester(2)}
+               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
+             >
+               S2
+             </button>
+          </div>
           <div className="bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 flex">
              {(['academic', 'combined', 'personal'] as const).map((tab) => (
                <button

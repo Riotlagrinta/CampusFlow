@@ -19,12 +19,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const filterFieldId = searchParams.get('fieldId');
     const filterLevelId = searchParams.get('levelId');
+    const semester = parseInt(searchParams.get('semester') || '1');
 
     const GL_ID = "5752636c-824a-44e1-bc75-7e091b22342d";
     const RIT_ID = "137ef97d-2186-43f5-a795-875ca26fb194";
     const isTroncCommun = user.fieldId === GL_ID || user.fieldId === RIT_ID;
 
     let whereClause: any = {
+      semester,
       OR: [
         { userId: user.id }, 
         { 
@@ -64,13 +66,14 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { day, time, subject: subjectName, type, fieldId, levelId } = body;
+    const { day, time, subject: subjectName, type, fieldId, levelId, semester } = body;
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const finalFieldId = (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId;
     const finalLevelId = (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId;
+    const finalSemester = parseInt(semester || '1');
 
     // Gestion automatique de la matière
     let subjectId = null;
@@ -79,7 +82,8 @@ export async function POST(req: Request) {
         where: {
           name: { equals: subjectName, mode: 'insensitive' },
           fieldId: finalFieldId,
-          levelId: finalLevelId
+          levelId: finalLevelId,
+          semester: finalSemester
         }
       });
 
@@ -90,7 +94,8 @@ export async function POST(req: Request) {
           data: {
             name: subjectName,
             fieldId: finalFieldId,
-            levelId: finalLevelId
+            levelId: finalLevelId,
+            semester: finalSemester
           }
         });
         subjectId = newSub.id;
@@ -108,6 +113,7 @@ export async function POST(req: Request) {
         isAcademic: user.role === 'ADMIN' && type === 'Académique',
         fieldId: finalFieldId,
         levelId: finalLevelId,
+        semester: finalSemester,
       },
     });
 
@@ -183,6 +189,7 @@ export async function PUT(req: Request) {
         isAcademic: user.role === 'ADMIN' && type === 'Académique',
         fieldId: finalFieldId,
         levelId: finalLevelId,
+        semester: finalSemester,
       },
     });
 

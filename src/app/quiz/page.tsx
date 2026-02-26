@@ -38,6 +38,7 @@ export default function QuizPage() {
   const [activeQuiz, setActiveQuiz] = useState<any>(null);
   const [step, setStep] = useState<'list' | 'playing' | 'result'>('list');
   const [loading, setLoading] = useState(true);
+  const [currentSemester, setCurrentSemester] = useState<number>(2); // S2 par défaut
   
   // Game State
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -47,11 +48,12 @@ export default function QuizPage() {
 
   useEffect(() => {
     fetchQuizzes();
-  }, []);
+  }, [currentSemester]);
 
   const fetchQuizzes = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/quiz');
+      const res = await fetch(`/api/quiz?semester=${currentSemester}`);
       const data = await res.json();
       setQuizzes(data);
     } catch (err) {
@@ -127,9 +129,28 @@ export default function QuizPage() {
     <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-20 px-2 md:px-0">
       
       {/* Header */}
-      <div className="space-y-1 px-2">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Centre de Quizz</h1>
-        <p className="text-sm md:text-base text-zinc-500 dark:text-zinc-400">Testez vos connaissances et gagnez de l&apos;XP bonus.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Centre de Quizz</h1>
+          <p className="text-sm md:text-base text-zinc-500 dark:text-zinc-400">Testez vos connaissances et gagnez de l&apos;XP bonus.</p>
+        </div>
+        
+        {step === 'list' && (
+          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 self-start md:self-center">
+            <button 
+              onClick={() => setCurrentSemester(1)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
+            >
+              S1
+            </button>
+            <button 
+              onClick={() => setCurrentSemester(2)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
+            >
+              S2
+            </button>
+          </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">

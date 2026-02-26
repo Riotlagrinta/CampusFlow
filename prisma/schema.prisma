@@ -241,11 +241,11 @@ model User {
 
   
 
-    level       Level       @relation(fields: [levelId], references: [id])
-
-  
-
-    resources   Resource[]
+      level       Level       @relation(fields: [levelId], references: [id])
+    
+      semester    Int         @default(1) // 1 pour S1, 2 pour S2, etc.
+    
+      resources   Resource[]
 
   
 
@@ -581,15 +581,11 @@ model User {
 
   
 
-    level     Level?   @relation(fields: [levelId], references: [id])
-
-  
-
-  
-
-  
-
-    createdAt DateTime @default(now())
+      level       Level?   @relation(fields: [levelId], references: [id])
+    
+      semester    Int      @default(1)
+    
+      createdAt   DateTime @default(now())
 
   
 
@@ -713,19 +709,13 @@ model User {
 
   
 
-    levelId     String?
-
-  
-
-    level       Level?   @relation(fields: [levelId], references: [id])
-
-  
-
-  
-
-  
-
-      createdAt   DateTime @default(now())
+      levelId     String?
+    
+      level       Level?    @relation(fields: [levelId], references: [id])
+    
+      semester    Int       @default(1)
+    
+      createdAt   DateTime  @default(now())
 
   
 

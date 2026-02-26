@@ -12,6 +12,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     let parentId = searchParams.get('parentId');
+    const semester = parseInt(searchParams.get('semester') || '1');
     if (parentId === 'null' || parentId === 'undefined' || !parentId) parentId = null;
 
     const session = await auth();
@@ -32,6 +33,7 @@ export async function GET(req: Request) {
     const resources = await prisma.resource.findMany({
       where: parentId ? { parentId } : {
         parentId: null,
+        semester,
         ...(user.role === 'ADMIN' ? {} : {
           fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId,
           levelId: user.academicLevelId
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
                 type: 'FOLDER',
                 url: '#',
                 authorId: user.id,
+                semester: parseInt(data.semester || '1'),
                 fieldId: data.fieldId || null,
                 levelId: data.levelId || null,
                 parentId: (data.parentId === 'null' || !data.parentId) ? null : data.parentId,
@@ -128,6 +131,7 @@ export async function POST(req: Request) {
         url: fileUrl,
         size: sizeStr,
         authorId: user.id,
+        semester: parseInt(data.semester || '1'),
         fieldId: data.fieldId || null,
         levelId: data.levelId || null,
         parentId: (data.parentId === 'null' || !data.parentId) ? null : data.parentId,

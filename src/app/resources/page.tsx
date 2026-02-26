@@ -40,6 +40,7 @@ export default function ResourcesPage() {
   const { play } = useSound();
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentSemester, setCurrentSemester] = useState<number>(2); // Par défaut S2 car on est au semestre 2
   
   const [currentFolder, setCurrentFolder] = useState<Resource | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<Resource[]>([]);
@@ -68,20 +69,20 @@ export default function ResourcesPage() {
   const [creatingFolder, setCreatingFolder] = useState(false);
 
   useEffect(() => {
-    fetchResources(null);
+    fetchResources(currentFolder?.id || null);
     const userStr = localStorage.getItem('user');
     if (userStr) {
         const user = JSON.parse(userStr);
         setIsAdmin(user.role === 'ADMIN');
     }
     fetch('/api/academic/options').then(res => res.json()).then(data => setOptions(data));
-  }, []);
+  }, [currentSemester]);
 
   const fetchResources = async (parentId: string | null) => {
     setLoading(true);
     try {
       const pid = parentId === 'null' || !parentId ? 'null' : parentId;
-      const res = await fetch(`/api/resources?t=${Date.now()}&parentId=${pid}`);
+      const res = await fetch(`/api/resources?t=${Date.now()}&parentId=${pid}&semester=${currentSemester}`);
       if (res.ok) {
         const data = await res.json();
         setResources(data);
@@ -247,6 +248,7 @@ export default function ResourcesPage() {
         formData.append('type', 'FOLDER');
         formData.append('fieldId', folderFieldId);
         formData.append('levelId', folderLevelId);
+        formData.append('semester', currentSemester.toString());
         if (currentFolder) formData.append('parentId', currentFolder.id);
 
         const res = await fetch('/api/resources', { method: 'POST', body: formData });
@@ -274,6 +276,20 @@ export default function ResourcesPage() {
                 <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Gestion et organisation des cours.</p>
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <button 
+                        onClick={() => setCurrentSemester(1)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500'}`}
+                    >
+                        S1
+                    </button>
+                    <button 
+                        onClick={() => setCurrentSemester(2)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500'}`}
+                    >
+                        S2
+                    </button>
+                </div>
                 <button 
                     onClick={() => fetchResources(currentFolder?.id || null)} 
                     className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-all border border-zinc-200 dark:border-zinc-700"

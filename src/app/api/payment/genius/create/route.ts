@@ -51,8 +51,8 @@ export async function POST(req: Request) {
     };
 
     // 3. Appel API Genius Pay
-    // Correction finale : URL directe sans prefixe api.
-    const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/payments/create';
+    // Utilisation de l'URL basée sur le point d'entrée merchant
+    const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments/create';
     
     console.log('--- APPEL GENIUS PAY ---');
     console.log('Cible:', GENIUS_API_URL);

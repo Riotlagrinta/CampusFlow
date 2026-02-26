@@ -135,7 +135,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, day, time, subject: subjectName, type, fieldId, levelId } = body;
+    const { id, day, time, subject: subjectName, type, fieldId, levelId, semester } = body;
 
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
 
@@ -152,6 +152,7 @@ export async function PUT(req: Request) {
 
     const finalFieldId = (user.role === 'ADMIN' && type === 'Académique') ? fieldId : user.fieldId;
     const finalLevelId = (user.role === 'ADMIN' && type === 'Académique') ? levelId : user.academicLevelId;
+    const finalSemester = parseInt(semester || '1');
 
     // Gestion automatique de la matière
     let subjectId = null;
@@ -160,7 +161,8 @@ export async function PUT(req: Request) {
         where: {
           name: { equals: subjectName, mode: 'insensitive' },
           fieldId: finalFieldId,
-          levelId: finalLevelId
+          levelId: finalLevelId,
+          semester: finalSemester
         }
       });
 
@@ -171,7 +173,8 @@ export async function PUT(req: Request) {
           data: {
             name: subjectName,
             fieldId: finalFieldId,
-            levelId: finalLevelId
+            levelId: finalLevelId,
+            semester: finalSemester
           }
         });
         subjectId = newSub.id;

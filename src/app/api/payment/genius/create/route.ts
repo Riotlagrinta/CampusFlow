@@ -53,16 +53,19 @@ export async function POST(req: Request) {
     // 3. Appel API Genius Pay
     // URL REST standard : POST sur la collection /payments
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
+    const apiKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     
-    console.log('--- APPEL GENIUS PAY ---');
+    console.log('--- DIAGNOSTIC GENIUS PAY ---');
     console.log('Cible:', GENIUS_API_URL);
+    console.log('Clé détectée:', apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'AUCUNE CLÉ TROUVÉE');
+    console.log('Longueur de la clé:', apiKey.length);
 
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GENIUS_PAY_SECRET_KEY}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify(payload)
     });

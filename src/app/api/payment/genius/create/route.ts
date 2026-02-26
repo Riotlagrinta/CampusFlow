@@ -1,0 +1,82 @@
+import { NextResponse } from 'next/server';
+import { auth } from "@/../auth";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: Request) {
+  try {
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const { packId } = await req.json();
+
+    const PACKS: Record<string, { amount: number, tokens: number, name: string }> = {
+      'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
+      'pro': { amount: 1000, tokens: 150, name: 'Pack Révision' },
+      'master': { amount: 2000, tokens: 500, name: 'Pack Master' }
+    };
+
+    const selectedPack = PACKS[packId];
+    if (!selectedPack) return NextResponse.json({ error: 'Pack invalide' }, { status: 400 });
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+
+    // 1. Création de la transaction en base de données (Statut PENDING)
+    const dbTransaction = await prisma.transaction.create({
+        data: {
+            userId: user.id,
+            amount: selectedPack.amount,
+            tokens: selectedPack.tokens,
+            packName: selectedPack.name,
+            status: 'PENDING'
+        }
+    });
+
+    // 2. Préparation de la requête Genius Pay
+    const payload = {
+      amount: selectedPack.amount,
+      currency: 'XOF',
+      description: `Recharge Jetons IA (${selectedPack.name}) - StudentHub`,
+      customer_name: `${user.firstName} ${user.lastName}`,
+      customer_email: user.email,
+      return_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
+      cancel_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
+      callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/genius/callback`,
+      metadata: {
+        dbTransactionId: dbTransaction.id,
+        userId: user.id
+      }
+    };
+
+    // 3. Appel API Genius Pay
+    const response = await fetch('https://api.pay.genius.ci/v1/payments/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GENIUS_PAY_SECRET_KEY}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('Erreur Genius Pay:', result);
+      return NextResponse.json({ error: result.message || 'Erreur Genius Pay' }, { status: 500 });
+    }
+
+    // 4. On met à jour la référence externe (ID Genius Pay)
+    await prisma.transaction.update({
+        where: { id: dbTransaction.id },
+        data: { reference: String(result.id || result.transaction_id) }
+    });
+
+    // Renvoie l'URL de paiement à l'utilisateur
+    return NextResponse.json({ url: result.payment_url });
+  } catch (error: any) {
+    console.error('Crash Genius Pay Create:', error);
+    return NextResponse.json({ error: 'Erreur lors de l'initialisation du paiement' }, { status: 500 });
+  }
+}

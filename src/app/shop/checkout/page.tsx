@@ -32,7 +32,7 @@ export default function CheckoutPage() {
   const packId = searchParams.get('packId') || 'starter';
   const pack = PACKS[packId] || PACKS.starter;
 
-  const [method, setMethod] = useState<'TMONEY' | 'FLOOZ' | null>(null);
+  const [method, setMethod] = useState<'TMONEY' | 'FLOOZ' | 'GENIUS' | null>(null);
   const [isCopied, setIsFresh] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,6 +41,28 @@ export default function CheckoutPage() {
     setIsFresh(true);
     play('xp');
     setTimeout(() => setIsFresh(false), 2000);
+  };
+
+  const handleGeniusPay = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/payment/genius/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packId })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Erreur lors de l'initialisation du paiement.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erreur de connexion au serveur de paiement.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNotifyAdmin = async () => {
@@ -97,26 +119,49 @@ export default function CheckoutPage() {
             <h2 className="font-bold">Choisissez votre moyen de paiement</h2>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <button 
-              onClick={() => { setMethod('TMONEY'); play('xp'); }}
-              className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 ${method === 'TMONEY' ? 'border-yellow-400 bg-yellow-500/5' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900'}`}
+          <div className="grid grid-cols-1 gap-4">
+             {/* Genius Pay Button (Full Auto) */}
+             <button 
+              onClick={handleGeniusPay}
+              disabled={isLoading}
+              className="p-6 rounded-3xl border-2 border-blue-500 bg-blue-500/5 transition-all flex items-center gap-6 hover:bg-blue-500/10 text-left group"
             >
-              <div className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                <Smartphone />
+              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl group-hover:scale-110 transition-transform">
+                {isLoading ? <Loader2 className="animate-spin" /> : <Smartphone size={28} />}
               </div>
-              <span className="font-black text-xs uppercase tracking-widest">T-Money</span>
+              <div>
+                <span className="font-black text-xs uppercase tracking-[0.2em] text-blue-600">Recommandé</span>
+                <h3 className="text-lg font-black mt-1">Paiement Automatique</h3>
+                <p className="text-xs text-zinc-500 font-medium">T-Money & Flooz (Activation Instantanée)</p>
+              </div>
             </button>
 
-            <button 
-              onClick={() => { setMethod('FLOOZ'); play('xp'); }}
-              className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 ${method === 'FLOOZ' ? 'border-blue-500 bg-blue-500/5' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900'}`}
-            >
-              <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                <Smartphone />
-              </div>
-              <span className="font-black text-xs uppercase tracking-widest">Flooz</span>
-            </button>
+            <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-zinc-50 dark:bg-[#050505] px-4 text-zinc-400 font-black">Ou paiement manuel</span></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => { setMethod('TMONEY'); play('xp'); }}
+                className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 ${method === 'TMONEY' ? 'border-yellow-400 bg-yellow-500/5' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900'}`}
+              >
+                <div className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                  <Smartphone />
+                </div>
+                <span className="font-black text-xs uppercase tracking-widest">T-Money</span>
+              </button>
+
+              <button 
+                onClick={() => { setMethod('FLOOZ'); play('xp'); }}
+                className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-3 ${method === 'FLOOZ' ? 'border-blue-500 bg-blue-500/5' : 'border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900'}`}
+              >
+                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                  <Smartphone />
+                </div>
+                <span className="font-black text-xs uppercase tracking-widest">Flooz</span>
+              </button>
+            </div>
           </div>
         </div>
 

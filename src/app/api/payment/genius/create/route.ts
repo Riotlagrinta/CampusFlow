@@ -52,27 +52,29 @@ export async function POST(req: Request) {
 
     // 3. Appel API Genius Pay
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
-    const apiKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
+    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
+    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
     
-    console.log('--- TENTATIVE CLÉ BRUTE + X-API-KEY ---');
+    console.log('--- APPEL GENIUS PAY (DOC COMPLIANT) ---');
 
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': apiKey,
-        'X-API-KEY': apiKey
+        'X-API-Key': publicKey,
+        'X-API-Secret': secretKey
       },
       body: JSON.stringify({
         amount: selectedPack.amount,
         currency: 'XOF',
-        description: `Achat ${selectedPack.name}`,
-        customer_name: `${user.firstName} ${user.lastName}`,
-        customer_email: user.email,
+        description: `Achat ${selectedPack.name} - StudentHub`,
+        customer: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email
+        },
         success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-        cancel_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
-        callback_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/payment/genius/callback`,
+        error_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
         metadata: {
           dbTransactionId: dbTransaction.id,
           userId: user.id
@@ -84,22 +86,23 @@ export async function POST(req: Request) {
     try {
         result = await response.json();
     } catch (e) {
-        throw new Error("Réponse Genius Pay invalide (pas du JSON)");
+        throw new Error("Réponse Genius Pay non JSON");
     }
 
-    if (!response.ok) {
+    if (!response.ok || !result.success) {
       console.error('Erreur Genius Pay:', result);
-      return NextResponse.json({ error: result.message || 'Erreur API Genius Pay' }, { status: response.status });
+      return NextResponse.json({ error: result.error?.message || result.message || 'Erreur API Genius Pay' }, { status: response.status });
     }
 
     // 4. On met à jour la référence externe (ID Genius Pay)
+    const geniusData = result.data;
     await prisma.transaction.update({
         where: { id: dbTransaction.id },
-        data: { reference: String(result.id || result.transaction_id || result.data?.id) }
+        data: { reference: String(geniusData.reference || geniusData.id) }
     });
 
-    // Renvoie l'URL de paiement à l'utilisateur
-    return NextResponse.json({ url: result.payment_url || result.data?.payment_url });
+    // Renvoie l'URL de paiement (checkout_url dans la doc)
+    return NextResponse.json({ url: geniusData.checkout_url });
   } catch (error: any) {
     console.error('Crash Genius Pay Create:', error);
     return NextResponse.json({ 

@@ -54,14 +54,15 @@ export async function POST(req: Request) {
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
     const apiKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     
-    console.log('--- TENTATIVE AVEC PRÉFIXE TOKEN ---');
+    console.log('--- TENTATIVE CLÉ BRUTE + X-API-KEY ---');
 
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Token ${apiKey}`
+        'Authorization': apiKey,
+        'X-API-KEY': apiKey
       },
       body: JSON.stringify({
         amount: selectedPack.amount,

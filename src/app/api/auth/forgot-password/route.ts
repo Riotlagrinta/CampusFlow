@@ -8,11 +8,7 @@ const WINDOW_SIZE = 10 * 60 * 1000; // 10 minutes
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || req.socket?.remoteAddress; // Obtenir l'adresse IP
-    if (!ip) {
-      return NextResponse.json({ error: 'Impossible de déterminer l\'adresse IP' }, { status: 400 });
-    }
-
+    const ip = req.headers.get('x-forwarded-for') || 'anonymous'; // Obtenir l'adresse IP
     const now = Date.now();
     const requests = rateLimit.get(ip) || [];
 

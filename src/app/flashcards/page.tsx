@@ -115,23 +115,26 @@ export default function FlashcardsPage() {
         </div>
 
         {/* Card Flip Component */}
-        <div className="perspective-1000 h-80 w-full" onClick={() => { setIsFlipped(!isFlipped); play('xp'); }}>
+        <div className="perspective-1000 h-80 w-full cursor-pointer" onClick={() => { setIsFlipped(!isFlipped); play('xp'); }}>
           <motion.div 
             animate={{ rotateY: isFlipped ? 180 : 0 }}
             transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
             className="relative w-full h-full preserve-3d"
           >
             {/* Front (Question) */}
-            <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl">
+            <div className={`absolute inset-0 backface-hidden bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl ${isFlipped ? 'pointer-events-none' : ''}`}>
                <span className="absolute top-6 left-6 text-[10px] font-black text-blue-600 uppercase tracking-widest">Question</span>
-               <h2 className="text-xl md:text-2xl font-bold">{card?.question}</h2>
+               <h2 className="text-xl md:text-2xl font-bold px-4">{card?.question}</h2>
                <p className="absolute bottom-6 text-zinc-400 text-[10px] uppercase font-black">Cliquez pour voir la réponse</p>
             </div>
 
             {/* Back (Answer) */}
-            <div className="absolute inset-0 backface-hidden bg-blue-600 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl rotate-y-180">
+            <div 
+              className={`absolute inset-0 backface-hidden bg-blue-600 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl ${!isFlipped ? 'pointer-events-none' : ''}`}
+              style={{ transform: 'rotateY(180deg)' }}
+            >
                <span className="absolute top-6 left-6 text-[10px] font-black text-white/60 uppercase tracking-widest">Réponse</span>
-               <h2 className="text-xl md:text-2xl font-bold text-white">{card?.answer}</h2>
+               <h2 className="text-xl md:text-2xl font-bold text-white px-4">{card?.answer}</h2>
                <p className="absolute bottom-6 text-white/60 text-[10px] uppercase font-black">Cliquez pour revenir à la question</p>
             </div>
           </motion.div>

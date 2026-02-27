@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   Layers,
   FileText,
+  LifeBuoy,
   Sparkles as SparklesIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,6 +46,7 @@ const navItems = [
   { icon: Bot, label: 'AI Assistant', href: '/ai-assistant' },
   { icon: Layers, label: 'Flashcards IA (BETA)', href: '/flashcards' },
   { icon: ShoppingCart, label: 'Boutique IA', href: '/shop' },
+  { icon: LifeBuoy, label: 'Support & Bug', href: '/support' },
   { icon: SparklesIcon, label: 'Le Développeur', href: '/about' },
   { icon: BookOpen, label: 'Ressources', href: '/resources' },
 ];

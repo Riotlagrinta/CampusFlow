@@ -107,7 +107,29 @@ model User {
 
         flashcardSets   FlashcardSet[]
 
+        bugReports      BugReport[]
+
       }
+
+  
+
+  model BugReport {
+
+    id          String   @id @default(uuid())
+
+    userId      String
+
+    user        User     @relation(fields: [userId], references: [id])
+
+    type        String   // "BUG", "FEATURE", "OTHER"
+
+    content     String   @db.Text
+
+    status      String   @default("OPEN") // "OPEN", "IN_PROGRESS", "CLOSED"
+
+    createdAt   DateTime @default(now())
+
+  }
 
   
 

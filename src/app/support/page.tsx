@@ -8,7 +8,7 @@ import {
   Send, 
   AlertTriangle, 
   Lightbulb, 
-  QuestionMarkCircle,
+  HelpCircle,
   Loader2,
   CheckCircle2,
   ArrowRight
@@ -98,7 +98,7 @@ export default function SupportPage() {
           </div>
 
           <div className="p-6 bg-blue-600 rounded-[2rem] text-white space-y-4">
-             <h4 className="font-bold flex items-center gap-2 italic"><QuestionMarkCircle size={18} /> Aide Rapide</h4>
+             <h4 className="font-bold flex items-center gap-2 italic"><HelpCircle size={18} /> Aide Rapide</h4>
              <p className="text-xs text-blue-100 leading-relaxed">
                Si vous avez perdu vos accès, contactez l'administration de DEFITECH avec votre carte d'étudiant.
              </p>
@@ -116,7 +116,7 @@ export default function SupportPage() {
                   {[
                     { id: 'BUG', label: 'Bug', icon: AlertTriangle, color: 'text-red-500' },
                     { id: 'FEATURE', label: 'Idée', icon: Lightbulb, color: 'text-amber-500' },
-                    { id: 'OTHER', label: 'Autre', icon: QuestionMarkCircle, color: 'text-zinc-500' },
+                    { id: 'OTHER', label: 'Autre', icon: HelpCircle, color: 'text-zinc-500' },
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -157,10 +157,4 @@ export default function SupportPage() {
       </div>
     </div>
   );
-}
-
-function QuestionMarkCircle(props: any) {
-    return (
-      <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    );
 }

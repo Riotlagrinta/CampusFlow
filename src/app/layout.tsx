@@ -8,6 +8,7 @@ import Heartbeat from "@/components/Heartbeat";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/../auth";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default async function RootLayout({
         
         <SessionProvider session={session}>
           <Heartbeat />
+          <Analytics />
           <ThemeProvider
             attribute="class"
             defaultTheme="light"

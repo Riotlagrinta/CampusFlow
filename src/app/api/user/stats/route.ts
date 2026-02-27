@@ -16,7 +16,17 @@ export async function GET(req: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email: userEmail },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        image: true,
+        xp: true,
+        level: true,
+        streak: true,
+        bio: true,
         badges: { include: { badge: true } },
         quizAttempts: true
       }

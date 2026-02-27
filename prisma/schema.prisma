@@ -105,7 +105,55 @@ model User {
 
         transactions    Transaction[]
 
+        flashcardSets   FlashcardSet[]
+
       }
+
+  
+
+  model FlashcardSet {
+
+    id          String      @id @default(uuid())
+
+    title       String
+
+    description String?
+
+    userId      String
+
+    user        User        @relation(fields: [userId], references: [id])
+
+    subjectId   String?
+
+    subject     Subject?    @relation(fields: [subjectId], references: [id])
+
+    cards       Flashcard[]
+
+    createdAt   DateTime    @default(now())
+
+    updatedAt   DateTime    @updatedAt
+
+  }
+
+  
+
+  model Flashcard {
+
+    id          String       @id @default(uuid())
+
+    question    String       @db.Text
+
+    answer      String       @db.Text
+
+    setId       String
+
+    set         FlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+    mastered    Boolean      @default(false) // Pour savoir si l'étudiant a mémorisé la carte
+
+    createdAt   DateTime     @default(now())
+
+  }
 
   
 
@@ -257,11 +305,11 @@ model User {
 
   
 
-    quizzes     Quiz[]
-
-  
-
-    schedules   PersonalSchedule[]
+      quizzes     Quiz[]
+    
+      flashcardSets FlashcardSet[]
+    
+      schedules   PersonalSchedule[]
 
   
 

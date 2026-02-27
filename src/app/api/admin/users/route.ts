@@ -23,16 +23,21 @@ export async function GET(req: Request) {
         role: true,
         isActive: true,
         otpCode: true,
+        referralCode: true,
+        referredById: true,
         field: { select: { name: true, code: true } },
         academicLevel: { select: { name: true } },
-        badges: {
-          include: {
-            badge: true
-          }
-        }
+        _count: { select: { referrals: true } }
       },
       orderBy: { lastActive: 'desc' }
     });
+
+    // Calculer le Revenu Total
+    const completedTransactions = await prisma.transaction.findMany({
+        where: { status: 'COMPLETED' },
+        select: { amount: true }
+    });
+    const totalRevenue = completedTransactions.reduce((acc, curr) => acc + curr.amount, 0);
 
     // Calculer la consommation de tokens aujourd'hui
     const today = new Date();
@@ -63,6 +68,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ 
       users, 
       totalTokensToday,
+      totalRevenue,
       chartData: Object.values(chartData) 
     });
   } catch (error) {

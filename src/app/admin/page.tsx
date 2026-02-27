@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const [levels, setLevels] = useState<Level[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +50,12 @@ export default function AdminDashboard() {
     try {
       const res = await fetch('/api/admin/users');
       const data = await res.json();
-      if (res.ok) { setUsers(data.users); setTotalTokens(data.totalTokensToday); setChartData(data.chartData); }
+      if (res.ok) { 
+        setUsers(data.users); 
+        setTotalTokens(data.totalTokensToday); 
+        setTotalRevenue(data.totalRevenue || 0);
+        setChartData(data.chartData); 
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -102,8 +108,8 @@ export default function AdminDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-2">
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
-           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><Activity size={24}/></div>
-           <div><p className="text-[10px] font-black uppercase text-zinc-400">Live</p><h3 className="text-xl font-bold">{users.filter(u=>isOnline(u.lastActive)).length}</h3></div>
+           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><CreditCard size={24}/></div>
+           <div><p className="text-[10px] font-black uppercase text-zinc-400">Chiffre d'Affaires</p><h3 className="text-xl font-bold">{totalRevenue.toLocaleString()} FCFA</h3></div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center"><Users size={24}/></div>

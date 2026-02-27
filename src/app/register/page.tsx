@@ -18,7 +18,8 @@ export default function RegisterPage() {
     email: '',
     password: '',
     fieldId: '',
-    levelId: ''
+    levelId: '',
+    referralCode: ''
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -30,6 +31,13 @@ export default function RegisterPage() {
     fetch('/api/academic/options')
       .then(res => res.json())
       .then(data => setOptions(data));
+
+    // Détecter le code de parrainage dans l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref');
+    if (ref) {
+        setFormData(prev => ({ ...prev, referralCode: ref }));
+    }
   }, []);
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
@@ -264,6 +272,21 @@ export default function RegisterPage() {
                   </select>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-zinc-500 ml-1">Code de parrainage (Optionnel)</label>
+              <div className="relative">
+                <Star className="absolute left-4 top-3.5 text-zinc-400" size={18} />
+                <input 
+                  type="text"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm uppercase font-black tracking-widest"
+                  placeholder="EX: ADM-PBF7"
+                  value={formData.referralCode}
+                  onChange={e => setFormData({...formData, referralCode: e.target.value.toUpperCase()})}
+                />
+              </div>
+              <p className="text-[9px] text-blue-600 font-bold ml-1 uppercase tracking-tight">🎁 5 jetons IA offerts pour vous et votre parrain</p>
             </div>
 
             {error && (

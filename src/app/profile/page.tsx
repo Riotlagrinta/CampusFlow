@@ -53,6 +53,7 @@ type UserData = {
   streak: number;
   rank: number;
   aiBonusRequests: number;
+  referralCode: string;
   averageScore: number;
   quizAttemptsCount: number;
   badges: { badge: { id: string; name: string; icon: string; slug: string; description: string } }[];
@@ -66,6 +67,16 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const copyReferral = () => {
+    if (!userData?.referralCode) return;
+    const url = `${window.location.origin}/register?ref=${userData.referralCode}`;
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    play('xp');
+    setTimeout(() => setIsCopied(false), 2000);
+  };
   
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', bio: '' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -138,6 +149,12 @@ export default function ProfilePage() {
               <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Brain size={10} className="text-blue-400" /> {userData?.aiBonusRequests} Jetons IA
               </span>
+              <button 
+                onClick={copyReferral}
+                className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-500/20 transition-all"
+              >
+                <Target size={10} /> {isCopied ? 'Lien copié !' : `Parrainer (${userData?.referralCode})`}
+              </button>
               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Flame size={10} /> {userData?.streak || 0} Jours
               </span>

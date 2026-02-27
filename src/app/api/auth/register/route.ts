@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/mail';
 
 export async function POST(req: Request) {
   try {
-    const { email, firstName, lastName, password, fieldId, levelId } = await req.json();
+    const { email, firstName, lastName, password, fieldId, levelId, referralCode } = await req.json();
 
     if (!email || !firstName || !lastName || !password || !fieldId || !levelId) {
       return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
@@ -19,6 +19,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
     }
 
+    // LOGIQUE DE PARRAINAGE
+    let referredById = null;
+    let initialBonus = 0;
+
+    if (referralCode) {
+        const referrer = await prisma.user.findUnique({
+            where: { referralCode }
+        });
+
+        if (referrer) {
+            referredById = referrer.id;
+            initialBonus = 5; // On offre 5 jetons au nouvel utilisateur
+
+            // On offre 5 jetons au parrain immédiatement
+            await prisma.user.update({
+                where: { id: referrer.id },
+                data: { aiBonusRequests: { increment: 5 } }
+            });
+            console.log(`🎁 Parrainage: 5 jetons offerts à ${referrer.email}`);
+        }
+    }
+
     // Récupérer les infos de filière/niveau pour le mail
     const [field, level] = await Promise.all([
       prisma.field.findUnique({ where: { id: fieldId } }),
@@ -27,6 +49,9 @@ export async function POST(req: Request) {
 
     // Générer un code OTP à 6 chiffres
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Générer un nouveau code de parrainage pour cet utilisateur
+    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
 
     // Création de l'utilisateur (INACTIF)
     const user = await prisma.user.create({
@@ -37,7 +62,10 @@ export async function POST(req: Request) {
         password, 
         fieldId,
         academicLevelId: levelId,
-        isActive: false, // Doit valider son mail
+        referredById,
+        aiBonusRequests: initialBonus,
+        referralCode: newReferralCode,
+        isActive: false, 
         otpCode,
         xp: 0,
         level: 1,

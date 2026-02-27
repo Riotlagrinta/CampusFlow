@@ -41,6 +41,14 @@ model User {
 
   pushToken       String?        
 
+  referralCode    String?        @unique
+
+  referredById    String?
+
+  referredBy      User?          @relation("UserReferrals", fields: [referredById], references: [id])
+
+  referrals       User[]         @relation("UserReferrals")
+
   
 
     // Validation OTP et Récupération

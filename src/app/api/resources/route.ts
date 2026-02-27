@@ -31,8 +31,8 @@ export async function GET(req: Request) {
     // Si on cherche dans un dossier, on ignore les filtres de filière pour être sûr de tout voir
     // Si on est à la racine, on filtre par filière pour les étudiants (avec partage pour GL/RIT)
     const resources = await prisma.resource.findMany({
-      where: parentId ? { parentId } : {
-        parentId: null,
+      where: {
+        parentId: parentId,
         semester,
         ...(user.role === 'ADMIN' ? {} : {
           fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId,

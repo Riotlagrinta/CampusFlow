@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
+import bcrypt from "bcryptjs"; // Importez bcryptjs
 
 export async function PATCH(req: Request) {
   try {
@@ -15,13 +16,16 @@ export async function PATCH(req: Request) {
       where: { email: session.user.email }
     });
 
-    if (!user || user.password !== oldPassword) {
+    const passwordMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!user || !passwordMatch) {
       return NextResponse.json({ error: 'L\'ancien mot de passe est incorrect' }, { status: 400 });
     }
 
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
     await prisma.user.update({
       where: { email: session.user.email },
-      data: { password: newPassword }
+      data: { password: hashedPassword }
     });
 
     return NextResponse.json({ success: true, message: 'Mot de passe mis à jour' });

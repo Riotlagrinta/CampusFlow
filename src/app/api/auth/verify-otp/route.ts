@@ -1,8 +1,30 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+const rateLimit = new Map();
+const LIMIT = 5; // 5 requêtes
+const WINDOW_SIZE = 10 * 60 * 1000; // 10 minutes
+
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || req.socket?.remoteAddress; // Obtenir l'adresse IP
+    if (!ip) {
+      return NextResponse.json({ error: 'Impossible de déterminer l\'adresse IP' }, { status: 400 });
+    }
+
+    const now = Date.now();
+    const requests = rateLimit.get(ip) || [];
+
+    // Filtrer les requêtes anciennes
+    const recentRequests = requests.filter((timestamp: number) => now - timestamp < WINDOW_SIZE);
+
+    if (recentRequests.length >= LIMIT) {
+      return NextResponse.json({ error: 'Trop de tentatives. Veuillez réessayer plus tard.' }, { status: 429 });
+    }
+
+    recentRequests.push(now);
+    rateLimit.set(ip, recentRequests);
+
     const { email, code } = await req.json();
 
     if (!email || !code) {

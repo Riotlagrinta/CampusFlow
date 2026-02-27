@@ -4,6 +4,12 @@ import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
 import { sendPushNotification } from "@/lib/notifications";
 
+function sanitizeHtml(text: string): string {
+    // Supprime les balises script
+    return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -20,9 +26,11 @@ export async function POST(
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const sanitizedContent = sanitizeHtml(content);
+
     const answer = await prisma.answer.create({
       data: {
-        content,
+        content: sanitizedContent,
         questionId: id,
         authorId: user.id
       },

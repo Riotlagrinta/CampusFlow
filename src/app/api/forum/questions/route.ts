@@ -5,6 +5,12 @@ import { auth } from "@/../auth";
 import Groq from "groq-sdk";
 import { sendPushNotification } from "@/lib/notifications";
 
+function sanitizeHtml(text: string): string {
+    // Supprime les balises script
+    return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
+}
+
 export async function GET() {
   try {
     const questions = await prisma.question.findMany({
@@ -39,11 +45,14 @@ export async function POST(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const sanitizedTitle = sanitizeHtml(title);
+    const sanitizedContent = sanitizeHtml(content);
+
     // 1. Création de la question
     const question = await prisma.question.create({
       data: {
-        title,
-        content,
+        title: sanitizedTitle,
+        content: sanitizedContent,
         tags,
         authorId: user.id,
         fieldId: fieldId || user.fieldId,

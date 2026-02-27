@@ -60,6 +60,7 @@ model User {
   
 
     otpCode         String?
+  otpCodeExpires DateTime?
 
   
 

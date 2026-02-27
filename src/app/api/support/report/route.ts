@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
 import { sendEmail } from '@/lib/mail';
 
+function sanitizeHtml(text: string): string {
+    // Supprime les balises script
+    return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -14,11 +20,13 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const sanitizedContent = sanitizeHtml(content);
+
     const report = await prisma.bugReport.create({
       data: {
         userId: user.id,
         type: type || 'BUG',
-        content
+        content: sanitizedContent
       }
     });
 
@@ -33,7 +41,7 @@ export async function POST(req: Request) {
                     <p><strong>Type :</strong> ${type}</p>
                     <p><strong>Message :</strong></p>
                     <div style="background: #f3f4f6; padding: 15px; border-radius: 8px;">
-                        ${content}
+                        ${sanitizedContent}
                     </div>
                     <p style="font-size: 12px; color: #666; margin-top: 20px;">Utilisateur : ${user.email}</p>
                 </div>

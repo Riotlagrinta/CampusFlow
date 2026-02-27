@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/mail';
+import bcrypt from "bcryptjs"; // Importez bcryptjs
 
 export async function POST(req: Request) {
   try {
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
     }
 
+    // Hacher le mot de passe
+    const hashedPassword = await bcrypt.hash(password, 10);
     // LOGIQUE DE PARRAINAGE
     let referredById = null;
     let initialBonus = 0;
@@ -51,7 +54,7 @@ export async function POST(req: Request) {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Générer un nouveau code de parrainage pour cet utilisateur
-    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 12).toUpperCase(); // Augmenté à 10 caractères aléatoires
 
     // Création de l'utilisateur (INACTIF)
     const user = await prisma.user.create({
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
         email,
         firstName,
         lastName,
-        password, 
+        password: hashedPassword, 
         fieldId,
         academicLevelId: levelId,
         referredById,

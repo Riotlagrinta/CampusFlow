@@ -33,9 +33,7 @@ async function searchWeb(query: string) {
         });
         const data = await res.json();
         if (data.results && data.results.length > 0) {
-            const result = data.results.map((item: any) => `Titre: ${item.title}
-Info: ${item.content}
-Lien: ${item.url}`).join("\n\n");
+            const result = data.results.map((item: any) => `Titre: ${item.title}\nInfo: ${item.content}\nLien: ${item.url}`).join("\n\n");
             await prisma.searchCache.upsert({
                 where: { query: cleanQuery },
                 update: { result, createdAt: new Date() },
@@ -55,23 +53,25 @@ export async function POST(req: Request) {
     if (!session || !session.user?.email) return NextResponse.json({ reply: "Session expirée." }, { status: 401 });
 
     const { message, resourceId, externalLink, tempFilePath, history } = await req.json();
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    
+    // Récupérer l'utilisateur avec ses relations pour personnaliser l'IA
+    const user = await prisma.user.findUnique({ 
+        where: { email: session.user.email },
+        include: { field: true, academicLevel: true }
+    });
     if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
 
-    // --- 1. DETECTION SALUTATION (Économie de crédits) ---
+    // --- 1. DETECTION SALUTATION ---
     const isGreeting = message.toLowerCase().trim().match(/^(bonjour|salut|hello|hi|hey|ça va|ca va|cc|coucou|merci|thanks|ok|d'accord|dac)$/i);
 
-    // --- 2. LECTURE DOCUMENT ---
+    // --- 2. LECTURE DOCUMENT (CONSERVÉE) ---
     let resourceContext = "";
     if (!isGreeting && (tempFilePath || externalLink || resourceId)) {
         try {
             const pdf = require('pdf-parse');
             if (tempFilePath) {
-                // Si c'est un chemin absolu (commence par /tmp ou c:/), on l'utilise direct
-                // Sinon on construit par rapport à public
                 const isAbsolute = tempFilePath.startsWith('/tmp') || tempFilePath.includes(':');
                 const fullTempPath = isAbsolute ? tempFilePath : path.join(process.cwd(), 'public', tempFilePath);
-                
                 if (fs.existsSync(fullTempPath)) {
                     const dataBuffer = fs.readFileSync(fullTempPath);
                     const pdfData = await pdf(dataBuffer);
@@ -81,33 +81,24 @@ export async function POST(req: Request) {
             } else if (resourceId) {
                 const res = await prisma.resource.findUnique({ where: { id: resourceId } });
                 if (res && res.type === 'PDF') {
-                    if (!res.url.startsWith('http')) {
-                        const relativePath = res.url.startsWith('/') ? res.url.slice(1) : res.url;
-                        const fp = path.join(process.cwd(), 'public', relativePath);
-                        if (fs.existsSync(fp)) {
-                             const pdfData = await pdf(fs.readFileSync(fp));
-                             resourceContext = pdfData.text.substring(0, 10000);
-                        }
+                    const relativePath = res.url.startsWith('/') ? res.url.slice(1) : res.url;
+                    const fp = path.join(process.cwd(), 'public', relativePath);
+                    if (fs.existsSync(fp)) {
+                         const pdfData = await pdf(fs.readFileSync(fp));
+                         resourceContext = pdfData.text.substring(0, 10000);
                     }
                 }
             }
-        } catch (e: any) {
-            console.error("Erreur lecture PDF:", e);
-            // On continue sans contexte au lieu de crasher
-        }
+        } catch (e) { console.error("Erreur PDF:", e); }
     }
 
-    // --- 3. RECHERCHE WEB (Seulement si nécessaire) ---
+    // --- 3. RECHERCHE WEB (AMÉLIORÉE) ---
     let webContext = "";
-    const needsWeb = !isGreeting && (
-        message.toLowerCase().match(/(actu|président|météo|nouvelles|prix|cours de|qui est|togo|usa|france|monde|aujourd'hui)/) ||
-        (message.split(' ').length > 4 && !resourceContext) // Plus de 4 mots et pas de doc
-    );
-    
-    if (needsWeb) {
+    if (!isGreeting && message.length > 10 && !resourceContext) {
         webContext = await searchWeb(message);
     }
 
+    // --- 4. GESTION QUOTA ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dailyUsage = await prisma.dailyAIUsage.upsert({
@@ -116,51 +107,54 @@ export async function POST(req: Request) {
       create: { userId: user.id, date: today },
     });
 
-    if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
+    const remainingFree = Math.max(0, DAILY_AI_LIMIT - dailyUsage.requestCount);
+    const totalAvailable = remainingFree + user.aiBonusRequests;
+
+    if (totalAvailable <= 0) {
       return NextResponse.json({ 
-        reply: "Vous avez épuisé vos 10 requêtes gratuites pour aujourd'hui. Pour continuer à profiter de l'IA, rechargez vos jetons dans la boutique !", 
+        reply: "Désolé, vous avez épuisé votre quota gratuit et vos jetons bonus. Rechargez votre compte dans la boutique pour continuer à utiliser l'IA !", 
         quotaExceeded: true 
       }, { status: 429 });
     }
 
+    // --- 5. APPEL GROQ ---
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
-    // Construction de la mémoire de conversation
     const messages = [
         {
           role: "system",
-          content: `Tu es le Tuteur IA Expert de l'institut DEFITECH (Lomé, Togo). Ta mission est de guider les étudiants vers l'excellence académique.
+          content: `Tu es le Tuteur IA Expert de l'institut DEFITECH (Lomé, Togo). 
+          
+          PROFIL DE L'ÉTUDIANT :
+          - Prénom : ${user.firstName || 'Étudiant'}
+          - Filière : ${user.field?.name || 'Générale'}
+          - Niveau : ${user.academicLevel?.name || 'L1'}
+          - Semestre : 2 (Session actuelle)
 
-          CONTEXTE ACTUEL :
-          ${resourceContext ? `📄 DOCUMENT JOINT (Source PRIORITAIRE) :\n${resourceContext}\n---` : ""}
-          ${webContext ? `🌐 RECHERCHE WEB (Source SECONDAIRE) :\n${webContext}\n---` : ""}
+          CONTEXTE :
+          ${resourceContext ? `📄 DOCUMENT (PRIORITÉ) :\n${resourceContext}\n---` : ""}
+          ${webContext ? `🌐 WEB (INFO RÉCENTE) :\n${webContext}\n---` : ""}
 
           DIRECTIVES PÉDAGOGIQUES :
-          1. **Rôle** : Tu es un professeur bienveillant, précis et encourageant.
-          2. **Priorité** : Si un DOCUMENT est fourni, base ta réponse EXCLUSIVEMENT dessus pour les questions qui s'y rapportent.
-          3. **Structure** :
-             - Utilise le **Markdown** pour la clarté (Gras pour les concepts clés, Listes à puces pour les énumérations).
-             - Si la question est technique, fournis des exemples de code ou des étapes concrètes.
-          4. **Langue** : Français académique et professionnel.
-          5. **Interaction** : Si l'utilisateur salue, sois bref et propose ton aide ("Bonjour ! Prêt à travailler ?").
-
-          TA RÉPONSE DOIT ÊTRE : Claire, structurée et directement utile.`
+          1. Adresses-toi à l'étudiant par son prénom (${user.firstName}).
+          2. Sois concis, précis et académique. Utilise le Markdown.
+          3. Pour le code, fournis des explications ligne par ligne.
+          4. Encourage l'étudiant dans sa réussite à DEFITECH.`
         },
-        ...(history || []),
+        ...(history || []).slice(-10), // Garder les 10 derniers messages pour la mémoire
         { role: "user", content: message }
     ];
 
     const completion = await groq.chat.completions.create({
       messages: messages,
       model: "llama-3.3-70b-versatile",
-      temperature: 0.5,
+      temperature: 0.6,
     });
 
-    const text = completion.choices[0]?.message?.content || "";
+    const text = completion.choices[0]?.message?.content || "Je n'ai pas pu générer de réponse.";
     
-    // Logique de déduction
+    // DÉDUCTION DES CRÉDITS
     if (dailyUsage.requestCount >= DAILY_AI_LIMIT) {
-        // On pioche dans les jetons achetés
         await prisma.user.update({
             where: { id: user.id },
             data: { aiBonusRequests: { decrement: 1 } }
@@ -172,20 +166,17 @@ export async function POST(req: Request) {
       data: { requestCount: { increment: 1 } },
     });
 
-    // Notification de quota bas (2 requêtes restantes)
-    const remaining = (DAILY_AI_LIMIT + user.aiBonusRequests) - (dailyUsage.requestCount + 1);
-    if (remaining === 2 && user.pushToken) {
-        await sendPushNotification(
-            user.pushToken,
-            "Attention ! ⚠️",
-            "Il ne vous reste plus que 2 requêtes IA gratuites pour aujourd'hui. Rechargez vos jetons pour ne pas être bloqué !"
-        );
+    // PUSH NOTIFICATION QUOTA BAS
+    const finalRemaining = totalAvailable - 1;
+    if (finalRemaining === 2 && user.pushToken) {
+        await sendPushNotification(user.pushToken, "Quota IA presque épuisé", "Il ne vous reste plus que 2 requêtes IA gratuites. Pensez à recharger !");
     }
 
     await addXP(user.id, 5);
     return NextResponse.json({ reply: text });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Erreur technique." }, { status: 500 });
+    console.error("Crash Chat:", error);
+    return NextResponse.json({ reply: "Désolé, mon système rencontre une difficulté technique." }, { status: 500 });
   }
 }

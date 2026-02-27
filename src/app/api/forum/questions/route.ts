@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
+import Groq from "groq-sdk";
 
 export async function GET() {
   try {
     const questions = await prisma.question.findMany({
       include: {
-        author: { select: { firstName: true, lastName: true, level: true } },
+        author: { select: { firstName: true, lastName: true, level: true, image: true } },
+        field: { select: { name: true, code: true } },
+        level: { select: { name: true } },
         _count: { select: { answers: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -27,19 +30,75 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, content, tags } = body;
+    const { title, content, tags, fieldId, levelId } = body;
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    const user = await prisma.user.findUnique({ 
+        where: { email: session.user.email },
+        include: { field: true }
+    });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    // 1. Création de la question
     const question = await prisma.question.create({
       data: {
         title,
         content,
         tags,
-        authorId: user.id
+        authorId: user.id,
+        fieldId: fieldId || user.fieldId,
+        levelId: levelId || user.academicLevelId,
+        semester: 2 // Par défaut S2
       }
     });
+
+    // 2. Réponse Automatique de l'IA (Tuteur)
+    try {
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const aiPrompt = `Tu es le Tuteur IA Expert du forum DEFITECH. 
+        Un étudiant (${user.firstName}) vient de poser une question : "${title}".
+        Contenu détaillé : "${content}".
+        Filière : ${user.field?.name || 'Générale'}.
+        
+        Ta mission : Fournis une première réponse constructive, académique et encourageante en moins de 150 mots. 
+        Si c'est une question technique, donne une piste de solution ou un exemple de code. 
+        Commence par "Bonjour ${user.firstName}, c'est une excellente question !"`;
+
+        const completion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: aiPrompt }],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.5,
+        });
+
+        const aiResponse = completion.choices[0]?.message?.content || "Je vais analyser votre question et revenir vers vous !";
+
+        // Trouver ou créer l'utilisateur "IA Tutor"
+        let aiUser = await prisma.user.findUnique({ where: { email: 'ai-tutor@defitech.tg' } });
+        if (!aiUser) {
+            aiUser = await prisma.user.create({
+                data: {
+                    email: 'ai-tutor@defitech.tg',
+                    firstName: 'IA',
+                    lastName: 'Tutor',
+                    password: 'system-protected',
+                    role: 'ADMIN',
+                    isActive: true,
+                    image: 'https://cdn-icons-png.flaticon.com/512/4712/4712035.png'
+                }
+            });
+        }
+
+        // Enregistrer la réponse de l'IA
+        await prisma.answer.create({
+            data: {
+                content: aiResponse,
+                questionId: question.id,
+                authorId: aiUser.id
+            }
+        });
+
+    } catch (aiError) {
+        console.error('Erreur IA Forum:', aiError);
+    }
 
     // Bonus: +20 XP automatique
     await addXP(user.id, 20);

@@ -17,7 +17,17 @@ export default function AIAssistant() {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [tokens, setTokens] = useState<number>(0);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    // Charger les stats de l'utilisateur pour avoir les jetons
+    api.get('/user/stats').then(res => {
+        if (res.data && !res.data.error) {
+            setTokens(res.data.aiBonusRequests || 0);
+        }
+    });
+  }, []);
 
   const sendMessage = async () => {
     if (!inputText.trim()) return;
@@ -34,24 +44,36 @@ export default function AIAssistant() {
     setIsTyping(true);
 
     try {
-      // Appel à ton API de chat qui gère la rotation Groq
+      // Appel à ton API de chat
       const response = await api.post('/chat', { message: inputText });
       
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.data.response,
+        text: response.data.reply,
         sender: 'ai',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      const errorMsg: Message = {
+      
+      // Mettre à jour les jetons après la réponse
+      if (tokens > 0) setTokens(prev => prev - 1);
+
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.reply || "Désolé, j'ai rencontré une erreur. Vérifiez vos jetons IA.";
+      const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Désolé, j'ai rencontré une erreur. Vérifiez vos jetons IA ou votre connexion.",
+        text: errorMessage,
         sender: 'ai',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorMsg]);
+      setMessages(prev => [...prev, aiMsg]);
+      
+      if (error.response?.data?.quotaExceeded) {
+          Alert.alert("Quota Épuisé", "Vous avez épuisé vos 10 requêtes gratuites. Rechargez vos jetons dans la boutique !", [
+              { text: "Boutique", onPress: () => router.push('/shop') },
+              { text: "D'accord" }
+          ]);
+      }
     } finally {
       setIsTyping(false);
     }
@@ -68,14 +90,17 @@ export default function AIAssistant() {
             <Text className="text-xl font-bold text-slate-900">Assistant IA</Text>
             <View className="flex-row items-center">
               <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-              <Text className="text-xs text-slate-500 font-medium">Rotation Groq Active</Text>
+              <Text className="text-xs text-slate-500 font-medium">Llama 3.3 Active</Text>
             </View>
           </View>
         </View>
-        <View className="bg-blue-50 px-3 py-1 rounded-full flex-row items-center">
+        <TouchableOpacity 
+            onPress={() => router.push('/shop')}
+            className="bg-blue-50 px-3 py-1 rounded-full flex-row items-center"
+        >
           <Zap size={14} color="#3b82f6" />
-          <Text className="text-blue-600 text-xs font-bold ml-1">Tokens: Illimités</Text>
-        </View>
+          <Text className="text-blue-600 text-xs font-bold ml-1">Jetons: {tokens}</Text>
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView 

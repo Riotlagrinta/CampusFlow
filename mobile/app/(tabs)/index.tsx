@@ -70,18 +70,19 @@ export default function Dashboard() {
       >
         {/* Header */}
         <View className="flex-row justify-between items-center mb-8">
-          <View>
+          <View className="flex-1">
             <Text className="text-slate-500 text-sm font-medium">Bonjour 👋</Text>
-            <Text className="text-2xl font-bold text-slate-900">
-              {userData?.firstName || 'Étudiant'} {userData?.lastName || 'DefiTech'}
+            <Text className="text-2xl font-bold text-slate-900 truncate" numberOfLines={1}>
+              {userData?.firstName || 'Étudiant'}
             </Text>
           </View>
-          <View className="flex-row">
+          <View className="flex-row items-center">
             <TouchableOpacity 
               onPress={() => router.push('/shop')}
-              className="p-2 bg-white rounded-full shadow-sm border border-slate-100 mr-2"
+              className="bg-blue-50 px-3 py-2 rounded-2xl border border-blue-100 mr-2 flex-row items-center shadow-sm shadow-blue-50"
             >
-              <ShoppingBag size={24} color="#64748b" />
+              <Sparkles size={16} color="#3b82f6" />
+              <Text className="text-blue-600 font-black text-xs ml-1.5">{userData?.aiBonusRequests || 0}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => router.push('/profile')}
@@ -90,6 +91,21 @@ export default function Dashboard() {
               <User size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Prochain Cours Widget (Simulation dynamique) */}
+        <View className="bg-white p-5 rounded-[2rem] mb-8 border border-slate-100 shadow-sm">
+            <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-widest">En ce moment</Text>
+                <View className="bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                    <Text className="text-[8px] font-black text-emerald-600 uppercase">Cours Actif</Text>
+                </View>
+            </View>
+            <Text className="text-xl font-black text-slate-900 mb-1">Algorithmique S2</Text>
+            <View className="flex-row items-center">
+                <Calendar size={14} color="#64748b" />
+                <Text className="text-slate-500 text-xs ml-2 font-medium">Salle 102 • 08h00 - 10h00</Text>
+            </View>
         </View>
 
         {/* Stats Summary / Banner */}

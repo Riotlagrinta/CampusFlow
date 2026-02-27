@@ -22,6 +22,28 @@ export default function CheckoutScreen() {
   const [method, setMethod] = useState<'TMONEY' | 'FLOOZ' | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const handleGeniusPay = async () => {
+    setLoading(true);
+    try {
+      // Appel à l'API de ton serveur (qui est déjà configurée pour Genius Pay)
+      const res = await api.post('/payment/genius/create', { packId });
+      
+      if (res.data.url) {
+        // Ouvrir l'URL de paiement dans le navigateur du smartphone
+        await Linking.openURL(res.data.url);
+        // Rediriger vers l'accueil ou le profil après ouverture
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Erreur', res.data.error || "Impossible d'initialiser le paiement.");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erreur', "Problème de connexion au serveur de paiement.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
     Alert.alert('Copié !', 'Le numéro a été copié dans votre presse-papiers.');
@@ -87,26 +109,50 @@ export default function CheckoutScreen() {
             <Text className="font-bold text-slate-800">Choisissez votre moyen de paiement</Text>
           </View>
           
-          <View className="flex-row justify-between">
+          <View className="space-y-4">
+            {/* Genius Pay Automatic */}
             <TouchableOpacity 
-              onPress={() => setMethod('TMONEY')}
-              className={`w-[48%] p-6 rounded-3xl border-2 items-center ${method === 'TMONEY' ? 'border-yellow-400 bg-yellow-50' : 'border-slate-100 bg-white'}`}
+              onPress={handleGeniusPay}
+              disabled={loading}
+              className="p-6 rounded-[2rem] border-2 border-blue-500 bg-blue-50/50 flex-row items-center shadow-sm"
             >
-              <View className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center shadow-lg mb-3">
+              <View className="w-12 h-12 bg-blue-600 rounded-2xl items-center justify-center shadow-lg">
                 <Smartphone color="white" />
               </View>
-              <Text className="font-black text-[10px] uppercase tracking-widest text-slate-900">T-Money</Text>
+              <View className="ml-4 flex-1">
+                <Text className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Recommandé</Text>
+                <Text className="text-lg font-black text-slate-900">Paiement Automatique</Text>
+                <Text className="text-xs text-slate-500 font-medium italic">T-Money & Flooz (Instantané)</Text>
+              </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              onPress={() => setMethod('FLOOZ')}
-              className={`w-[48%] p-6 rounded-3xl border-2 items-center ${method === 'FLOOZ' ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white'}`}
-            >
-              <View className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg mb-3">
-                <Smartphone color="white" />
-              </View>
-              <Text className="font-black text-[10px] uppercase tracking-widest text-slate-900">Flooz</Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center py-2">
+                <View className="flex-1 h-[1px] bg-slate-200" />
+                <Text className="mx-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ou manuel</Text>
+                <View className="flex-1 h-[1px] bg-slate-200" />
+            </View>
+
+            <View className="flex-row justify-between">
+              <TouchableOpacity 
+                onPress={() => setMethod('TMONEY')}
+                className={`w-[48%] p-6 rounded-3xl border-2 items-center ${method === 'TMONEY' ? 'border-yellow-400 bg-yellow-50' : 'border-slate-100 bg-white'}`}
+              >
+                <View className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center shadow-lg mb-3">
+                  <Smartphone color="white" />
+                </View>
+                <Text className="font-black text-[10px] uppercase tracking-widest text-slate-900">Manuel T-Money</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={() => setMethod('FLOOZ')}
+                className={`w-[48%] p-6 rounded-3xl border-2 items-center ${method === 'FLOOZ' ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white'}`}
+              >
+                <View className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg mb-3">
+                  <Smartphone color="white" />
+                </View>
+                <Text className="font-black text-[10px] uppercase tracking-widest text-slate-900">Manuel Flooz</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 

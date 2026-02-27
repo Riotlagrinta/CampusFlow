@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Command, BookOpen, GraduationCap } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Command, BookOpen, GraduationCap, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';

@@ -43,7 +43,7 @@ const navItems = [
   { icon: Brain, label: 'Quizz', href: '/quiz' },
   { icon: MessageSquare, label: 'Forum', href: '/forum' },
   { icon: Bot, label: 'AI Assistant', href: '/ai-assistant' },
-  { icon: Layers, label: 'Flashcards IA', href: '/flashcards' },
+  { icon: Layers, label: 'Flashcards IA (BETA)', href: '/flashcards' },
   { icon: ShoppingCart, label: 'Boutique IA', href: '/shop' },
   { icon: SparklesIcon, label: 'Le Développeur', href: '/about' },
   { icon: BookOpen, label: 'Ressources', href: '/resources' },

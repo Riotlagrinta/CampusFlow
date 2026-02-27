@@ -105,39 +105,45 @@ export default function FlashcardsPage() {
     const card = activeSet.cards[currentCardIdx];
     return (
       <div className="max-w-2xl mx-auto space-y-8 py-10 px-4">
-        <button onClick={() => { setActiveSet(null); setIsFlipped(false); }} className="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 transition-colors font-bold">
-          <ArrowLeft size={20} /> Retour
+        <button onClick={() => { setActiveSet(null); setIsFlipped(false); }} className="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 transition-colors font-bold text-sm">
+          <ArrowLeft size={18} /> Retour aux collections
         </button>
+
+        <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-center gap-3">
+            <Sparkles size={18} className="text-blue-600 shrink-0" />
+            <p className="text-[11px] font-bold text-blue-700 uppercase tracking-tight">
+                Mode BETA : L'interface de révision est en cours d'optimisation visuelle.
+            </p>
+        </div>
 
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-black">{activeSet.title}</h1>
-          <p className="text-zinc-500 text-xs uppercase font-bold tracking-widest">Carte {currentCardIdx + 1} sur {activeSet.cards.length}</p>
+          <p className="text-zinc-500 text-[10px] uppercase font-black tracking-[0.2em]">Carte {currentCardIdx + 1} sur {activeSet.cards.length}</p>
         </div>
 
-        {/* Card Flip Component */}
-        <div className="perspective-1000 h-80 w-full cursor-pointer" onClick={() => { setIsFlipped(!isFlipped); play('xp'); }}>
-          <motion.div 
-            animate={{ rotateY: isFlipped ? 180 : 0 }}
-            transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
-            className="relative w-full h-full preserve-3d"
-          >
-            {/* Front (Question) */}
-            <div className={`absolute inset-0 backface-hidden bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl ${isFlipped ? 'pointer-events-none' : ''}`}>
-               <span className="absolute top-6 left-6 text-[10px] font-black text-blue-600 uppercase tracking-widest">Question</span>
+        {/* Flat Card Component (Plus fiable que la 3D sur tous les navigateurs) */}
+        <div 
+            className="w-full space-y-4"
+            onClick={() => { setIsFlipped(!isFlipped); play('xp'); }}
+        >
+          <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[2.5rem] p-10 min-h-[200px] flex flex-col items-center justify-center text-center shadow-xl cursor-pointer hover:border-blue-500 transition-all">
+               <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">Question</span>
                <h2 className="text-xl md:text-2xl font-bold px-4">{card?.question}</h2>
-               <p className="absolute bottom-6 text-zinc-400 text-[10px] uppercase font-black">Cliquez pour voir la réponse</p>
-            </div>
+               {!isFlipped && <p className="mt-8 text-zinc-400 text-[10px] uppercase font-black animate-pulse">Cliquer pour voir la réponse</p>}
+          </div>
 
-            {/* Back (Answer) */}
-            <div 
-              className={`absolute inset-0 backface-hidden bg-blue-600 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-xl ${!isFlipped ? 'pointer-events-none' : ''}`}
-              style={{ transform: 'rotateY(180deg)' }}
-            >
-               <span className="absolute top-6 left-6 text-[10px] font-black text-white/60 uppercase tracking-widest">Réponse</span>
-               <h2 className="text-xl md:text-2xl font-bold text-white px-4">{card?.answer}</h2>
-               <p className="absolute bottom-6 text-white/60 text-[10px] uppercase font-black">Cliquez pour revenir à la question</p>
-            </div>
-          </motion.div>
+          <AnimatePresence>
+            {isFlipped && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-blue-600 rounded-[2.5rem] p-10 min-h-[150px] flex flex-col items-center justify-center text-center shadow-xl"
+              >
+                <span className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-4">Réponse</span>
+                <h2 className="text-xl md:text-2xl font-bold text-white px-4">{card?.answer}</h2>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="flex justify-between items-center pt-4">

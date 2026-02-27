@@ -133,8 +133,8 @@ export default function Sidebar() {
       >
         <div className="h-16 flex items-center px-5 mb-6">
           <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-zinc-900 dark:bg-zinc-50 rounded-lg flex items-center justify-center shrink-0">
-               <Command size={18} className="text-white dark:text-zinc-900" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-lg">
+               <img src="/logo.svg" alt="DefiTech Logo" className="w-full h-full object-cover" />
             </div>
             {isOpen && (
               <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-50 uppercase tracking-[0.1em]">Student Hub</span>

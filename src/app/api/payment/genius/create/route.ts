@@ -9,7 +9,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const { packId, method } = await req.json();
+    const { packId } = await req.json();
 
     const PACKS: Record<string, { amount: number, tokens: number, name: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
 
-    // 1. Création de la transaction en base de données (Statut PENDING)
+    // 1. Création de la transaction en base de données
     const dbTransaction = await prisma.transaction.create({
         data: {
             userId: user.id,
@@ -34,8 +34,8 @@ export async function POST(req: Request) {
         }
     });
 
-    // 2. Préparation de la requête Genius Pay
-    const payload: any = {
+    // 2. Préparation du Payload pour Genius Pay
+    const payload = {
       amount: selectedPack.amount,
       currency: 'XOF',
       description: `Achat ${selectedPack.name} - StudentHub`,
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         name: `${user.firstName} ${user.lastName}`,
         email: user.email
       },
-      success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
+      success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop/success`,
       error_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
       metadata: {
         dbTransactionId: dbTransaction.id,
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: result.error?.message || result.message || 'Erreur API Genius Pay' }, { status: response.status });
     }
 
-    // 4. On met à jour la référence externe
+    // 4. Mise à jour de la référence
     const geniusData = result.data;
     await prisma.transaction.update({
         where: { id: dbTransaction.id },
@@ -89,9 +89,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: geniusData.checkout_url });
   } catch (error: any) {
     console.error('Crash Genius Pay Create:', error);
-    return NextResponse.json({ 
-        error: "Erreur d'initialisation", 
-        details: error.message
-    }, { status: 500 });
+    return NextResponse.json({ error: "Erreur d'initialisation" }, { status: 500 });
   }
 }

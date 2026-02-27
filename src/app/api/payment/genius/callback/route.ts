@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
+import { sendPushNotification } from "@/lib/notifications";
 
 export async function POST(req: Request) {
   try {
@@ -42,6 +43,15 @@ export async function POST(req: Request) {
           aiBonusRequests: { increment: dbTransaction.tokens }
         }
       });
+
+      // 3. Envoyer une notification Push si l'utilisateur a un token
+      if (dbTransaction.user.pushToken) {
+        await sendPushNotification(
+            dbTransaction.user.pushToken,
+            "Paiement Validé ! ✅",
+            `Votre compte a été crédité de ${dbTransaction.tokens} jetons IA. Merci !`
+        );
+      }
 
       console.log(`✅ Paiement validé: +${dbTransaction.tokens} jetons pour ${dbTransaction.user.email}`);
       return NextResponse.json({ success: true });

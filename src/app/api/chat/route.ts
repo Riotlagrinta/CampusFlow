@@ -5,6 +5,7 @@ import { addXP } from "@/lib/xp";
 import { auth } from "@/../auth";
 import fs from 'fs';
 import path from 'path';
+import { sendPushNotification } from "@/lib/notifications";
 
 const DAILY_AI_LIMIT = 10;
 
@@ -116,7 +117,10 @@ export async function POST(req: Request) {
     });
 
     if ((DAILY_AI_LIMIT + user.aiBonusRequests - dailyUsage.requestCount) <= 0) {
-      return NextResponse.json({ reply: "Quota épuisé.", quotaExceeded: true }, { status: 429 });
+      return NextResponse.json({ 
+        reply: "Vous avez épuisé vos 10 requêtes gratuites pour aujourd'hui. Pour continuer à profiter de l'IA, rechargez vos jetons dans la boutique !", 
+        quotaExceeded: true 
+      }, { status: 429 });
     }
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -153,10 +157,30 @@ export async function POST(req: Request) {
     });
 
     const text = completion.choices[0]?.message?.content || "";
+    
+    // Logique de déduction
+    if (dailyUsage.requestCount >= DAILY_AI_LIMIT) {
+        // On pioche dans les jetons achetés
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { aiBonusRequests: { decrement: 1 } }
+        });
+    }
+
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
       data: { requestCount: { increment: 1 } },
     });
+
+    // Notification de quota bas (2 requêtes restantes)
+    const remaining = (DAILY_AI_LIMIT + user.aiBonusRequests) - (dailyUsage.requestCount + 1);
+    if (remaining === 2 && user.pushToken) {
+        await sendPushNotification(
+            user.pushToken,
+            "Attention ! ⚠️",
+            "Il ne vous reste plus que 2 requêtes IA gratuites pour aujourd'hui. Rechargez vos jetons pour ne pas être bloqué !"
+        );
+    }
 
     await addXP(user.id, 5);
     return NextResponse.json({ reply: text });

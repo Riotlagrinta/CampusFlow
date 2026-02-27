@@ -20,6 +20,7 @@ import {
   Brain,
   ShoppingCart,
   Layers,
+  FileText,
   Sparkles as SparklesIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,6 +37,7 @@ function cn(...inputs: ClassValue[]) {
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/' },
+  { icon: FileText, label: 'Devoirs', href: '/assignments' },
   { icon: Calendar, label: 'Planning', href: '/planning' },
   { icon: ShieldCheck, label: 'Profil Académique', href: '/profile' },
   { icon: Brain, label: 'Quizz', href: '/quiz' },

@@ -209,55 +209,51 @@ model User {
 
   
 
-    subjects    Subject[]
-
-  
-
-    schedules   PersonalSchedule[]
-
-  
-
-    createdAt   DateTime    @default(now())
-
-  
-
-  }
-
-  
-
-  
-
-  
-
-  model Level {
-
-  
-
-    id          String      @id @default(uuid())
-
-  
-
-    name        String      // ex: Licence 1, BTS 2
-
-  
-
-    users       User[]
-
-  
-
-    resources   Resource[]
-
-  
-
-    questions   Question[]
-
-  
-
-    subjects    Subject[]
-
-  
-
-    schedules   PersonalSchedule[]
+        subjects    Subject[]
+    
+        assignments Assignment[]
+    
+        schedules   PersonalSchedule[]
+    
+        createdAt   DateTime    @default(now())
+    
+      }
+    
+      
+    
+      
+    
+      
+    
+      model Level {
+    
+      
+    
+        id          String      @id @default(uuid())
+    
+      
+    
+        name        String      // ex: Licence 1, BTS 2
+    
+      
+    
+        users       User[]
+    
+      
+    
+        resources   Resource[]
+    
+      
+    
+        questions   Question[]
+    
+      
+    
+        subjects    Subject[]
+    
+        assignments Assignment[]
+    
+        schedules   PersonalSchedule[]
 
   
 
@@ -307,25 +303,51 @@ model User {
 
       quizzes     Quiz[]
     
-      flashcardSets FlashcardSet[]
-    
-      schedules   PersonalSchedule[]
-
-  
-
-    createdAt   DateTime    @default(now())
-
-  
-
-  }
-
-  
-
-  
-
-  
-
-  model Badge {
+        flashcardSets FlashcardSet[]
+      
+        assignments   Assignment[]
+      
+        schedules   PersonalSchedule[]
+      
+        createdAt   DateTime    @default(now())
+      
+      }
+      
+        
+      
+        model Assignment {
+      
+          id          String      @id @default(uuid())
+      
+          title       String
+      
+          content     String      @db.Text
+      
+          dueDate     DateTime
+      
+          subjectId   String?
+      
+          subject     Subject?    @relation(fields: [subjectId], references: [id])
+      
+          fieldId     String?
+      
+          field       Field?      @relation(fields: [fieldId], references: [id])
+      
+          levelId     String?
+      
+          level       Level?      @relation(fields: [levelId], references: [id])
+      
+          semester    Int         @default(1)
+      
+          createdAt   DateTime    @default(now())
+      
+          updatedAt   DateTime    @updatedAt
+      
+        }
+      
+        
+      
+        model Badge {
 
   
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
 import Groq from "groq-sdk";
+import { sendPushNotification } from "@/lib/notifications";
 
 export async function GET() {
   try {
@@ -95,6 +96,16 @@ export async function POST(req: Request) {
                 authorId: aiUser.id
             }
         });
+
+        // Envoyer une notification Push (L'IA répond instantanément)
+        if (user.pushToken) {
+            await sendPushNotification(
+                user.pushToken,
+                "L'IA Tuteur vous a répondu ! 🤖",
+                "Consultez la première piste de solution sur votre question forum.",
+                { questionId: question.id }
+            );
+        }
 
     } catch (aiError) {
         console.error('Erreur IA Forum:', aiError);

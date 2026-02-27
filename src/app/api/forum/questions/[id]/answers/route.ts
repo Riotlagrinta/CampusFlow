@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
+import { sendPushNotification } from "@/lib/notifications";
 
 export async function POST(
   req: Request,
@@ -26,9 +27,20 @@ export async function POST(
         authorId: user.id
       },
       include: {
-        author: { select: { firstName: true, lastName: true, level: true } }
+        author: { select: { firstName: true, lastName: true, level: true } },
+        question: { include: { author: true } }
       }
     });
+
+    // Envoyer une notification Push à l'auteur de la question (si ce n'est pas lui qui répond)
+    if (answer.question.authorId !== user.id && answer.question.author.pushToken) {
+        await sendPushNotification(
+            answer.question.author.pushToken,
+            "Nouvelle réponse ! 💬",
+            `${user.firstName} a répondu à votre question sur le forum.`,
+            { questionId: id }
+        );
+    }
 
     // Bonus XP automatique (+10 XP)
     await addXP(user.id, 10);

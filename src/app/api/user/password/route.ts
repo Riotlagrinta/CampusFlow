@@ -16,8 +16,12 @@ export async function PATCH(req: Request) {
       where: { email: session.user.email }
     });
 
+    if (!user) {
+      return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+    }
+
     const passwordMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!user || !passwordMatch) {
+    if (!passwordMatch) {
       return NextResponse.json({ error: 'L\'ancien mot de passe est incorrect' }, { status: 400 });
     }
 

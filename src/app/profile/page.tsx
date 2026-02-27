@@ -109,6 +109,7 @@ export default function ProfilePage() {
             streak: data.streak,
             rank: data.rank,
             aiBonusRequests: data.aiBonusRequests || 0,
+            referralCode: data.referralCode,
             averageScore: data.averageScore,
             quizAttemptsCount: data.quizAttemptsCount,
             badges: data.badges

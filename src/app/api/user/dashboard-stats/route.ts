@@ -24,10 +24,10 @@ export async function GET(req: Request) {
     const totalXP = user.xp;
     const level = user.level;
     const quizCount = user.quizAttempts.length;
-    
+
     // GPA fictif basé sur les scores de quiz (ex: moyenne des scores / 25 pour avoir sur 4.0)
-    const averageScore = user.quizAttempts.length > 0 
-      ? user.quizAttempts.reduce((acc: number, curr: any) => acc + curr.score, 0) / user.quizAttempts.length 
+    const averageScore = user.quizAttempts.length > 0
+      ? user.quizAttempts.reduce((acc: number, curr: any) => acc + curr.score, 0) / user.quizAttempts.length
       : 0;
     const gpa = (averageScore / 25).toFixed(1);
 
@@ -67,6 +67,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       rank,
+      isSubscribed: (user as any).isSubscribed,
+      subscriptionExpiresAt: (user as any).subscriptionExpiresAt,
       stats: [
         { label: 'GPA Actuel', value: `${gpa}/4.0`, trend: 'Basé sur quiz', icon: 'Activity' },
         { label: 'Quizz Complétés', value: `${quizCount}`, trend: 'Total', icon: 'BookOpen' },

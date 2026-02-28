@@ -68,3 +68,11 @@ body {
 .glass {
   @apply backdrop-blur-md bg-white/80 dark:bg-zinc-950/80 border border-zinc-200 dark:border-zinc-800;
 }
+
+.glass-card {
+  @apply backdrop-blur-xl bg-white/40 dark:bg-zinc-950/40 border border-white/20 dark:border-zinc-800/40 shadow-2xl transition-all duration-300;
+}
+
+.glass-card:hover {
+  @apply bg-white/60 dark:bg-zinc-950/60 border-zinc-200 dark:border-zinc-700 scale-[1.01];
+}

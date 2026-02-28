@@ -96,7 +96,7 @@ export async function POST(req: Request) {
 
       // Mail pour l'administrateur (Notification simple)
       await sendEmail({
-        to: 'djkeda82@gmail.com',
+        to: process.env.ADMIN_NOTIFICATION_EMAIL || 'djkeda82@gmail.com',
         subject: '🚀 Nouvelle pré-inscription sur le Hub',
         html: `
           <p><strong>${firstName} ${lastName}</strong> (${email}) s'est inscrit en <strong>${field?.name}</strong>.</p>

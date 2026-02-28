@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Trophy, 
-  Target, 
-  Star, 
-  Award, 
-  Flame, 
+import {
+  Trophy,
+  Target,
+  Star,
+  Award,
+  Flame,
   ShieldCheck,
   Code,
   BookOpen,
@@ -21,15 +21,12 @@ import {
   CreditCard,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Bell,
+  BellOff
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/lib/utils';
 import { useSound } from '@/hooks/useSound';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const ICON_MAP: Record<string, React.ElementType> = {
   'Code': Code,
@@ -77,9 +74,31 @@ export default function ProfilePage() {
     play('xp');
     setTimeout(() => setIsCopied(false), 2000);
   };
-  
+
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', bio: '' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  const handlePushRegistration = async () => {
+    setPushLoading(true);
+    try {
+      // Simulation pour le Web (En attendant l'intégration d'un vrai provider PWA comme Firebase ou OneSignal)
+      const token = "WEB-" + Math.random().toString(36).substr(2, 9);
+      const res = await fetch('/api/user/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pushToken: token })
+      });
+      if (res.ok) {
+        alert("Notifications activées ! 🔔");
+        play('xp');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -127,20 +146,20 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 md:space-y-12 pb-20 px-2 md:px-0">
-      
+
       {/* Profile Header */}
       <div className="card-pro p-6 md:p-8 bg-zinc-900 text-white overflow-hidden relative">
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
           <div className="relative group">
-             <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-zinc-800 border border-white/10 flex items-center justify-center text-3xl md:text-4xl shadow-2xl overflow-hidden relative">
-                {userData?.image ? <img src={userData.image} className="w-full h-full object-cover" /> : "👨‍💻"}
-                <button onClick={() => setIsModalOpen(true)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera size={20} className="text-white" />
-                </button>
-             </div>
-             <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-blue-600 rounded-lg text-[10px] font-black uppercase">LVL {userData?.level || 1}</div>
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-zinc-800 border border-white/10 flex items-center justify-center text-3xl md:text-4xl shadow-2xl overflow-hidden relative">
+              {userData?.image ? <img src={userData.image} className="w-full h-full object-cover" /> : "👨‍💻"}
+              <button onClick={() => setIsModalOpen(true)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera size={20} className="text-white" />
+              </button>
+            </div>
+            <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-blue-600 rounded-lg text-[10px] font-black uppercase">LVL {userData?.level || 1}</div>
           </div>
-          
+
           <div className="space-y-3 text-center md:text-left flex-1 min-w-0">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">
               {userData?.firstName} {userData?.lastName}
@@ -150,7 +169,7 @@ export default function ProfilePage() {
               <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Brain size={10} className="text-blue-400" /> {userData?.aiBonusRequests} Jetons IA
               </span>
-              <button 
+              <button
                 onClick={copyReferral}
                 className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-500/20 transition-all"
               >
@@ -159,6 +178,14 @@ export default function ProfilePage() {
               <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Flame size={10} /> {userData?.streak || 0} Jours
               </span>
+              <button
+                onClick={handlePushRegistration}
+                disabled={pushLoading}
+                className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-orange-500/20 transition-all disabled:opacity-50"
+              >
+                {pushLoading ? <Loader2 size={10} className="animate-spin" /> : <Bell size={10} />}
+                Notifications
+              </button>
             </div>
           </div>
 
@@ -173,7 +200,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-2 md:px-0">
-        
+
         <div className="lg:col-span-2 space-y-10">
           {/* Stats */}
           <section className="space-y-4">
@@ -219,7 +246,7 @@ export default function ProfilePage() {
                           <span className={cn(
                             "px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest",
                             t.status === 'COMPLETED' ? "bg-emerald-500/10 text-emerald-500" :
-                            t.status === 'FAILED' ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
+                              t.status === 'FAILED' ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
                           )}>
                             {t.status === 'COMPLETED' ? 'Validé' : t.status === 'FAILED' ? 'Échoué' : 'En attente'}
                           </span>
@@ -238,19 +265,19 @@ export default function ProfilePage() {
 
         {/* Sidebar */}
         <section className="space-y-4">
-            <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Top Promotion</h2>
-            <div className="card-pro overflow-hidden">
-                {leaderboard.map((u, i) => (
-                  <div key={u.id} className={cn("flex items-center gap-4 p-4", i === 0 && "bg-blue-50/30 dark:bg-blue-900/10")}>
-                      <span className="text-xs font-black text-zinc-400">0{i+1}</span>
-                      <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold truncate">{u.firstName} {u.lastName?.charAt(0)}.</p>
-                          <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
-                      </div>
-                      {i === 0 && <Trophy size={14} className="text-amber-500" />}
-                  </div>
-                ))}
-            </div>
+          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Top Promotion</h2>
+          <div className="card-pro overflow-hidden">
+            {leaderboard.map((u, i) => (
+              <div key={u.id} className={cn("flex items-center gap-4 p-4", i === 0 && "bg-blue-50/30 dark:bg-blue-900/10")}>
+                <span className="text-xs font-black text-zinc-400">0{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold truncate">{u.firstName} {u.lastName?.charAt(0)}.</p>
+                  <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
+                </div>
+                {i === 0 && <Trophy size={14} className="text-amber-500" />}
+              </div>
+            ))}
+          </div>
         </section>
 
       </div>

@@ -11,10 +11,15 @@ export async function POST(req: Request) {
 
     const { packId } = await req.json();
 
-    const PACKS: Record<string, { amount: number, tokens: number, name: string }> = {
+    const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
       'pro': { amount: 1000, tokens: 150, name: 'Pack Révision' },
-      'master': { amount: 2000, tokens: 500, name: 'Pack Master' }
+      'master': { amount: 2000, tokens: 500, name: 'Pack Master' },
+      'monthly_basic': { amount: 500, tokens: 0, name: 'Abonnement Basique (1 mois)', type: 'SUBSCRIPTION' },
+      'quarterly_promo': { amount: 2000, tokens: 500, name: 'Pack Trimestriel Promo', type: 'SUBSCRIPTION' },
+      'semestriel_elite': { amount: 2500, tokens: 1000, name: 'Pack Semestriel Elite', type: 'SUBSCRIPTION' },
+      'token_master': { amount: 2000, tokens: 5000, name: 'Pack Token Master', type: 'SUBSCRIPTION' },
+      'monthly': { amount: 5000, tokens: 0, name: 'Abonnement Premium (Ancien)', type: 'SUBSCRIPTION' }
     };
 
     const selectedPack = PACKS[packId];
@@ -25,13 +30,14 @@ export async function POST(req: Request) {
 
     // 1. Création de la transaction en base de données
     const dbTransaction = await prisma.transaction.create({
-        data: {
-            userId: user.id,
-            amount: selectedPack.amount,
-            tokens: selectedPack.tokens,
-            packName: selectedPack.name,
-            status: 'PENDING'
-        }
+      data: {
+        userId: user.id,
+        amount: selectedPack.amount,
+        tokens: selectedPack.tokens,
+        packName: selectedPack.name,
+        status: 'PENDING',
+        type: (selectedPack as any).type || 'TOPUP'
+      } as any
     });
 
     // 2. Préparation du Payload pour Genius Pay
@@ -55,7 +61,7 @@ export async function POST(req: Request) {
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
-    
+
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {
@@ -69,9 +75,9 @@ export async function POST(req: Request) {
 
     let result;
     try {
-        result = await response.json();
+      result = await response.json();
     } catch (e) {
-        throw new Error("Réponse Genius Pay non JSON");
+      throw new Error("Réponse Genius Pay non JSON");
     }
 
     if (!response.ok || !result.success) {
@@ -82,8 +88,8 @@ export async function POST(req: Request) {
     // 4. Mise à jour de la référence
     const geniusData = result.data;
     await prisma.transaction.update({
-        where: { id: dbTransaction.id },
-        data: { reference: String(geniusData.reference || geniusData.id) }
+      where: { id: dbTransaction.id },
+      data: { reference: String(geniusData.reference || geniusData.id) }
     });
 
     return NextResponse.json({ url: geniusData.checkout_url });

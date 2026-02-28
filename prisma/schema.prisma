@@ -41,6 +41,9 @@ model User {
 
   pushToken       String?        
 
+  isSubscribed    Boolean        @default(false)
+  subscriptionExpiresAt DateTime?
+
   referralCode    String?        @unique
 
   referredById    String?
@@ -1269,6 +1272,8 @@ model User {
   
 
       status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+
+      type        String   @default("TOPUP")   // TOPUP, SUBSCRIPTION
 
   
 

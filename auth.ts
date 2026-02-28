@@ -35,6 +35,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: `${user.firstName} ${user.lastName}`,
           role: user.role,
+          isSubscribed: user.isSubscribed,
+          subscriptionExpiresAt: user.subscriptionExpiresAt,
         };
       },
     }),
@@ -44,6 +46,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.role = (user as any).role;
         token.id = user.id;
+        token.isSubscribed = (user as any).isSubscribed;
+        token.subscriptionExpiresAt = (user as any).subscriptionExpiresAt;
       }
       return token;
     },
@@ -51,6 +55,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         (session.user as any).role = token.role;
         (session.user as any).id = token.id;
+        (session.user as any).isSubscribed = token.isSubscribed;
+        (session.user as any).subscriptionExpiresAt = token.subscriptionExpiresAt;
       }
       return session;
     },

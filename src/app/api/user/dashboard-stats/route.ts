@@ -59,12 +59,11 @@ export async function GET(req: Request) {
       orderBy: { time: 'asc' }
     });
 
-    // Calcul du classement
-    const allUsers = await prisma.user.findMany({
-      orderBy: { xp: 'desc' },
-      select: { id: true }
+    // Calcul du classement optimisé
+    const higherRankUserCount = await prisma.user.count({
+      where: { xp: { gt: user.xp } }
     });
-    const rank = allUsers.findIndex((u: any) => u.id === user.id) + 1;
+    const rank = higherRankUserCount + 1;
 
     return NextResponse.json({
       rank,

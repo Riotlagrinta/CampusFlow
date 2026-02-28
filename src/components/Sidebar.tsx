@@ -29,6 +29,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut as nextSignOut } from "next-auth/react";
 
@@ -133,8 +134,8 @@ export default function Sidebar() {
       >
         <div className="h-16 flex items-center px-5 mb-6">
           <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-lg">
-               <img src="/logo.svg" alt="DefiTech Logo" className="w-full h-full object-cover" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-lg relative">
+               <Image src="/logo.svg" alt="DefiTech Logo" fill className="object-cover" />
             </div>
             {isOpen && (
               <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-50 uppercase tracking-[0.1em]">Student Hub</span>
@@ -206,9 +207,9 @@ export default function Sidebar() {
                 "flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm",
                 !isOpen && "justify-center"
             )}>
-                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
                     {(session?.user as any)?.image ? (
-                      <img src={(session?.user as any).image} alt="Avatar" className="w-full h-full object-cover" />
+                      <Image src={(session?.user as any).image} alt="Avatar" fill className="object-cover" />
                     ) : (
                       <UserIcon size={16} className="text-zinc-400 dark:text-zinc-500" />
                     )}

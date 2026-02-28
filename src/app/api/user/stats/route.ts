@@ -41,12 +41,11 @@ export async function GET(req: Request) {
       ? user.quizAttempts.reduce((acc: number, curr: any) => acc + curr.score, 0) / user.quizAttempts.length 
       : 0;
 
-    // Calcul du classement
-    const allUsers = await prisma.user.findMany({
-      orderBy: { xp: 'desc' },
-      select: { id: true }
+    // Calcul du classement optimisé (O(1) vs O(N))
+    const higherRankUserCount = await prisma.user.count({
+      where: { xp: { gt: user.xp } }
     });
-    const rank = allUsers.findIndex((u: any) => u.id === user.id) + 1;
+    const rank = higherRankUserCount + 1;
 
     return NextResponse.json({
       ...user,

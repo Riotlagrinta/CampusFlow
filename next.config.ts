@@ -8,6 +8,16 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+      { protocol: 'https', hostname: 'pub-*.r2.dev' }, // Cloudflare R2 / S3 générique
+      { protocol: 'https', hostname: '*.vercel-storage.com' }, // Vercel Blob
+      { protocol: 'https', hostname: 'cdn-icons-png.flaticon.com' } // Icônes par défaut
+    ],
+    formats: ['image/avif', 'image/webp'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '15mb',
@@ -22,6 +32,16 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT" },
           { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" },
+        ],
+      },
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" }, // Bloquer l'accès matériel par défaut
         ],
       },
     ];

@@ -259,25 +259,35 @@ export default function Home() {
           >
             <h2 className="text-[10px] md:text-sm font-black text-zinc-400 uppercase tracking-[0.3em]">Abonnement</h2>
             <div className={cn(
-              "glass-card p-6 rounded-[2rem] border-2",
-              data?.isSubscribed ? "border-emerald-500/20 bg-emerald-500/5" : "border-blue-500/20 bg-blue-500/5"
+              "glass-card p-6 rounded-[2rem] border-2 transition-all duration-500",
+              data?.role === "ADMIN" ? "border-purple-500/20 bg-purple-500/5" :
+                data?.isSubscribed ? "border-emerald-500/20 bg-emerald-500/5" : "border-blue-500/20 bg-blue-500/5"
             )}>
               <div className="flex items-center gap-4 mb-4">
                 <div className={cn(
                   "w-12 h-12 rounded-2xl flex items-center justify-center border",
-                  data?.isSubscribed ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600" : "bg-blue-500/10 border-blue-500/20 text-blue-600"
+                  data?.role === "ADMIN" ? "bg-purple-500/10 border-purple-500/20 text-purple-600" :
+                    data?.isSubscribed ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600" : "bg-blue-500/10 border-blue-500/20 text-blue-600"
                 )}>
                   <Shield size={24} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-black uppercase tracking-tight">Status {data?.isSubscribed ? 'Premium' : 'Gratuit'}</h4>
+                  <h4 className="text-sm font-black uppercase tracking-tight">
+                    {data?.role === "ADMIN" ? 'Status VIP / Admin' : data?.isSubscribed ? 'Status Premium' : 'Status Gratuit'}
+                  </h4>
                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                    {data?.isSubscribed ? 'Accès Illimité' : 'Accès Limité'}
+                    {data?.role === "ADMIN" ? 'Accès Illimité (Dieu)' : data?.isSubscribed ? 'Accès Illimité' : 'Accès Limité'}
                   </p>
                 </div>
               </div>
 
-              {data?.isSubscribed ? (
+              {data?.role === "ADMIN" ? (
+                <div className="py-2">
+                  <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest italic text-center">
+                    👑 Vous avez les pleins pouvoirs
+                  </p>
+                </div>
+              ) : data?.isSubscribed ? (
                 <div className="space-y-4">
                   <div className="h-1.5 w-full bg-emerald-100 dark:bg-emerald-900/30 rounded-full overflow-hidden">
                     <motion.div initial={{ width: 0 }} animate={{ width: '65%' }} className="h-full bg-emerald-500" />

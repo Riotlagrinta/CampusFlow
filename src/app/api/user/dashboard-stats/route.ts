@@ -67,6 +67,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       rank,
+      role: user.role,
       isSubscribed: (user as any).isSubscribed,
       subscriptionExpiresAt: (user as any).subscriptionExpiresAt,
       stats: [

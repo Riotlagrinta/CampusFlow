@@ -20,7 +20,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Vous ne pouvez pas supprimer votre propre compte' }, { status: 400 });
     }
 
-    // 3. Suppression en cascade manuelle (SQLite n'a pas toujours le cascade delete activé via Prisma par défaut)
+    // 3. Suppression en cascade manuelle
     // Supprimer les dépendances
     await prisma.userBadge.deleteMany({ where: { userId: id } });
     await prisma.quizAttempt.deleteMany({ where: { userId: id } });
@@ -29,6 +29,14 @@ export async function DELETE(
     await prisma.answer.deleteMany({ where: { authorId: id } });
     await prisma.question.deleteMany({ where: { authorId: id } });
     await prisma.resource.deleteMany({ where: { authorId: id } });
+    await prisma.transaction.deleteMany({ where: { userId: id } });
+    await prisma.bookmark.deleteMany({ where: { userId: id } });
+    await prisma.bugReport.deleteMany({ where: { userId: id } });
+
+    // Pour FlashcardSet, we need to delete the cards first if Prisma cascade isn't enough, 
+    // but the schema says onDelete: Cascade for Flashcard -> FlashcardSet.
+    // So deleting sets should be enough.
+    await prisma.flashcardSet.deleteMany({ where: { userId: id } });
 
     // Enfin, supprimer l'utilisateur
     await prisma.user.delete({ where: { id } });

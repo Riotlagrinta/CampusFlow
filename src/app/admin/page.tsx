@@ -50,11 +50,11 @@ export default function AdminDashboard() {
     try {
       const res = await fetch('/api/admin/users');
       const data = await res.json();
-      if (res.ok) { 
-        setUsers(data.users); 
-        setTotalTokens(data.totalTokensToday); 
+      if (res.ok) {
+        setUsers(data.users);
+        setTotalTokens(data.totalTokensToday);
         setTotalRevenue(data.totalRevenue || 0);
-        setChartData(data.chartData); 
+        setChartData(data.chartData);
       }
     } catch (err) { console.error(err); }
   };
@@ -65,6 +65,24 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok) setTransactions(data);
     } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!confirm(`ATTENTION : Voulez-vous vraiment supprimer l'utilisateur ${name} ? Cette action supprimera également toutes ses données (quiz, transactions, etc.) et est irréversible.`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Utilisateur supprimé avec succès.');
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        alert(`Erreur: ${data.error || "Impossible de supprimer l'utilisateur"}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Une erreur est survenue lors de la suppression.');
+    }
   };
 
   const handleApproveTransaction = async (id: string) => {
@@ -79,10 +97,10 @@ export default function AdminDashboard() {
   };
 
   // --- Mock Functions pour la démo ---
-  const fetchResources = async () => { try { const res = await fetch('/api/resources'); if (res.ok) setResources(await res.json()); } catch (e) {} };
-  const fetchFields = async () => { try { const res = await fetch('/api/admin/academic/fields'); if (res.ok) setFields(await res.json()); } catch (e) {} };
-  const fetchLevels = async () => { try { const res = await fetch('/api/admin/academic/levels'); if (res.ok) setLevels(await res.json()); } catch (e) {} };
-  const fetchSubjects = async () => { try { const res = await fetch('/api/admin/academic/subjects'); if (res.ok) setSubjects(await res.json()); } catch (e) {} };
+  const fetchResources = async () => { try { const res = await fetch('/api/resources'); if (res.ok) setResources(await res.json()); } catch (e) { } };
+  const fetchFields = async () => { try { const res = await fetch('/api/admin/academic/fields'); if (res.ok) setFields(await res.json()); } catch (e) { } };
+  const fetchLevels = async () => { try { const res = await fetch('/api/admin/academic/levels'); if (res.ok) setLevels(await res.json()); } catch (e) { } };
+  const fetchSubjects = async () => { try { const res = await fetch('/api/admin/academic/subjects'); if (res.ok) setSubjects(await res.json()); } catch (e) { } };
 
   const isOnline = (lastActive: string) => {
     if (!lastActive) return false;
@@ -93,14 +111,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20 px-4 md:px-0 text-zinc-900 dark:text-zinc-100">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl shadow-xl"><Shield size={24} /></div>
           <div>
-             <h1 className="text-2xl md:text-3xl font-black tracking-tight">Console Admin</h1>
-             <p className="text-zinc-500 text-sm">Gestion globale DEFITECH</p>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight">Console Admin</h1>
+            <p className="text-zinc-500 text-sm">Gestion globale DEFITECH</p>
           </div>
         </div>
       </div>
@@ -108,26 +126,26 @@ export default function AdminDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-2">
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
-           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><CreditCard size={24}/></div>
-           <div><p className="text-[10px] font-black uppercase text-zinc-400">Chiffre d'Affaires</p><h3 className="text-xl font-bold">{totalRevenue.toLocaleString()} FCFA</h3></div>
+          <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><CreditCard size={24} /></div>
+          <div><p className="text-[10px] font-black uppercase text-zinc-400">Chiffre d'Affaires</p><h3 className="text-xl font-bold">{totalRevenue.toLocaleString()} FCFA</h3></div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
-           <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center"><Users size={24}/></div>
-           <div><p className="text-[10px] font-black uppercase text-zinc-400">Étudiants</p><h3 className="text-xl font-bold">{users.length}</h3></div>
+          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center"><Users size={24} /></div>
+          <div><p className="text-[10px] font-black uppercase text-zinc-400">Étudiants</p><h3 className="text-xl font-bold">{users.length}</h3></div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
-           <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center"><Zap size={24}/></div>
-           <div><p className="text-[10px] font-black uppercase text-zinc-400">Paiements Attente</p><h3 className="text-xl font-bold text-amber-600">{transactions.filter(t=>t.status==='PENDING').length}</h3></div>
+          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center"><Zap size={24} /></div>
+          <div><p className="text-[10px] font-black uppercase text-zinc-400">Paiements Attente</p><h3 className="text-xl font-bold text-amber-600">{transactions.filter(t => t.status === 'PENDING').length}</h3></div>
         </div>
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-4">
-           <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-2xl flex items-center justify-center"><CreditCard size={24}/></div>
-           <div><p className="text-[10px] font-black uppercase text-zinc-400">Ventes</p><h3 className="text-xl font-bold">{transactions.filter(t=>t.status==='COMPLETED').length}</h3></div>
+          <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-2xl flex items-center justify-center"><CreditCard size={24} /></div>
+          <div><p className="text-[10px] font-black uppercase text-zinc-400">Ventes</p><h3 className="text-xl font-bold">{transactions.filter(t => t.status === 'COMPLETED').length}</h3></div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl w-fit ml-2">
-        {[ 
+        {[
           { id: 'users', label: 'Étudiants', icon: Users },
           { id: 'transactions', label: 'Transactions', icon: CreditCard },
           { id: 'fields', label: 'Filières', icon: BookOpen },
@@ -157,9 +175,17 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="px-8 py-5">
-                      {isOnline(u.lastActive) ? <span className="text-emerald-500 text-xs font-bold flex items-center gap-1.5"><Circle size={6} fill="currentColor"/> En ligne</span> : <span className="text-zinc-400 text-xs font-medium">Hors ligne</span>}
+                      {isOnline(u.lastActive) ? <span className="text-emerald-500 text-xs font-bold flex items-center gap-1.5"><Circle size={6} fill="currentColor" /> En ligne</span> : <span className="text-zinc-400 text-xs font-medium">Hors ligne</span>}
                     </td>
-                    <td className="px-8 py-5 text-right"><button className="p-2 text-zinc-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
+                    <td className="px-8 py-5 text-right">
+                      <button
+                        onClick={() => handleDeleteUser(u.id, `${u.firstName} ${u.lastName}`)}
+                        className="p-2 text-zinc-300 hover:text-red-500 transition-colors"
+                        title="Supprimer l'utilisateur"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -184,7 +210,7 @@ export default function AdminDashboard() {
                     <tr key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors">
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><User size={20}/></div>
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><User size={20} /></div>
                           <div><p className="text-sm font-bold">{t.user.firstName} {t.user.lastName}</p><p className="text-[10px] text-zinc-500">{new Date(t.createdAt).toLocaleString()}</p></div>
                         </div>
                       </td>
@@ -203,11 +229,11 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-8 py-5 text-right">
                         {t.status === 'PENDING' && (
-                          <button 
+                          <button
                             onClick={() => handleApproveTransaction(t.id)}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 ml-auto"
                           >
-                            <CheckCircle2 size={14}/> Approuver
+                            <CheckCircle2 size={14} /> Approuver
                           </button>
                         )}
                       </td>

@@ -3,8 +3,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from '@/lib/prisma';
 import { addXP } from '@/lib/xp';
 import { auth } from "@/../auth";
-import Groq from "groq-sdk";
 import { sendPushNotification } from "@/lib/notifications";
+import { chatCompletionWithRotation } from '@/lib/ai';
 
 import DOMPurify from "isomorphic-dompurify";
 
@@ -64,7 +64,6 @@ export async function POST(req: Request) {
 
     // 2. Réponse Automatique de l'IA (Tuteur)
     try {
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
       const aiPrompt = `Tu es le Tuteur IA Expert du forum DEFITECH. 
         Un étudiant (${user.firstName}) vient de poser une question : "${title}".
         Contenu détaillé : "${content}".
@@ -74,9 +73,8 @@ export async function POST(req: Request) {
         Si c'est une question technique, donne une piste de solution ou un exemple de code. 
         Commence par "Bonjour ${user.firstName}, c'est une excellente question !"`;
 
-      const completion = await groq.chat.completions.create({
+      const completion = await chatCompletionWithRotation({
         messages: [{ role: "user", content: aiPrompt }],
-        model: "llama-3.3-70b-versatile",
         temperature: 0.5,
       });
 

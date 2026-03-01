@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+import { chatCompletionWithRotation } from "@/lib/ai";
 import { NextResponse } from "next/server";
 import fs from 'fs';
 import path from 'path';
@@ -43,117 +43,92 @@ export async function POST(
     }
 
     let fullText = "";
-    
+
     // 1. GESTION DES LIENS EXTERNES (Google Drive)
     if (resource.url.startsWith('http')) {
-        if (resource.url.includes('drive.google.com')) {
-            try {
-                let fileId = driveFileId;
-
-                if (!fileId) {
-                  // Détection robuste ID et Type (Dossier vs Fichier)
-                  const folderMatch = resource.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-                  const fileMatch = resource.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                  let idParam = "";
-                  try {
-                      idParam = new URL(resource.url).searchParams.get('id') || "";
-                  } catch {}
-
-                  // Si c'est un dossier (via /folders/ ou via l'URL contenant 'folders')
-                  if (folderMatch || (idParam && resource.url.includes('folders'))) {
-                      return NextResponse.json({ 
-                          isFolder: true,
-                          error: "Ce lien est un dossier. Veuillez sélectionner un fichier." 
-                      }, { status: 200 });
-                  }
-
-                  // Sinon on cherche l'ID du fichier
-                  fileId = fileMatch ? fileMatch[1] : idParam;
-                }
-
-                if (!fileId) throw new Error("ID Google Drive introuvable");
-
-                // Utilisation de l'API Google Drive officielle pour plus de fiabilité
-                const apiKey = process.env.GOOGLE_API_KEY;
-                const downloadUrl = apiKey 
-                    ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
-                    : `https://drive.google.com/uc?export=download&id=${fileId}`;
-
-                const response = await fetch(downloadUrl);
-                
-                if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
-
-                const buffer = Buffer.from(await response.arrayBuffer());
-                const parser = new PDFParse({ data: buffer });
-                const result = await parser.getText();
-                fullText = result.text.substring(0, 20000);
-            } catch (err) {
-                console.error("Erreur Drive:", err);
-                return NextResponse.json({ error: "Impossible de lire ce lien Drive pour générer le quiz. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
-            }
-        } else {
-             return NextResponse.json({ error: "La génération de quiz n'est supportée que pour les fichiers locaux et Google Drive (Public)." }, { status: 400 });
-        }
-    } else {
-        // 2. GESTION DES FICHIERS LOCAUX
-        if (resource.type !== 'PDF') {
-            return NextResponse.json({ error: 'Fichier PDF non trouvé (Seuls les PDF sont supportés)' }, { status: 404 });
-        }
-        
+      if (resource.url.includes('drive.google.com')) {
         try {
-            const filePath = path.join(process.cwd(), 'public', resource.url);
-            if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
-            
-            const dataBuffer = fs.readFileSync(filePath);
-            const parser = new PDFParse({ data: dataBuffer });
-            const result = await parser.getText();
-            fullText = result.text.substring(0, 20000);
+          let fileId = driveFileId;
+
+          if (!fileId) {
+            // Détection robuste ID et Type (Dossier vs Fichier)
+            const folderMatch = resource.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+            const fileMatch = resource.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            let idParam = "";
+            try {
+              idParam = new URL(resource.url).searchParams.get('id') || "";
+            } catch { }
+
+            // Si c'est un dossier (via /folders/ ou via l'URL contenant 'folders')
+            if (folderMatch || (idParam && resource.url.includes('folders'))) {
+              return NextResponse.json({
+                isFolder: true,
+                error: "Ce lien est un dossier. Veuillez sélectionner un fichier."
+              }, { status: 200 });
+            }
+
+            // Sinon on cherche l'ID du fichier
+            fileId = fileMatch ? fileMatch[1] : idParam;
+          }
+
+          if (!fileId) throw new Error("ID Google Drive introuvable");
+
+          // Utilisation de l'API Google Drive officielle pour plus de fiabilité
+          const apiKey = process.env.GOOGLE_API_KEY;
+          const downloadUrl = apiKey
+            ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
+            : `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+          const response = await fetch(downloadUrl);
+
+          if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
+
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const parser = new PDFParse({ data: buffer });
+          const result = await parser.getText();
+          fullText = result.text.substring(0, 20000);
         } catch (err) {
-             return NextResponse.json({ error: "Erreur lecture fichier local." }, { status: 500 });
+          console.error("Erreur Drive:", err);
+          return NextResponse.json({ error: "Impossible de lire ce lien Drive pour générer le quiz. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
         }
-    }
+      } else {
+        return NextResponse.json({ error: "La génération de quiz n'est supportée que pour les fichiers locaux et Google Drive (Public)." }, { status: 400 });
+      }
+    } else {
+      // 2. GESTION DES FICHIERS LOCAUX
+      if (resource.type !== 'PDF') {
+        return NextResponse.json({ error: 'Fichier PDF non trouvé (Seuls les PDF sont supportés)' }, { status: 404 });
+      }
 
-    if (!process.env.GROQ_API_KEY) throw new Error("Clé manquante");
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    
-    const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
-    Structure: { "title": "", "description": "", "questions": [{ "question": "", "options": [], "answer": 0 }] }`;
-
-    // ROTATION ROBUSTE (Modèles Officiels Groq 2025/2026)
-    // 1. Llama 3.3 70B : Le plus intelligent pour la structure JSON complexe.
-    // 2. Mixtral 8x7B : Excellent fallback, très stable.
-    // 3. Llama 3.1 8B : Rapide, en dernier recours.
-    const models = ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"];
-    let completion;
-    let success = false;
-    let lastError = null;
-
-    for (const m of models) {
       try {
-        console.log(`Tentative génération Quiz avec modèle : ${m}...`);
-        completion = await groq.chat.completions.create({
-          messages: [
-            { role: "system", content: "Réponds uniquement en JSON valide." },
-            { role: "user", content: `Texte: ${fullText}\n\nInstruction: ${prompt}` }
-          ],
-          model: m,
-          response_format: { type: "json_object" },
-          temperature: 0.3 // Faible température pour garantir le format JSON
-        });
-        success = true;
-        console.log(`✅ Succès avec ${m}`);
-        break; // Sortie de boucle si succès
-      } catch (err: any) {
-        console.warn(`⚠️ Échec avec ${m}:`, err.message);
-        lastError = err;
-        // On continue vers le prochain modèle de la liste
-        continue;
+        const filePath = path.join(process.cwd(), 'public', resource.url);
+        if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
+
+        const dataBuffer = fs.readFileSync(filePath);
+        const parser = new PDFParse({ data: dataBuffer });
+        const result = await parser.getText();
+        fullText = result.text.substring(0, 20000);
+      } catch (err) {
+        return NextResponse.json({ error: "Erreur lecture fichier local." }, { status: 500 });
       }
     }
 
-    if (!success || !completion) {
-        console.error("Tous les modèles ont échoué.", lastError);
-        throw new Error("Service IA temporairement indisponible (Rotation épuisée).");
+    // Utilisation de la rotation IA centralisée
+
+    const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
+    Structure: { "title": "", "description": "", "questions": [{ "question": "", "options": [], "answer": 0 }] }`;
+
+    const completion = await chatCompletionWithRotation({
+      messages: [
+        { role: "system", content: "Réponds uniquement en JSON valide." },
+        { role: "user", content: `Texte: ${fullText}\n\nInstruction: ${prompt}` }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" }
+    });
+
+    if (!completion) {
+      throw new Error("Service IA temporairement indisponible (Rotation épuisée).");
     }
 
     const quizData = JSON.parse(completion.choices[0]?.message?.content || "{}");
@@ -177,7 +152,7 @@ export async function POST(
 
     await prisma.dailyAIUsage.update({
       where: { id: dailyUsage.id },
-      data: { 
+      data: {
         quizRequestCount: { increment: 1 },
         tokensUsed: { increment: completion.usage?.total_tokens || 0 }
       },

@@ -39,10 +39,10 @@ function cn(...inputs: ClassValue[]) {
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/' },
-  { icon: FileText, label: 'Devoirs', href: '/assignments' },
+  { icon: FileText, label: 'Devoirs', href: '/assignments', comingSoon: true },
   { icon: Calendar, label: 'Planning', href: '/planning' },
   { icon: ShieldCheck, label: 'Profil Académique', href: '/profile' },
-  { icon: Brain, label: 'Quizz', href: '/quiz' },
+  { icon: Brain, label: 'Quizz', href: '/quiz', comingSoon: true },
   { icon: MessageSquare, label: 'Forum', href: '/forum' },
   { icon: Bot, label: 'AI Assistant', href: '/ai-assistant' },
   { icon: Layers, label: 'Flashcards IA (BETA)', href: '/flashcards' },
@@ -54,13 +54,13 @@ const navItems = [
 
 export default function Sidebar() {
   const { data: session } = useSession();
-  const [isOpen, setIsOpen] = useState(false); 
+  const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
+
   const userName = session?.user?.name || 'Étudiant';
   const isAdmin = (session?.user as any)?.role === 'ADMIN';
-  
+
   const pathname = usePathname();
   const router = useRouter();
 
@@ -104,7 +104,7 @@ export default function Sidebar() {
     <>
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -114,7 +114,7 @@ export default function Sidebar() {
         )}
       </AnimatePresence>
 
-      <button 
+      <button
         className="fixed top-4 left-4 z-50 p-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg lg:hidden text-zinc-600 dark:text-zinc-400"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -135,7 +135,7 @@ export default function Sidebar() {
         <div className="h-16 flex items-center px-5 mb-6">
           <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-lg relative">
-               <Image src="/logo.svg" alt="DefiTech Logo" fill className="object-cover" />
+              <Image src="/logo.svg" alt="DefiTech Logo" fill className="object-cover" />
             </div>
             {isOpen && (
               <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-50 uppercase tracking-[0.1em]">Student Hub</span>
@@ -145,7 +145,7 @@ export default function Sidebar() {
 
         <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar">
           {isOpen && <p className="px-3 mb-2 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">Navigation</p>}
-          
+
           {isAdmin && (
             <Link
               href="/admin"
@@ -162,77 +162,100 @@ export default function Sidebar() {
 
           {navItems.map((item, index) => {
             const isActive = pathname === item.href;
+            const isComingSoon = (item as any).comingSoon;
+
+            const content = (
+              <div
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 relative group",
+                  isActive
+                    ? "bg-blue-600/10 text-blue-600 border border-blue-500/10"
+                    : isComingSoon
+                      ? "opacity-50 grayscale cursor-not-allowed text-zinc-400"
+                      : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/50"
+                )}
+              >
+                <item.icon size={18} className={cn("shrink-0", isActive && "text-blue-600")} />
+                {isOpen && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span className={cn("text-sm font-medium", isActive && "font-bold")}>{item.label}</span>
+                    {isComingSoon && (
+                      <span className="text-[7px] font-black uppercase tracking-tighter bg-zinc-100 dark:bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700">À venir</span>
+                    )}
+                  </div>
+                )}
+                {!isOpen && isComingSoon && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-zinc-400 rounded-full border-2 border-white dark:border-zinc-950" />
+                )}
+              </div>
+            );
+
+            if (isComingSoon) return <div key={index}>{content}</div>;
+
             return (
               <Link
                 key={index}
                 href={item.href}
                 onClick={handleLinkClick}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200",
-                  isActive 
-                    ? "bg-blue-600/10 text-blue-600 border border-blue-500/10" 
-                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/50"
-                )}
               >
-                <item.icon size={18} className={cn("shrink-0", isActive && "text-blue-600")} />
-                {isOpen && <span className={cn("text-sm font-medium", isActive && "font-bold")}>{item.label}</span>}
+                {content}
               </Link>
             );
           })}
         </div>
 
         <div className="p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/10 border-t border-zinc-100 dark:border-zinc-900">
-            {mounted && (
-                <button
-                    onClick={toggleTheme}
-                    className="flex items-center gap-3 w-full px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900"
-                >
-                    <div className="relative w-4 h-4">
-                        <Sun className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-90 scale-0" : "rotate-0 scale-100")} size={18} />
-                        <Moon className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-0 scale-100" : "-rotate-90 scale-0")} size={18} />
-                    </div>
-                    {isOpen && <span className="text-xs font-semibold ml-1">{resolvedTheme === 'dark' ? 'Mode Clair' : 'Mode Sombre'}</span>}
-                </button>
-            )}
-
+          {mounted && (
             <button
-                onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
+              onClick={toggleTheme}
+              className="flex items-center gap-3 w-full px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900"
             >
-                <LogOut size={18} />
-                {isOpen && <span className="text-xs font-bold">Déconnexion</span>}
+              <div className="relative w-4 h-4">
+                <Sun className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-90 scale-0" : "rotate-0 scale-100")} size={18} />
+                <Moon className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-0 scale-100" : "-rotate-90 scale-0")} size={18} />
+              </div>
+              {isOpen && <span className="text-xs font-semibold ml-1">{resolvedTheme === 'dark' ? 'Mode Clair' : 'Mode Sombre'}</span>}
             </button>
-            
-            <Link href="/profile" onClick={handleLinkClick} className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm",
-                !isOpen && "justify-center"
-            )}>
-                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
-                    {(session?.user as any)?.image ? (
-                      <Image src={(session?.user as any).image} alt="Avatar" fill className="object-cover" />
-                    ) : (
-                      <UserIcon size={16} className="text-zinc-400 dark:text-zinc-500" />
-                    )}
-                </div>
-                {isOpen && (
-                    <div className="flex-1 overflow-hidden">
-                        <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{userName}</p>
-                        {isAdmin && (
-                          <div className="flex items-center gap-1">
-                            <ShieldCheck size={10} className="text-blue-500" />
-                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Admin</p>
-                          </div>
-                        )}
-                    </div>
-                )}
-            </Link>
+          )}
 
-            <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className="hidden lg:flex items-center justify-center w-full py-2 text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-500 transition-colors"
-            >
-                {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-            </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
+          >
+            <LogOut size={18} />
+            {isOpen && <span className="text-xs font-bold">Déconnexion</span>}
+          </button>
+
+          <Link href="/profile" onClick={handleLinkClick} className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm",
+            !isOpen && "justify-center"
+          )}>
+            <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
+              {(session?.user as any)?.image ? (
+                <Image src={(session?.user as any).image} alt="Avatar" fill className="object-cover" />
+              ) : (
+                <UserIcon size={16} className="text-zinc-400 dark:text-zinc-500" />
+              )}
+            </div>
+            {isOpen && (
+              <div className="flex-1 overflow-hidden">
+                <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{userName}</p>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck size={10} className="text-blue-500" />
+                    <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest animate-pulse">Admin</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Link>
+
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="hidden lg:flex items-center justify-center w-full py-2 text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-500 transition-colors"
+          >
+            {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
         </div>
       </motion.aside>
     </>

@@ -102,14 +102,17 @@ export default function Home() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
           {[
             { icon: Bot, title: "Professeur IA", desc: "Posez vos questions à l'IA et obtenez des explications pédagogiques basées sur vos cours." },
-            { icon: Brain, title: "Quizz Dynamiques", desc: "L'IA génère des quizz à partir de vos PDF pour un entraînement ultra-efficace." },
+            { icon: Brain, title: "Quizz Dynamiques (Bientôt)", desc: "Entraînez-vous avec des tests génitaux par l'IA. Fonctionnalité en cours de développement." },
             { icon: Award, title: "Gamification", desc: "Gagnez de l'XP, débloquez des badges et gravissez les échelons du classement." }
           ].map((f, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-              className="card-pro p-6 md:p-8 space-y-4 text-center group"
+              className={cn("card-pro p-6 md:p-8 space-y-4 text-center group relative", i === 1 && "opacity-80")}
             >
+              {i === 1 && (
+                <div className="absolute top-4 right-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 text-[8px] font-black uppercase px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-700">À venir</div>
+              )}
               <div className="w-12 h-12 md:w-14 md:h-14 bg-zinc-50 dark:bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto border border-zinc-100 dark:border-zinc-800 group-hover:scale-110 transition-transform">
                 <f.icon className="text-blue-600" size={24} />
               </div>

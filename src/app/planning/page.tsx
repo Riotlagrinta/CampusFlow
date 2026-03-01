@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, 
-  User, 
-  Plus, 
-  Trash2, 
-  Loader2, 
+import {
+  BookOpen,
+  User,
+  Plus,
+  Trash2,
+  Loader2,
   Edit2
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
@@ -37,6 +37,9 @@ type PersonalEvent = {
   subject?: { name: string };
   type: string;
   isAcademic: boolean;
+  fieldId?: string;
+  levelId?: string;
+  semester: number;
   createdAt: string;
 };
 
@@ -51,12 +54,12 @@ export default function PlanningPage() {
   const [activeTab, setActiveTab] = useState<'academic' | 'personal' | 'combined'>('combined');
   const [personalEvents, setPersonalEvents] = useState<PersonalEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentSemester, setCurrentSemester] = useState<number>(2); // S2 par défaut
+  const [currentSemester, setCurrentSemester] = useState<number>(1); // S1 par défaut
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
-  
+
   // Admin Filters
   const [filterFieldId, setFilterFieldId] = useState('');
   const [filterLevelId, setFilterLevelId] = useState('');
@@ -76,23 +79,31 @@ export default function PlanningPage() {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setIsAdmin(user.role === 'ADMIN');
-    
+
+    // Récupérer le semestre sauvegardé
+    const savedSemester = localStorage.getItem('planning_semester');
+    if (savedSemester) {
+      setCurrentSemester(parseInt(savedSemester));
+    }
+
     // Si Admin, on charge les options d'abord, puis les events
     if (user.role === 'ADMIN') {
       fetch('/api/academic/options')
         .then(res => res.json())
         .then(data => {
-            setOptions(data);
-            fetchPersonalEvents(data.fields?.[0]?.id, data.levels?.[0]?.id); // Charge par défaut le premier
+          setOptions(data);
+          fetchPersonalEvents(data.fields?.[0]?.id, data.levels?.[0]?.id); // Charge par défaut le premier
         });
     } else {
-        fetchPersonalEvents();
+      fetchPersonalEvents();
     }
   }, []);
 
   // Recharge quand les filtres changent (manuellement)
   useEffect(() => {
     fetchPersonalEvents(filterFieldId, filterLevelId);
+    // Sauvegarder le semestre sélectionné
+    localStorage.setItem('planning_semester', currentSemester.toString());
   }, [filterFieldId, filterLevelId, currentSemester]);
 
   const fetchPersonalEvents = async (fId?: string, lId?: string) => {
@@ -105,7 +116,7 @@ export default function PlanningPage() {
         if (fId !== filterFieldId) setFilterFieldId(fId);
         if (lId !== filterLevelId) setFilterLevelId(lId);
       }
-      
+
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -158,8 +169,8 @@ export default function PlanningPage() {
       time: originalEvent.time,
       subject: originalEvent.subjectName,
       type: originalEvent.isAcademic ? 'Académique' : 'Personnel',
-      fieldId: (originalEvent as any).fieldId || '',
-      levelId: (originalEvent as any).levelId || ''
+      fieldId: originalEvent.fieldId || '',
+      levelId: originalEvent.levelId || ''
     });
     setIsModalOpen(true);
   };
@@ -174,10 +185,48 @@ export default function PlanningPage() {
 
       if (res.ok) {
         play('success');
-        fetchPersonalEvents();
+        fetchPersonalEvents(filterFieldId, filterLevelId);
       }
     } catch (error) {
       console.error("Failed to delete event", error);
+    }
+  };
+
+  const handleCloneSemester = async () => {
+    if (!isAdmin || !filterFieldId || !filterLevelId) {
+      alert("Veuillez sélectionner une filière et un niveau.");
+      return;
+    }
+
+    const targetSemester = currentSemester === 1 ? 2 : 1;
+    if (!confirm(`Voulez-vous copier ce planning (S${currentSemester}) vers le S${targetSemester} ? Cela écrasera le planning existant du S${targetSemester}.`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/planning/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fieldId: filterFieldId,
+          levelId: filterLevelId,
+          sourceSemester: currentSemester,
+          targetSemester
+        }),
+      });
+
+      if (res.ok) {
+        play('success');
+        alert(`Planning copié avec succès vers le S${targetSemester} !`);
+      } else {
+        const error = await res.json();
+        alert(`Erreur : ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to clone semester", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -210,7 +259,7 @@ export default function PlanningPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -218,67 +267,84 @@ export default function PlanningPage() {
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
             Gérez votre temps entre les cours officiels et votre travail personnel.
           </p>
-          
+
           {isAdmin && (
             <div className="flex flex-wrap items-center gap-2 mt-4 p-2 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30 w-fit">
-               <span className="text-[10px] font-black uppercase text-blue-600 px-2">Vue Admin :</span>
-               <select 
-                 value={filterFieldId} 
-                 onChange={(e) => setFilterFieldId(e.target.value)}
-                 className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
-               >
-                  <option value="">Toutes filières</option>
-                  {options.fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-               </select>
-               <select 
-                 value={filterLevelId} 
-                 onChange={(e) => setFilterLevelId(e.target.value)}
-                 className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
-               >
-                  <option value="">Tous niveaux</option>
-                  {options.levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-               </select>
+              <span className="text-[10px] font-black uppercase text-blue-600 px-2">Vue Admin :</span>
+              <select
+                value={filterFieldId}
+                onChange={(e) => setFilterFieldId(e.target.value)}
+                className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
+              >
+                <option value="">Toutes filières</option>
+                {options.fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              <select
+                value={filterLevelId}
+                onChange={(e) => setFilterLevelId(e.target.value)}
+                className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1 text-xs font-bold"
+              >
+                <option value="">Tous niveaux</option>
+                {options.levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-3">
-          <div className="flex bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-             <button 
-               onClick={() => setCurrentSemester(1)}
-               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
-             >
-               S1
-             </button>
-             <button 
-               onClick={() => setCurrentSemester(2)}
-               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-zinc-100 dark:bg-zinc-800 text-blue-600' : 'text-zinc-500'}`}
-             >
-               S2
-             </button>
+          <div className="flex bg-white dark:bg-zinc-900 p-1.5 rounded-2xl border-2 border-zinc-100 dark:border-zinc-800 shadow-sm">
+            <button
+              onClick={() => setCurrentSemester(1)}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentSemester === 1 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+            >
+              S1
+              {currentSemester === 1 && <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+            </button>
+            <button
+              onClick={() => setCurrentSemester(2)}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentSemester === 2 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+            >
+              S2
+              {currentSemester === 2 && <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+            </button>
           </div>
-          <div className="bg-white dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 flex">
-             {(['academic', 'combined', 'personal'] as const).map((tab) => (
-               <button
-                 key={tab}
-                 onClick={() => setActiveTab(tab)}
-                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                   activeTab === tab 
-                     ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
-                     : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
-                 }`}
-               >
-                 {tab === 'academic' ? 'Académique' : tab === 'personal' ? 'Personnel' : 'Combiné'}
-               </button>
-             ))}
+
+          <div className="bg-white dark:bg-zinc-900 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex">
+            {(['academic', 'combined', 'personal'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === tab
+                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+              >
+                {tab === 'academic' ? 'Académique' : tab === 'personal' ? 'Personnel' : 'Combiné'}
+              </button>
+            ))}
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Ajouter</span>
-          </button>
+
+          <div className="flex items-center gap-2 outline-none">
+            {isAdmin && filterFieldId && filterLevelId && (
+              <button
+                onClick={handleCloneSemester}
+                title="Cloner vers l'autre semestre"
+                className="flex items-center justify-center w-12 h-12 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all shadow-sm"
+              >
+                <div className="flex flex-col items-center">
+                  <Plus size={16} className="rotate-45 -mb-2" />
+                  <Plus size={16} />
+                </div>
+              </button>
+            )}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all active:scale-95"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline">Ajouter</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -287,95 +353,93 @@ export default function PlanningPage() {
           <Loader2 size={40} className="animate-spin text-blue-600" />
         </div>
       ) : (
-      /* Schedule Grid */
-      <div className="grid grid-cols-1 gap-8">
-        {displaySchedule.map((daySchedule) => (
-          <motion.div 
-            key={daySchedule.day}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-4"
-          >
-            <div className="flex items-center gap-4">
-               <h2 className="text-2xl font-bold text-zinc-400 uppercase tracking-tight w-32">{daySchedule.day}</h2>
-               <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
-            </div>
+        /* Schedule Grid */
+        <div className="grid grid-cols-1 gap-8">
+          {displaySchedule.map((daySchedule) => (
+            <motion.div
+              key={daySchedule.day}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-4">
+                <h2 className="text-2xl font-bold text-zinc-400 uppercase tracking-tight w-32">{daySchedule.day}</h2>
+                <div className="h-px bg-zinc-200 dark:bg-zinc-800 flex-1" />
+              </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {daySchedule.courses.map((course, idx) => (
-                <div 
-                  key={idx} 
-                  className={`relative overflow-hidden group p-6 rounded-2xl border transition-all hover:shadow-md ${
-                    course.isPersonal 
-                      ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/30' 
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {daySchedule.courses.map((course, idx) => (
+                  <div
+                    key={idx}
+                    className={`relative overflow-hidden group p-6 rounded-2xl border transition-all hover:shadow-md ${course.isPersonal
+                      ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/30'
                       : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
-                      course.isPersonal 
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' 
+                      }`}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${course.isPersonal
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400'
                         : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                    }`}>
-                      {course.time}
+                        }`}>
+                        {course.time}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        {(course.isPersonal || isAdmin) && course.id && (
+                          <>
+                            <button
+                              onClick={() => handleEditClick(course)}
+                              className="p-1.5 text-zinc-400 hover:text-blue-500 transition-all"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(course.id!)}
+                              className="p-1.5 text-zinc-400 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      {(course.isPersonal || isAdmin) && course.id && (
+
+                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-2">
+                      {course.subject}
+                    </h3>
+
+                    <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mt-3">
+                      {course.isPersonal ? <User size={14} /> : <BookOpen size={14} />}
+                      <span>{course.teacher || 'Auto-formation'}</span>
+                      {course.credits && course.credits !== '-' && (
                         <>
-                          <button 
-                            onClick={() => handleEditClick(course)}
-                            className="p-1.5 text-zinc-400 hover:text-blue-500 transition-all"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteEvent(course.id!)}
-                            className="p-1.5 text-zinc-400 hover:text-red-500 transition-all"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <span className="w-1 h-1 bg-zinc-300 rounded-full" />
+                          <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{course.credits}</span>
                         </>
                       )}
                     </div>
+
+                    {course.isPersonal && (
+                      <div className="absolute right-0 top-0 h-full w-1 bg-emerald-500" />
+                    )}
                   </div>
-                  
-                  <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-1 line-clamp-2">
-                    {course.subject}
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mt-3">
-                     {course.isPersonal ? <User size={14} /> : <BookOpen size={14} />}
-                     <span>{course.teacher || 'Auto-formation'}</span>
-                     {course.credits && course.credits !== '-' && (
-                       <>
-                        <span className="w-1 h-1 bg-zinc-300 rounded-full" />
-                        <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{course.credits}</span>
-                       </>
-                     )}
+                ))}
+
+                {daySchedule.courses.length === 0 && (
+                  <div className="col-span-full py-8 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
+                    <p className="text-zinc-400 text-sm">Aucun événement prévu pour ce jour.</p>
                   </div>
-                  
-                  {course.isPersonal && (
-                    <div className="absolute right-0 top-0 h-full w-1 bg-emerald-500" />
-                  )}
-                </div>
-              ))}
-              
-              {daySchedule.courses.length === 0 && (
-                <div className="col-span-full py-8 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
-                   <p className="text-zinc-400 text-sm">Aucun événement prévu pour ce jour.</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ))}
-      </div>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
       )}
 
       {/* Add Event Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -386,7 +450,7 @@ export default function PlanningPage() {
               }}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -398,68 +462,68 @@ export default function PlanningPage() {
                   {editingId ? 'Mettez à jour vos informations de cours ou de révision.' : 'Organisez vos révisions et temps libre.'}
                 </p>
               </div>
-              
+
               <form onSubmit={handleAddEvent} className="p-6 space-y-4">
                 <div className="space-y-2">
-                   <label className="text-xs font-bold uppercase text-zinc-500">Jour</label>
-                   <select 
-                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                     value={newEvent.day}
-                     onChange={(e) => setNewEvent({...newEvent, day: e.target.value})}
-                   >
-                      {DAYS_ORDER.map(day => (
-                        <option key={day} value={day}>{day}</option>
-                      ))}
-                   </select>
+                  <label className="text-xs font-bold uppercase text-zinc-500">Jour</label>
+                  <select
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={newEvent.day}
+                    onChange={(e) => setNewEvent({ ...newEvent, day: e.target.value })}
+                  >
+                    {DAYS_ORDER.map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-2">
-                   <label className="text-xs font-bold uppercase text-zinc-500">Créneau Horaire</label>
-                   <input 
-                     type="text" 
-                     placeholder="Ex: 18h00 - 20h00"
-                     required
-                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                     value={newEvent.time}
-                     onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
-                   />
+                  <label className="text-xs font-bold uppercase text-zinc-500">Créneau Horaire</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 18h00 - 20h00"
+                    required
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                  />
                 </div>
 
                 <div className="space-y-2">
-                   <label className="text-xs font-bold uppercase text-zinc-500">Activité / Matière</label>
-                   <input 
-                     type="text" 
-                     placeholder="Ex: Révision Java, Sport..."
-                     required
-                     className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                     value={newEvent.subject}
-                     onChange={(e) => setNewEvent({...newEvent, subject: e.target.value})}
-                   />
+                  <label className="text-xs font-bold uppercase text-zinc-500">Activité / Matière</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Révision Java, Sport..."
+                    required
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={newEvent.subject}
+                    onChange={(e) => setNewEvent({ ...newEvent, subject: e.target.value })}
+                  />
                 </div>
 
                 {isAdmin && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                       <label className="text-xs font-bold uppercase text-zinc-500">Type de créneau</label>
-                       <select 
-                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                         value={newEvent.type}
-                         onChange={(e) => setNewEvent({...newEvent, type: e.target.value})}
-                       >
-                          <option value="Personnel">Personnel (Privé)</option>
-                          <option value="Académique">Académique (Public - Par classe)</option>
-                       </select>
+                      <label className="text-xs font-bold uppercase text-zinc-500">Type de créneau</label>
+                      <select
+                        className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        value={newEvent.type}
+                        onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
+                      >
+                        <option value="Personnel">Personnel (Privé)</option>
+                        <option value="Académique">Académique (Public - Par classe)</option>
+                      </select>
                     </div>
 
                     {newEvent.type === 'Académique' && (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase text-zinc-500">Filière cible</label>
-                          <select 
+                          <select
                             required
                             className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                             value={newEvent.fieldId}
-                            onChange={(e) => setNewEvent({...newEvent, fieldId: e.target.value})}
+                            onChange={(e) => setNewEvent({ ...newEvent, fieldId: e.target.value })}
                           >
                             <option value="">Choisir...</option>
                             {options.fields.map(f => (
@@ -469,11 +533,11 @@ export default function PlanningPage() {
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase text-zinc-500">Niveau cible</label>
-                          <select 
+                          <select
                             required
                             className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                             value={newEvent.levelId}
-                            onChange={(e) => setNewEvent({...newEvent, levelId: e.target.value})}
+                            onChange={(e) => setNewEvent({ ...newEvent, levelId: e.target.value })}
                           >
                             <option value="">Choisir...</option>
                             {options.levels.map(l => (
@@ -487,8 +551,8 @@ export default function PlanningPage() {
                 )}
 
                 <div className="pt-4 flex gap-3">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => {
                       setIsModalOpen(false);
                       setEditingId(null);
@@ -498,8 +562,8 @@ export default function PlanningPage() {
                   >
                     Annuler
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     disabled={isSubmitting}
                     className="flex-1 px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                   >

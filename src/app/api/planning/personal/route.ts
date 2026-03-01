@@ -10,7 +10,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { id: true, fieldId: true, academicLevelId: true, role: true }
     });
@@ -28,22 +28,23 @@ export async function GET(req: Request) {
     let whereClause: any = {
       semester,
       OR: [
-        { userId: user.id }, 
-        { 
-          isAcademic: true, 
-          fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId, 
-          levelId: user.academicLevelId 
+        { userId: user.id },
+        {
+          isAcademic: true,
+          fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId,
+          levelId: user.academicLevelId
         }
       ]
     };
 
     // Admin Override: Si des filtres sont appliqués, on montre l'emploi du temps spécifique de cette classe
     if (user.role === 'ADMIN' && filterFieldId && filterLevelId) {
-       whereClause = {
-          isAcademic: true,
-          fieldId: filterFieldId,
-          levelId: filterLevelId
-       };
+      whereClause = {
+        isAcademic: true,
+        fieldId: filterFieldId,
+        levelId: filterLevelId,
+        semester: semester // FIX: Ne pas oublier le filtre par semestre ici aussi
+      };
     }
 
     const schedules = await prisma.personalSchedule.findMany({

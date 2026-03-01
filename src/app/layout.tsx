@@ -10,6 +10,7 @@ import { auth } from "@/../auth";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
+import BottomNav from "@/components/BottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,12 +70,13 @@ export default async function RootLayout({
               <div className="flex min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
                 {session && <Sidebar />}
                 <main
-                  className="flex-1 p-4 md:p-8 transition-all duration-300 relative"
+                  className="flex-1 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300 relative"
                   style={{ marginLeft: session ? 'var(--sidebar-width, 260px)' : '0' }}
                 >
                   {children}
                 </main>
                 {session && <AIChat />}
+                {session && <BottomNav />}
               </div>
             </ThemeProvider>
           </SubscriptionGuard>

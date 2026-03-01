@@ -67,39 +67,39 @@ export default function AIChat() {
   };
 
   useEffect(() => {
-      // Charger l'historique au démarrage
+    // Charger l'historique au démarrage
 
-      const savedMessages = localStorage.getItem('ai_chat_history');
+    const savedMessages = localStorage.getItem('ai_chat_history');
 
-      if (savedMessages) {
+    if (savedMessages) {
 
-        setMessages(JSON.parse(savedMessages));
+      setMessages(JSON.parse(savedMessages));
 
-      } else {
+    } else {
 
-        setMessages([
+      setMessages([
 
-          { role: 'assistant', content: 'Bonjour. Je suis l\'assistant pédagogique de DEFITECH. Comment puis-je vous accompagner dans vos travaux de Génie Logiciel aujourd\'hui ?' }
+        { role: 'assistant', content: 'Bonjour. Je suis l\'assistant pédagogique de DEFITECH. Comment puis-je vous accompagner dans vos travaux de Génie Logiciel aujourd\'hui ?' }
 
-        ]);
+      ]);
 
-      }
+    }
 
-    }, []);
+  }, []);
 
-  
 
-    useEffect(() => {
 
-      // Sauvegarder l'historique quand les messages changent
+  useEffect(() => {
 
-      if (messages.length > 0) {
+    // Sauvegarder l'historique quand les messages changent
 
-        localStorage.setItem('ai_chat_history', JSON.stringify(messages));
+    if (messages.length > 0) {
 
-      }
+      localStorage.setItem('ai_chat_history', JSON.stringify(messages));
 
-    }, [messages]);
+    }
+
+  }, [messages]);
 
   const [quotaInfo, setQuotaInfo] = useState<{ remaining: number; total: number; bonus: number } | null>(null);
 
@@ -136,7 +136,7 @@ export default function AIChat() {
   };
 
   const handleWatchAd = () => {
-    const adUrl = 'https://otieu.com/4/10485395'; 
+    const adUrl = 'https://otieu.com/4/10485395';
     setWatchingAd(true);
     setAdTimer(30);
     window.open(adUrl, '_blank');
@@ -158,67 +158,55 @@ export default function AIChat() {
 
 
 
-    useEffect(() => {
+  useEffect(() => {
 
 
 
-      if (isOpen) {
+    if (isOpen) {
 
 
 
-        fetchQuota();
+      fetchQuota();
 
 
 
-        fetchResources();
+      fetchResources();
 
 
 
-      }
+    }
 
 
 
-    }, [isOpen]);
+  }, [isOpen]);
 
 
 
-  
 
 
 
-    const fetchResources = async () => {
+
+  const fetchResources = async () => {
 
 
 
-      try {
+    try {
 
 
 
-        const res = await fetch('/api/resources');
+      const res = await fetch('/api/resources');
 
 
 
-        if (res.ok) {
+      if (res.ok) {
 
 
 
-          const data = await res.json();
+        const data = await res.json();
 
 
 
-          setResources(data.filter((r: Resource) => r.type === 'PDF'));
-
-
-
-        }
-
-
-
-      } catch (err) {
-
-
-
-        console.error(err);
+        setResources(data.filter((r: Resource) => r.type === 'PDF'));
 
 
 
@@ -226,15 +214,27 @@ export default function AIChat() {
 
 
 
-    };
+    } catch (err) {
 
 
 
-  
+      console.error(err);
 
 
 
-    const fetchQuota = async () => {
+    }
+
+
+
+  };
+
+
+
+
+
+
+
+  const fetchQuota = async () => {
     try {
       const res = await fetch('/api/user/ai-quota');
       if (res.ok) {
@@ -271,9 +271,9 @@ export default function AIChat() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: userMessage,
-          resourceId: selectedResource?.id 
+          resourceId: selectedResource?.id
         }),
       });
 
@@ -313,67 +313,43 @@ export default function AIChat() {
 
 
 
-      setIsLoading(true);
+    setIsLoading(true);
 
 
 
-      try {
+    try {
 
 
 
-        const res = await fetch('/api/payment/create', {
+      const res = await fetch('/api/payment/create', {
 
 
 
-          method: 'POST',
+        method: 'POST',
 
 
 
-          headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
 
 
 
-          body: JSON.stringify({ packId }),
+        body: JSON.stringify({ packId }),
 
 
 
-        });
+      });
 
 
 
-        const data = await res.json();
+      const data = await res.json();
 
 
 
-        if (data.url) {
+      if (data.url) {
 
 
 
-          window.location.href = data.url; // Rediriger vers FedaPay
-
-
-
-        }
-
-
-
-      } catch (err) {
-
-
-
-        console.error(err);
-
-
-
-        alert('Erreur lors de la création du paiement');
-
-
-
-      } finally {
-
-
-
-        setIsLoading(false);
+        window.location.href = data.url; // Rediriger vers FedaPay
 
 
 
@@ -381,18 +357,42 @@ export default function AIChat() {
 
 
 
-    };
+    } catch (err) {
+
+
+
+      console.error(err);
+
+
+
+      alert('Erreur lors de la création du paiement');
+
+
+
+    } finally {
+
+
+
+      setIsLoading(false);
+
+
+
+    }
+
+
+
+  };
 
   return (
-    <div 
+    <div
       className={clsx(
         "fixed z-40 transition-all duration-500 ease-in-out",
-        isMaximized 
-          ? "inset-2 md:inset-4 lg:right-8 lg:inset-y-8" 
-          : "bottom-4 right-4 md:bottom-6 md:right-6"
+        isMaximized
+          ? "inset-2 md:inset-4 lg:right-8 lg:inset-y-8"
+          : "bottom-24 right-4 md:bottom-6 md:right-6"
       )}
-      style={isMaximized ? { 
-        left: 'calc(var(--sidebar-width, 0px) + (window.innerWidth < 1024 ? 8px : 20px))' 
+      style={isMaximized ? {
+        left: 'calc(var(--sidebar-width, 0px) + (window.innerWidth < 1024 ? 8px : 20px))'
       } : {}}
     >
       <AnimatePresence>
@@ -425,20 +425,20 @@ export default function AIChat() {
                     <Info size={10} /> {quotaInfo.remaining}/{quotaInfo.total} IA
                   </div>
                 )}
-                <button 
+                <button
                   onClick={handleNewChat}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
                   title="Nouvelle conversation"
                 >
                   <PlusCircle size={18} />
                 </button>
-                <button 
+                <button
                   onClick={() => setIsMaximized(!isMaximized)}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
                 >
                   {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                 </button>
-                <button 
+                <button
                   onClick={() => setIsOpen(false)}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
                 >
@@ -448,7 +448,7 @@ export default function AIChat() {
             </div>
 
             {/* Zone de Messages avec Markdown */}
-            <div 
+            <div
               ref={scrollRef}
               className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/50 dark:bg-zinc-900/30"
             >
@@ -462,11 +462,11 @@ export default function AIChat() {
                   </div>
                   <div className={clsx(
                     "max-w-[92%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm transition-all",
-                    msg.role === 'user' 
-                      ? "bg-blue-600 text-white" 
+                    msg.role === 'user'
+                      ? "bg-blue-600 text-white"
                       : "bg-white dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700/50"
                   )}>
-                    <ReactMarkdown 
+                    <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
                         code({ className, children, ...props }: React.ComponentPropsWithoutRef<'code'>) {
@@ -504,10 +504,10 @@ export default function AIChat() {
                         ul: ({ children }) => <ul className="list-disc ml-4 space-y-2 my-4 text-inherit">{children}</ul>,
                         ol: ({ children }) => <ol className="list-decimal ml-4 space-y-2 my-4 text-inherit">{children}</ol>,
                         p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-                        strong: ({children}) => <strong className="font-bold text-blue-200 dark:text-blue-300">{children}</strong>,
-                        h1: ({children}) => <h1 className="text-lg font-black mb-3 text-white">{children}</h1>,
-                        h2: ({children}) => <h2 className="text-md font-bold mb-2 text-blue-200">{children}</h2>,
-                        blockquote: ({children}) => (
+                        strong: ({ children }) => <strong className="font-bold text-blue-200 dark:text-blue-300">{children}</strong>,
+                        h1: ({ children }) => <h1 className="text-lg font-black mb-3 text-white">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-md font-bold mb-2 text-blue-200">{children}</h2>,
+                        blockquote: ({ children }) => (
                           <blockquote className="border-l-2 border-blue-400 bg-white/5 p-3 my-3 rounded-r-lg italic text-xs">
                             {children}
                           </blockquote>
@@ -568,26 +568,26 @@ export default function AIChat() {
               )}
 
               <div className="relative flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => setShowResourceList(!showResourceList)}
                   className={clsx(
                     "p-3 rounded-xl transition-all border",
-                    selectedResource 
-                      ? "bg-blue-600 text-white border-blue-600 shadow-blue-500/20 shadow-lg" 
+                    selectedResource
+                      ? "bg-blue-600 text-white border-blue-600 shadow-blue-500/20 shadow-lg"
                       : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-400"
                   )}
                 >
                   <Paperclip size={18} />
                 </button>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder={selectedResource ? "Question sur le PDF..." : "Posez votre question technique..."}
                   className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner transition-all"
                 />
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleSend}
@@ -618,7 +618,7 @@ export default function AIChat() {
 
       <AnimatePresence>
         {showAdModal && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           >
@@ -631,7 +631,7 @@ export default function AIChat() {
               <Youtube size={48} className="mx-auto text-red-500" />
               <h3 className="text-xl font-bold">Plus de jetons IA ?</h3>
               <p className="text-zinc-500 text-sm">Votre quota gratuit est épuisé. Choisissez une option pour continuer :</p>
-              
+
               <div className="space-y-4">
                 {watchingAd ? (
                   <div className="py-4 space-y-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-700">
@@ -647,7 +647,7 @@ export default function AIChat() {
                     <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] animate-pulse">Publicité obligatoire en cours...</p>
                   </div>
                 ) : (
-                  <button 
+                  <button
                     onClick={handleWatchAd}
                     className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-xl"
                   >
@@ -659,18 +659,18 @@ export default function AIChat() {
                 {!watchingAd && (
                   <>
                     <div className="relative py-2">
-                       <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100 dark:border-zinc-800"></div></div>
-                       <div className="relative flex justify-center text-[10px] uppercase font-black text-zinc-400"><span className="bg-white dark:bg-zinc-900 px-2">À venir</span></div>
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100 dark:border-zinc-800"></div></div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-black text-zinc-400"><span className="bg-white dark:bg-zinc-900 px-2">À venir</span></div>
                     </div>
 
                     <div className="p-4 bg-blue-500/5 border border-dashed border-blue-500/20 rounded-2xl space-y-2">
-                       <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Pass Premium</p>
-                       <p className="text-[10px] text-zinc-500 leading-relaxed">
-                         Bientôt : Achetez des jetons illimités via T-Money & Flooz. 
-                       </p>
+                      <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Pass Premium</p>
+                      <p className="text-[10px] text-zinc-500 leading-relaxed">
+                        Bientôt : Achetez des jetons illimités via T-Money & Flooz.
+                      </p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={() => setShowAdModal(false)}
                       className="text-xs font-bold text-zinc-400 hover:text-zinc-600 underline"
                     >

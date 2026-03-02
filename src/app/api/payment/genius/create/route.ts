@@ -41,6 +41,10 @@ export async function POST(req: Request) {
     });
 
     // 2. Préparation du Payload pour Genius Pay
+    const host = req.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+
     const payload = {
       amount: selectedPack.amount,
       currency: 'XOF',
@@ -49,8 +53,8 @@ export async function POST(req: Request) {
         name: `${user.firstName} ${user.lastName}`,
         email: user.email
       },
-      success_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop/success`,
-      error_url: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/shop`,
+      success_url: `${baseUrl}/shop/success`,
+      error_url: `${baseUrl}/shop`,
       metadata: {
         dbTransactionId: dbTransaction.id,
         userId: user.id

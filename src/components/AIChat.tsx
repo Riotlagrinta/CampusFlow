@@ -13,21 +13,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
 import { useSound } from '@/hooks/useSound';
-
+import { useSession } from 'next-auth/react';
 import Mermaid from './Mermaid';
 
-
-
 interface Message {
-
   role: 'user' | 'assistant';
-
   content: string;
-
 }
 
 interface Resource {
@@ -37,9 +30,8 @@ interface Resource {
 }
 
 export default function AIChat() {
-
+  const { data: session } = useSession();
   const { play } = useSound();
-
   const [isOpen, setIsOpen] = useState(false);
 
   const [isMaximized, setIsMaximized] = useState(false);

@@ -5,8 +5,20 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const session = await auth();
+
+    // Diagnostic Session
+    console.log('🛡️ Auth Diagnostic:', {
+      hasSession: !!session,
+      email: session?.user?.email,
+      headers: Object.fromEntries(req.headers.entries()),
+      cookies: req.headers.get('cookie') ? 'Présents' : 'Absents'
+    });
+
     if (!session || !session.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+      return NextResponse.json({
+        error: 'Non authentifié',
+        debug: { hasSession: !!session }
+      }, { status: 401 });
     }
 
     const { packId } = await req.json();

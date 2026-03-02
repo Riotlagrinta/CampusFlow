@@ -27,21 +27,21 @@ export async function POST(req: Request) {
     let initialBonus = 0;
 
     if (referralCode) {
-        const referrer = await prisma.user.findUnique({
-            where: { referralCode }
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode }
+      });
+
+      if (referrer) {
+        referredById = referrer.id;
+        initialBonus = 5; // On offre 5 jetons au nouvel utilisateur
+
+        // On offre 5 jetons au parrain immédiatement
+        await prisma.user.update({
+          where: { id: referrer.id },
+          data: { aiBonusRequests: { increment: 5 } }
         });
-
-        if (referrer) {
-            referredById = referrer.id;
-            initialBonus = 5; // On offre 5 jetons au nouvel utilisateur
-
-            // On offre 5 jetons au parrain immédiatement
-            await prisma.user.update({
-                where: { id: referrer.id },
-                data: { aiBonusRequests: { increment: 5 } }
-            });
-            console.log(`🎁 Parrainage: 5 jetons offerts à ${referrer.email}`);
-        }
+        console.log(`🎁 Parrainage: 5 jetons offerts à ${referrer.email}`);
+      }
     }
 
     // Récupérer les infos de filière/niveau pour le mail
@@ -62,13 +62,13 @@ export async function POST(req: Request) {
         email,
         firstName,
         lastName,
-        password: hashedPassword, 
+        password: hashedPassword,
         fieldId,
         academicLevelId: levelId,
         referredById,
         aiBonusRequests: initialBonus,
         referralCode: newReferralCode,
-        isActive: false, 
+        isActive: false,
         otpCode,
         xp: 0,
         level: 1,
@@ -76,9 +76,11 @@ export async function POST(req: Request) {
       }
     });
 
-    // --- ENVOI DU CODE OTP À L'ÉTUDIANT ---
+    // --- ENVOI DES EMAILS (OTP + Admin) ---
+    console.log(`ℹ️ Début du processus d'envoi d'email pour ${email}`);
+
+    // 1. Mail pour l'étudiant (Priorité Haute)
     try {
-      // Mail pour l'étudiant (Code de validation)
       await sendEmail({
         to: email,
         subject: `${otpCode} est votre code de validation DefiTech Hub`,
@@ -93,8 +95,13 @@ export async function POST(req: Request) {
           </div>
         `
       });
+      console.log('✅ Mail de validation envoyé à l\'étudiant.');
+    } catch (mailError: any) {
+      console.error('❌ ÉCHEC envoi mail OTP étudiant:', mailError.message);
+    }
 
-      // Mail pour l'administrateur (Notification simple)
+    // 2. Mail pour l'administrateur (Notification)
+    try {
       await sendEmail({
         to: process.env.ADMIN_NOTIFICATION_EMAIL || 'djkeda82@gmail.com',
         subject: '🚀 Nouvelle pré-inscription sur le Hub',
@@ -103,8 +110,9 @@ export async function POST(req: Request) {
           <p>En attente de validation OTP.</p>
         `
       });
-    } catch (mailError) {
-      console.error('Erreur envoi mail OTP:', mailError);
+      console.log('✅ Notification admin envoyée.');
+    } catch (adminMailError: any) {
+      console.error('⚠️ ÉCHEC envoi notification admin:', adminMailError.message);
     }
 
     // On donne le badge "Premiers Pas" automatiquement
@@ -118,9 +126,9 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } 
+    return NextResponse.json({
+      success: true,
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
     });
   } catch (error) {
     console.error('Erreur inscription:', error);

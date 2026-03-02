@@ -4,9 +4,9 @@ import { auth } from "@/../auth";
 import { sendEmail } from '@/lib/mail';
 
 function sanitizeHtml(text: string): string {
-    // Supprime les balises script
-    return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
+  // Supprime les balises script
+  return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
 }
 
 export async function POST(req: Request) {
@@ -31,11 +31,12 @@ export async function POST(req: Request) {
     });
 
     // Envoi d'une notification email à l'admin
+    console.log(`ℹ️ Signalement [${type}] reçu. Tentative de notification admin...`);
     try {
-        await sendEmail({
-            to: 'djkeda82@gmail.com',
-            subject: `⚠️ Nouveau Signalement [${type}] - StudentHub`,
-            html: `
+      await sendEmail({
+        to: process.env.ADMIN_NOTIFICATION_EMAIL || 'djkeda82@gmail.com',
+        subject: `⚠️ Nouveau Signalement [${type}] - StudentHub`,
+        html: `
                 <div style="font-family: sans-serif; padding: 20px;">
                     <h2>Nouveau rapport de ${user.firstName} ${user.lastName}</h2>
                     <p><strong>Type :</strong> ${type}</p>
@@ -46,8 +47,11 @@ export async function POST(req: Request) {
                     <p style="font-size: 12px; color: #666; margin-top: 20px;">Utilisateur : ${user.email}</p>
                 </div>
             `
-        });
-    } catch (e) {}
+      });
+      console.log('✅ Notification admin envoyée pour le signalement.');
+    } catch (e: any) {
+      console.error('⚠️ ÉCHEC notification admin support:', e.message);
+    }
 
     return NextResponse.json({ success: true, report });
   } catch (error) {

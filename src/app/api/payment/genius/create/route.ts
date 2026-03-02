@@ -62,6 +62,14 @@ export async function POST(req: Request) {
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
 
+    console.log('💳 Diagnostic Genius Pay:', {
+      hasPublic: !!publicKey,
+      publicPrefix: publicKey.substring(0, 7),
+      hasSecret: !!secretKey,
+      secretPrefix: secretKey.substring(0, 7),
+      env: process.env.NODE_ENV
+    });
+
     const response = await fetch(GENIUS_API_URL, {
       method: 'POST',
       headers: {

@@ -44,6 +44,8 @@ export async function POST(req: Request) {
       data: { resetCode, resetCodeExpires: expires }
     });
 
+    // --- ENVOI DU CODE DE RÉINITIALISATION ---
+    console.log(`ℹ️ Tentative d'envoi de code de réinitialisation à ${email}`);
     try {
       await sendEmail({
         to: email,
@@ -60,8 +62,9 @@ export async function POST(req: Request) {
           </div>
         `
       });
-    } catch (mailError) {
-      console.error('Erreur envoi mail reset:', mailError);
+      console.log('✅ Mail de réinitialisation envoyé.');
+    } catch (mailError: any) {
+      console.error('❌ ÉCHEC envoi mail réinitialisation:', mailError.message);
     }
 
     return NextResponse.json({ success: true });

@@ -1,30 +1,38 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD, // Mot de passe d'application Google
-  },
-});
-
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('Gmail credentials not found. Email not sent.');
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!gmailUser || !gmailPass) {
+    console.warn('❌ CONFIG EMAIL : Identifiants Gmail manquants dans .env.local');
     return;
   }
 
+  console.log(`📧 TENTATIVE D'ENVOI MAIL : Vers ${to} | Sujet: ${subject}`);
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: gmailUser,
+      pass: gmailPass,
+    },
+  });
+
   try {
     const info = await transporter.sendMail({
-      from: `"StudentHub" <${process.env.GMAIL_USER}>`,
+      from: `"StudentHub" <${gmailUser}>`,
       to,
       subject,
       html,
     });
-    console.log('Email sent: %s', info.messageId);
+    console.log('✅ MAIL ENVOYÉ ! ID Message:', info.messageId);
     return info;
-  } catch (error) {
-    console.error('Error sending email:', error);
+  } catch (error: any) {
+    console.error('❌ ERREUR LORS DE L\'ENVOI DU MAIL :', error.message);
+    if (error.code === 'EAUTH') {
+      console.error('   Piste : Erreur d\'authentification ! Vérifiez GMAIL_APP_PASSWORD.');
+    }
     throw error;
   }
 }

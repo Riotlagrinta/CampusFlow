@@ -117,7 +117,19 @@ export async function POST(req: Request) {
             }, { status: 429 });
         }
 
-        // Utilisation de la rotation IA centralisée
+        // --- 5. DÉDUCTION PRÉVENTIVE DES CRÉDITS (ATOMICITÉ) ---
+        // On déduit avant l'appel API pour éviter que l'utilisateur lance 10 requêtes en même temps
+        if (dailyUsage.requestCount >= DAILY_AI_LIMIT) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { aiBonusRequests: { decrement: 1 } }
+            });
+        }
+        
+        await prisma.dailyAIUsage.update({
+            where: { id: dailyUsage.id },
+            data: { requestCount: { increment: 1 } },
+        });
 
         const messages = [
             {
@@ -150,19 +162,6 @@ export async function POST(req: Request) {
         });
 
         const text = completion.choices[0]?.message?.content || "Je n'ai pas pu générer de réponse.";
-
-        // DÉDUCTION DES CRÉDITS
-        if (dailyUsage.requestCount >= DAILY_AI_LIMIT) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { aiBonusRequests: { decrement: 1 } }
-            });
-        }
-
-        await prisma.dailyAIUsage.update({
-            where: { id: dailyUsage.id },
-            data: { requestCount: { increment: 1 } },
-        });
 
         // PUSH NOTIFICATION QUOTA BAS
         const finalRemaining = totalAvailable - 1;

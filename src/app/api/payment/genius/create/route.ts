@@ -58,16 +58,20 @@ export async function POST(req: Request) {
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
 
+    // Correction du nom pour éviter "null null"
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Étudiant DefiTech';
+
     const payload = {
       amount: selectedPack.amount,
       currency: 'XOF',
       description: `Achat ${selectedPack.name} - StudentHub`,
       customer: {
-        name: `${user.firstName} ${user.lastName}`,
+        name: fullName,
         email: user.email
       },
       success_url: `${baseUrl}/shop/success`,
       error_url: `${baseUrl}/shop`,
+      callback_url: `${baseUrl}/api/payment/genius/callback`, // CRITIQUE : URL pour le webhook
       metadata: {
         dbTransactionId: dbTransaction.id,
         userId: user.id

@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from "bcryptjs"; // Importez bcryptjs
+import bcrypt from "bcryptjs";
+import { SignJWT } from "jose";
 
 const rateLimit = new Map();
-const LIMIT = 5; // 5 requêtes
-const WINDOW_SIZE = 10 * 60 * 1000; // 10 minutes
+const LIMIT = 5; 
+const WINDOW_SIZE = 10 * 60 * 1000; 
+
+// Utiliser AUTH_SECRET pour signer le token (doit être dans .env)
+const getSecretKey = () => {
+    const secret = process.env.AUTH_SECRET || "fallback_secret_for_dev_only";
+    return new TextEncoder().encode(secret);
+};
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'anonymous'; // Obtenir l'adresse IP
+    const ip = req.headers.get('x-forwarded-for') || 'anonymous';
     const now = Date.now();
     const requests = rateLimit.get(ip) || [];
 
-    // Filtrer les requêtes anciennes
     const recentRequests = requests.filter((timestamp: number) => now - timestamp < WINDOW_SIZE);
-
     if (recentRequests.length >= LIMIT) {
-      return NextResponse.json({ error: 'Trop de tentatives de connexion. Veuillez réessayer plus tard.' }, { status: 429 });
+      return NextResponse.json({ error: 'Trop de tentatives. Réessayez dans 10 min.' }, { status: 429 });
     }
-
     recentRequests.push(now);
     rateLimit.set(ip, recentRequests);
 
@@ -29,11 +33,16 @@ export async function POST(req: Request) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: { field: true, academicLevel: true }
     });
 
     if (!user) {
       return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 });
+    }
+
+    if (!user.isActive) {
+        return NextResponse.json({ error: 'Compte non activé. Vérifiez vos emails.' }, { status: 403 });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
@@ -41,20 +50,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 });
     }
 
-    // Dans un vrai projet, on générerait un cookie de session ou un JWT ici.
-    // Pour ce prototype, on renvoie simplement les infos utilisateur.
+    // --- GENERATION DU JWT POUR MOBILE ---
+    // On expire dans 30 jours pour le confort mobile
+    const token = await new SignJWT({ 
+        id: user.id, 
+        email: user.email, 
+        role: user.role 
+    })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('30d')
+    .sign(getSecretKey());
+
     return NextResponse.json({ 
       success: true, 
+      token, // Envoyer le token au mobile
       user: { 
         id: user.id, 
         email: user.email, 
         firstName: user.firstName, 
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        field: user.field?.name,
+        level: user.academicLevel?.name
       } 
     });
   } catch (error) {
-    console.error('Erreur connexion:', error);
+    console.error('Erreur API Login:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

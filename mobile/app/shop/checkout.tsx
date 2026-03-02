@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { ChevronLeft, Smartphone, CheckCircle2, Copy, Info, MessageCircle, ArrowLeft } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import api from '../../src/services/api';
+import { useAuth } from '../../src/context/AuthContext';
 
 const PACKS: Record<string, { name: string, price: number, tokens: number }> = {
   'starter': { name: 'Pack Découverte', price: 500, tokens: 50 },
@@ -18,15 +19,24 @@ const FLOOZ_NUMBER = "79683081";
 export default function CheckoutScreen() {
   const { packId } = useLocalSearchParams();
   const pack = PACKS[packId as string] || PACKS.starter;
+  const { user } = useAuth(); // Récupérer l'utilisateur
 
   const [method, setMethod] = useState<'TMONEY' | 'FLOOZ' | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleGeniusPay = async () => {
+    if (!user?.email) {
+      Alert.alert('Erreur', "Vous devez être connecté pour effectuer un achat.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Appel à l'API de ton serveur (qui est déjà configurée pour Genius Pay)
-      const res = await api.post('/payment/genius/create', { packId });
+      // Envoi de l'email pour garantir l'identification sur mobile
+      const res = await api.post('/payment/genius/create', { 
+        packId,
+        email: user.email 
+      });
       
       if (res.data.url) {
         // Ouvrir l'URL de paiement dans le navigateur du smartphone

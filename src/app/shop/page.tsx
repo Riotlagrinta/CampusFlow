@@ -136,7 +136,7 @@ export default function ShopPage() {
             <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl"><ShieldCheck /></div>
             <div>
               <h4 className="font-bold text-zinc-900 dark:text-white">Paiement Sécurisé</h4>
-              <p className="text-xs text-zinc-500 font-medium">Vos transactions sont protégées par le cryptage bancaire de FedaPay.</p>
+              <p className="text-xs text-zinc-500 font-medium">Vos transactions sont protégées par un cryptage bancaire de haute sécurité.</p>
             </div>
           </div>
           <div className="flex items-start gap-4 p-6 bg-zinc-100 dark:bg-zinc-900/50 rounded-3xl border border-zinc-200 dark:border-zinc-800">

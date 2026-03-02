@@ -310,77 +310,25 @@ export default function AIChat() {
 
 
   const handleBuyPack = async (packId: string) => {
-
-
-
     setIsLoading(true);
-
-
-
     try {
-
-
-
-      const res = await fetch('/api/payment/create', {
-
-
-
+      const res = await fetch('/api/payment/genius/create', {
         method: 'POST',
-
-
-
         headers: { 'Content-Type': 'application/json' },
-
-
-
         body: JSON.stringify({ packId }),
-
-
-
       });
-
-
 
       const data = await res.json();
 
-
-
       if (data.url) {
-
-
-
-        window.location.href = data.url; // Rediriger vers FedaPay
-
-
-
+        window.location.href = data.url; // Rediriger vers la page de paiement
       }
-
-
-
     } catch (err) {
-
-
-
       console.error(err);
-
-
-
       alert('Erreur lors de la création du paiement');
-
-
-
     } finally {
-
-
-
       setIsLoading(false);
-
-
-
     }
-
-
-
   };
 
   return (

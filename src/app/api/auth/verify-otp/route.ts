@@ -39,12 +39,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Code de validation incorrect' }, { status: 400 });
     }
 
+    // Vérifier l'expiration du code
+    if (user.otpCodeExpires && user.otpCodeExpires < new Date()) {
+      return NextResponse.json({ error: 'Le code a expiré. Veuillez en demander un nouveau.' }, { status: 400 });
+    }
+
     // Activer le compte et vider le code OTP
     await prisma.user.update({
       where: { email },
       data: {
         isActive: true,
-        otpCode: null
+        otpCode: null,
+        otpCodeExpires: null
       }
     });
 

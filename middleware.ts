@@ -14,7 +14,9 @@ export default auth(async (req) => {
   const isAuthRoute = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
   const isPublicApi = 
     req.nextUrl.pathname.startsWith("/api/auth") || 
-    req.nextUrl.pathname.startsWith("/api/payment/genius/callback");
+    req.nextUrl.pathname.startsWith("/api/payment/genius/callback") ||
+    req.nextUrl.pathname.startsWith("/api/payment/genius/create") ||
+    req.nextUrl.pathname.startsWith("/api/payment/manual-request");
 
   // 1. Autoriser les routes publiques
   if (isAuthRoute || isPublicApi) {
@@ -53,6 +55,6 @@ export default auth(async (req) => {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/payment/genius/callback|_next/static|_next/image|favicon.ico|logo.svg|public|uploads).*)",
+    "/((?!api/auth|api/payment/genius/callback|api/payment/genius/create|api/payment/manual-request|_next/static|_next/image|favicon.ico|logo.svg|public|uploads).*)",
   ],
 };

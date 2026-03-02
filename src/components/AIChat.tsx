@@ -273,7 +273,8 @@ export default function AIChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          resourceId: selectedResource?.id
+          resourceId: selectedResource?.id,
+          email: session?.user?.email // Passage explicite de l'email
         }),
       });
 
@@ -315,7 +316,7 @@ export default function AIChat() {
       const res = await fetch('/api/payment/genius/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packId }),
+        body: JSON.stringify({ packId, email: session?.user?.email }),
       });
 
       const data = await res.json();

@@ -2,26 +2,58 @@ import { auth } from "./auth";
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
+// Même clé que dans l'API Login
 const getSecretKey = () => {
     const secret = process.env.AUTH_SECRET || "fallback_secret_for_dev_only";
     return new TextEncoder().encode(secret);
 };
 
 export default auth(async (req) => {
-  const isAuth = !!req.auth;
   const isApiRoute = req.nextUrl.pathname.startsWith("/api");
+  const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
   
-  // 1. On laisse passer TOUTES les APIs. Elles gèrent leur propre sécurité.
-  // Cela évite les erreurs 401 dues aux problèmes de cookies sur certains appareils.
-  if (isApiRoute) {
+  // Routes publiques (Auth, Callbacks, etc.)
+  const isPublicApi = 
+    req.nextUrl.pathname.startsWith("/api/auth") || 
+    req.nextUrl.pathname.startsWith("/api/payment/genius/callback");
+
+  if (isAuthPage || isPublicApi) {
     return NextResponse.next();
   }
 
-  // 2. Pour les pages Web, on vérifie l'auth
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
-  if (isAuthPage) return NextResponse.next();
+  // --- IDENTIFICATION ROBUSTE (Web + Mobile) ---
+  let userEmail = req.auth?.user?.email;
 
-  if (!isAuth) {
+  // Si pas de session Web, on vérifie si c'est un appel Mobile avec Token Bearer
+  if (!userEmail && isApiRoute) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const { payload } = await jwtVerify(token, getSecretKey());
+        userEmail = payload.email as string;
+      } catch (e) {
+        console.error("Middleware: Token Mobile invalide");
+      }
+    }
+  }
+
+  // --- PROTECTION & INJECTION ---
+  if (isApiRoute) {
+    // Si on a identifié l'utilisateur, on injecte son email dans un header
+    // que l'API pourra lire de manière fiable.
+    const response = NextResponse.next();
+    if (userEmail) {
+      response.headers.set("x-user-email", userEmail);
+    } else if (!isPublicApi) {
+      // Si aucune identification pour une API privée, on bloque
+      return NextResponse.json({ error: "Identification requise" }, { status: 401 });
+    }
+    return response;
+  }
+
+  // Protection des pages Web classiques
+  if (!userEmail && !isAuthPage) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
 
@@ -30,6 +62,6 @@ export default auth(async (req) => {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|logo.svg|public|uploads).*)",
+    "/((?!_next/static|_next/image|favicon.ico|logo.svg|public|uploads).*)",
   ],
 };

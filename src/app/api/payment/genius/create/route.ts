@@ -8,19 +8,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { packId, email: providedEmail } = body;
 
-    // Email PRIORITAIRE : Si le frontend nous l'envoie explicitement (Web/Mobile), on l'utilise.
-    // Cela évite les erreurs 401 si NextAuth ne transmet pas bien les cookies sur certains appareils.
-    const email = providedEmail || session?.user?.email;
+    // Identification ROBUSTE : On regarde partout (Session, Header Middleware, Body)
+    const emailFromHeader = req.headers.get("x-user-email");
+    const email = emailFromHeader || providedEmail || session?.user?.email;
 
     if (!email) {
-      console.error('🛡️ Échec identification: Session nulle et Email manquant.');
-      return NextResponse.json({
-        error: 'Identification requise',
-        details: 'Connectez-vous pour continuer.'
-      }, { status: 401 });
+      console.error('🛡️ Échec identification API Pay: Aucune source valide trouvée.');
+      return NextResponse.json({ error: 'Identification requise' }, { status: 401 });
     }
 
-    console.log(`🛡️ Identification Pay: ${email} (Mode: ${providedEmail ? 'Manuel' : 'Session'})`);
+    console.log(`💳 Pay Init: ${email} (via ${emailFromHeader ? 'Header' : providedEmail ? 'Body' : 'Session'})`);
 
     const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },

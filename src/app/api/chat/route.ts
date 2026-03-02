@@ -50,16 +50,23 @@ async function searchWeb(query: string) {
 export async function POST(req: Request) {
     try {
         const session = await auth();
-        if (!session || !session.user?.email) return NextResponse.json({ reply: "Session expirée." }, { status: 401 });
+        const body = await req.json();
+        const { message, resourceId, externalLink, tempFilePath, history, email: providedEmail } = body;
 
-        const { message, resourceId, externalLink, tempFilePath, history } = await req.json();
+        // Identification ROBUSTE
+        const emailFromHeader = req.headers.get("x-user-email");
+        const email = emailFromHeader || providedEmail || session?.user?.email;
+
+        if (!email) return NextResponse.json({ reply: "Session expirée ou identification requise." }, { status: 401 });
 
         // Récupérer l'utilisateur avec ses relations pour personnaliser l'IA
         const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { email: email as string },
             include: { field: true, academicLevel: true }
         });
         if (!user) return NextResponse.json({ reply: `Utilisateur introuvable.` }, { status: 404 });
+
+        console.log(`🤖 Chat Init: ${email} (${user.firstName})`);
 
         // --- 1. DETECTION SALUTATION ---
         const isGreeting = message.toLowerCase().trim().match(/^(bonjour|salut|hello|hi|hey|ça va|ca va|cc|coucou|merci|thanks|ok|d'accord|dac)$/i);

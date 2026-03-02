@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { auth } from "./auth";
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 

@@ -6,21 +6,26 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
 
-    const { packId, email: providedEmail } = await req.json();
+    // Récupérer le corps de la requête
+    const body = await req.json();
+    const { packId, email: providedEmail } = body;
+
+    // Priorité à l'email de session (Web) sinon l'email fourni (Mobile/API)
     const email = session?.user?.email || providedEmail;
 
-    // Diagnostic Session
-    console.log('🛡️ Auth Diagnostic:', {
+    // Diagnostic détaillé pour comprendre pourquoi ça échoue sur certains appareils
+    console.log('🛡️ Identification Diagnostic:', {
       hasSession: !!session,
-      email,
-      headers: Object.fromEntries(req.headers.entries()),
-      cookies: req.headers.get('cookie') ? 'Présents' : 'Absents'
+      sessionEmail: session?.user?.email,
+      providedEmail,
+      finalEmail: email,
+      packId
     });
 
     if (!email) {
       return NextResponse.json({
         error: 'Identification requise',
-        debug: { hasSession: !!session }
+        details: 'Aucune session ou email trouvé.'
       }, { status: 401 });
     }
 

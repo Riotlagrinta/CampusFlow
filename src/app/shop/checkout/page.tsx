@@ -47,7 +47,7 @@ export default function CheckoutPage() {
   };
 
   const handleGeniusPay = async (selectedMethod?: string) => {
-    if (!session) {
+    if (!session?.user?.email) {
       window.location.href = '/login';
       return;
     }
@@ -59,7 +59,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           packId,
           method: selectedMethod,
-          email: session?.user?.email
+          email: session.user.email // Passage explicite de l'email
         })
       });
       const data = await res.json();

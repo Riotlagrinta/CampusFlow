@@ -5,29 +5,22 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const session = await auth();
-
-    // Récupérer le corps de la requête
     const body = await req.json();
     const { packId, email: providedEmail } = body;
 
-    // Priorité à l'email de session (Web) sinon l'email fourni (Mobile/API)
-    const email = session?.user?.email || providedEmail;
-
-    // Diagnostic détaillé pour comprendre pourquoi ça échoue sur certains appareils
-    console.log('🛡️ Identification Diagnostic:', {
-      hasSession: !!session,
-      sessionEmail: session?.user?.email,
-      providedEmail,
-      finalEmail: email,
-      packId
-    });
+    // Email PRIORITAIRE : Si le frontend nous l'envoie explicitement (Web/Mobile), on l'utilise.
+    // Cela évite les erreurs 401 si NextAuth ne transmet pas bien les cookies sur certains appareils.
+    const email = providedEmail || session?.user?.email;
 
     if (!email) {
+      console.error('🛡️ Échec identification: Session nulle et Email manquant.');
       return NextResponse.json({
         error: 'Identification requise',
-        details: 'Aucune session ou email trouvé.'
+        details: 'Connectez-vous pour continuer.'
       }, { status: 401 });
     }
+
+    console.log(`🛡️ Identification Pay: ${email} (Mode: ${providedEmail ? 'Manuel' : 'Session'})`);
 
     const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },

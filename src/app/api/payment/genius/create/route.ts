@@ -6,22 +6,23 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
 
+    const { packId, email: providedEmail } = await req.json();
+    const email = session?.user?.email || providedEmail;
+
     // Diagnostic Session
     console.log('🛡️ Auth Diagnostic:', {
       hasSession: !!session,
-      email: session?.user?.email,
+      email,
       headers: Object.fromEntries(req.headers.entries()),
       cookies: req.headers.get('cookie') ? 'Présents' : 'Absents'
     });
 
-    if (!session || !session.user?.email) {
+    if (!email) {
       return NextResponse.json({
-        error: 'Non authentifié',
+        error: 'Identification requise',
         debug: { hasSession: !!session }
       }, { status: 401 });
     }
-
-    const { packId } = await req.json();
 
     const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: string }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     const selectedPack = PACKS[packId];
     if (!selectedPack) return NextResponse.json({ error: 'Pack invalide' }, { status: 400 });
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    const user = await prisma.user.findUnique({ where: { email: email as string } });
     if (!user) return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
 
     // 1. Création de la transaction en base de données

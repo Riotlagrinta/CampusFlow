@@ -56,7 +56,11 @@ export default function CheckoutPage() {
       const res = await fetch('/api/payment/genius/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packId, method: selectedMethod })
+        body: JSON.stringify({
+          packId,
+          method: selectedMethod,
+          email: session?.user?.email
+        })
       });
       const data = await res.json();
       if (data.url) {

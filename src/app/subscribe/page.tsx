@@ -76,7 +76,10 @@ export default function SubscribePage() {
             const res = await fetch('/api/payment/genius/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ packId })
+                body: JSON.stringify({
+                    packId,
+                    email: session?.user?.email
+                })
             });
             const data = await res.json();
             if (data.url) {

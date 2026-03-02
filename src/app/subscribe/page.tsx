@@ -14,10 +14,12 @@ import {
     Clock
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import InteractiveTutorial from '@/components/InteractiveTutorial';
 
 export default function SubscribePage() {
+    const { data: session } = useSession();
     const [loading, setLoading] = useState(false);
     const [showTutorial, setShowTutorial] = useState(true);
     const router = useRouter();
@@ -65,6 +67,10 @@ export default function SubscribePage() {
     ];
 
     const handleSubscribe = async (packId: string) => {
+        if (!session) {
+            router.push("/login");
+            return;
+        }
         setLoading(true);
         try {
             const res = await fetch('/api/payment/genius/create', {

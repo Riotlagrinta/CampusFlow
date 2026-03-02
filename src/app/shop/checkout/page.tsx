@@ -3,12 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Smartphone, 
-  CheckCircle2, 
-  MessageCircle, 
-  Copy, 
+import {
+  ArrowLeft,
+  Smartphone,
+  CheckCircle2,
+  MessageCircle,
+  Copy,
   Info,
   Loader2,
   Send
@@ -23,10 +23,13 @@ const PACKS: Record<string, { name: string, price: number, tokens: number }> = {
 
 // --- CONFIGURATION ADMIN ---
 const ADMIN_PHONE = "+22871796050"; // Votre WhatsApp Business
-const TMONEY_NUMBER = "71796050"; 
-const FLOOZ_NUMBER = "79683081";  
+const TMONEY_NUMBER = "71796050";
+const FLOOZ_NUMBER = "79683081";
+
+import { useSession } from 'next-auth/react';
 
 export default function CheckoutPage() {
+  const { data: session } = useSession();
   const { play } = useSound();
   const searchParams = useSearchParams();
   const packId = searchParams.get('packId') || 'starter';
@@ -44,6 +47,10 @@ export default function CheckoutPage() {
   };
 
   const handleGeniusPay = async (selectedMethod?: string) => {
+    if (!session) {
+      window.location.href = '/login';
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await fetch('/api/payment/genius/create', {
@@ -67,19 +74,19 @@ export default function CheckoutPage() {
 
   const handleNotifyAdmin = async () => {
     setIsLoading(true);
-    
+
     // 1. Enregistrer l'intention en base de données
     try {
-        await fetch('/api/payment/manual-request', {
-            method: 'POST',
-            body: JSON.stringify({ packId, method })
-        });
-    } catch (e) {}
+      await fetch('/api/payment/manual-request', {
+        method: 'POST',
+        body: JSON.stringify({ packId, method })
+      });
+    } catch (e) { }
 
     // 2. Ouvrir WhatsApp
     const message = `Bonjour Admin ! Je viens d'effectuer un transfert de ${pack.price} FCFA par ${method} pour le ${pack.name}. Voici ma preuve de paiement (capture d'écran) :`;
     const whatsappUrl = `https://wa.me/${ADMIN_PHONE.replace(/\s/g, '')}?text=${encodeURIComponent(message)}`;
-    
+
     window.open(whatsappUrl, '_blank');
     setIsLoading(false);
   };
@@ -87,8 +94,8 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] pt-10 pb-20 px-4 text-zinc-900 dark:text-white">
       <div className="max-w-2xl mx-auto space-y-8">
-        
-        <button 
+
+        <button
           onClick={() => window.location.href = '/shop'}
           className="flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors font-bold text-sm"
         >
@@ -118,11 +125,11 @@ export default function CheckoutPage() {
             <div className="w-6 h-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-full flex items-center justify-center text-xs font-black">1</div>
             <h2 className="font-bold">Choisissez votre moyen de paiement</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 gap-4">
-             {/* Genius Pay Buttons */}
-             <div className="grid grid-cols-2 gap-4">
-              <button 
+            {/* Genius Pay Buttons */}
+            <div className="grid grid-cols-2 gap-4">
+              <button
                 onClick={() => handleGeniusPay('tmoney')}
                 disabled={isLoading}
                 className="p-6 rounded-3xl border-2 border-yellow-400 bg-yellow-500/5 transition-all flex flex-col items-center gap-3 hover:bg-yellow-500/10 group"
@@ -133,7 +140,7 @@ export default function CheckoutPage() {
                 <span className="font-black text-xs uppercase tracking-widest">T-Money</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => handleGeniusPay('flooz')}
                 disabled={isLoading}
                 className="p-6 rounded-3xl border-2 border-blue-500 bg-blue-500/5 transition-all flex flex-col items-center gap-3 hover:bg-blue-500/10 group"
@@ -145,7 +152,7 @@ export default function CheckoutPage() {
               </button>
             </div>
 
-            <button 
+            <button
               onClick={() => handleGeniusPay()}
               disabled={isLoading}
               className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 text-xs font-bold hover:text-blue-600 transition-colors"
@@ -154,19 +161,19 @@ export default function CheckoutPage() {
             </button>
 
             <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div></div>
-                <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-zinc-50 dark:bg-[#050505] px-4 text-zinc-400 font-black tracking-widest">Problème ? Utiliser le paiement manuel</span></div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200 dark:border-zinc-800"></div></div>
+              <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-zinc-50 dark:bg-[#050505] px-4 text-zinc-400 font-black tracking-widest">Problème ? Utiliser le paiement manuel</span></div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <button 
+              <button
                 onClick={() => { setMethod('TMONEY'); play('xp'); }}
                 className={`p-4 rounded-2xl border transition-all flex items-center justify-center gap-2 ${method === 'TMONEY' ? 'border-yellow-400 bg-yellow-500/5' : 'border-zinc-100 dark:border-zinc-800'}`}
               >
                 <span className="font-black text-[10px] uppercase tracking-widest">Manuel T-Money</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => { setMethod('FLOOZ'); play('xp'); }}
                 className={`p-4 rounded-2xl border transition-all flex items-center justify-center gap-2 ${method === 'FLOOZ' ? 'border-blue-500 bg-blue-500/5' : 'border-zinc-100 dark:border-zinc-800'}`}
               >
@@ -179,7 +186,7 @@ export default function CheckoutPage() {
         {/* Step 2: Instructions */}
         <AnimatePresence>
           {method && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
@@ -190,16 +197,16 @@ export default function CheckoutPage() {
 
               <div className="bg-zinc-900 text-white p-8 rounded-[2.5rem] space-y-6 shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-10">
-                    <Smartphone size={120} />
+                  <Smartphone size={120} />
                 </div>
-                
+
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em]">Numéro à créditer</p>
                   <div className="flex items-center gap-4">
                     <span className="text-3xl font-black tracking-tighter">
-                        {method === 'TMONEY' ? TMONEY_NUMBER : FLOOZ_NUMBER}
+                      {method === 'TMONEY' ? TMONEY_NUMBER : FLOOZ_NUMBER}
                     </span>
-                    <button 
+                    <button
                       onClick={() => copyToClipboard(method === 'TMONEY' ? TMONEY_NUMBER : FLOOZ_NUMBER)}
                       className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
                     >
@@ -220,12 +227,12 @@ export default function CheckoutPage() {
                   <div className="w-6 h-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-full flex items-center justify-center text-xs font-black">3</div>
                   <h2 className="font-bold">Envoyez votre preuve</h2>
                 </div>
-                
+
                 <p className="text-sm text-zinc-500 font-medium">
                   Une fois le transfert effectué, envoyez une <b>capture d'écran</b> de la confirmation à l'administrateur pour activer vos jetons.
                 </p>
 
-                <button 
+                <button
                   onClick={handleNotifyAdmin}
                   disabled={isLoading}
                   className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 transition-all"

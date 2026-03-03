@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import InteractiveTutorial from '@/components/InteractiveTutorial';
+import { createGeniusPayment } from '@/lib/actions/payment';
 
 export default function SubscribePage() {
     const { data: session } = useSession();
@@ -73,15 +74,7 @@ export default function SubscribePage() {
         }
         setLoading(true);
         try {
-            const res = await fetch('/api/payment/genius/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    packId,
-                    email: session?.user?.email
-                })
-            });
-            const data = await res.json();
+            const data = await createGeniusPayment(packId);
             if (data.url) {
                 window.location.href = data.url;
             } else {

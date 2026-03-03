@@ -36,19 +36,16 @@ export async function createGeniusPayment(packId: string) {
     
     console.log('🔍 Diagnostic des variables dispo sur Vercel:', geniusKeysFound);
 
-    // --- LECTURE ULTRA-ROBUSTE ---
-    // Si Vercel ne voit pas les variables, on utilise ces valeurs de production
-    const FALLBACK_PUBLIC = "pk_live_ASsE949NKz8zdwaGy76wYHjyW412aND1"; 
-    const FALLBACK_SECRET = "sk_live_0a34b395b690a3fdbbbece75b9f63537dbfe9372054bb981220368348d9af2f3";
+    // --- LECTURE SÉCURISÉE DES CLÉS ---
+    // Les clés doivent impérativement être configurées dans le tableau de bord Vercel
+    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY)?.trim();
+    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY)?.trim();
 
-    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY || FALLBACK_PUBLIC)?.trim();
-    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || FALLBACK_SECRET)?.trim();
-
-    if (!publicKey || publicKey.length < 5) {
-      throw new Error(`Clé Publique ABSENTE. (Vercel env: ${Object.keys(process.env).filter(k => k.includes('GENIUS')).join(', ') || 'VIDE'}).`);
+    if (!publicKey || publicKey.length < 10) {
+      throw new Error("Configuration Sécurité : La clé publique est manquante ou invalide sur le serveur.");
     }
-    if (!secretKey || secretKey.length < 5) {
-      throw new Error("Clé Secrète ABSENTE.");
+    if (!secretKey || secretKey.length < 10) {
+      throw new Error("Configuration Sécurité : La clé secrète est manquante ou invalide sur le serveur.");
     }
 
     // --- SUITE DE LA LOGIQUE ---

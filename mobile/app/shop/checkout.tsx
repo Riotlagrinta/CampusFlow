@@ -46,9 +46,10 @@ export default function CheckoutScreen() {
       } else {
         Alert.alert('Erreur', res.data.error || "Impossible d'initialiser le paiement.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      Alert.alert('Erreur', "Problème de connexion au serveur de paiement.");
+      const serverError = error.response?.data?.error || error.response?.data?.details || "Problème de connexion au serveur de paiement.";
+      Alert.alert('Erreur', serverError);
     } finally {
       setLoading(false);
     }

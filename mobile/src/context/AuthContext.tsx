@@ -24,9 +24,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   async function loadStorageData() {
     try {
       const authDataSerialized = await SecureStore.getItemAsync('userToken');
+      const userDataSerialized = await SecureStore.getItemAsync('userInfo');
+      
       if (authDataSerialized) {
         setToken(authDataSerialized);
-        // Optionnel : Récupérer le profil utilisateur depuis l'API ici
+      }
+      if (userDataSerialized) {
+        setUser(JSON.parse(userDataSerialized));
       }
     } catch (error) {
       console.error('Erreur chargement stockage:', error);
@@ -43,6 +47,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(token);
       setUser(user);
       await SecureStore.setItemAsync('userToken', token);
+      await SecureStore.setItemAsync('userInfo', JSON.stringify(user));
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Erreur de connexion');
     }
@@ -50,6 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     await SecureStore.deleteItemAsync('userToken');
+    await SecureStore.deleteItemAsync('userInfo');
     setToken(null);
     setUser(null);
   };

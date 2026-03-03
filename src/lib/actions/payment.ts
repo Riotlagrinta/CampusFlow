@@ -64,12 +64,12 @@ export async function createGeniusPayment(packId: string) {
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
     // Diagnostic des clés (visible dans les logs Vercel, pas chez le client)
     const rawSecret = process.env.GENIUS_PAY_SECRET_KEY;
-    const rawPublic = process.env.GENIUS_PAY_PUBLIC_KEY;
+    const rawPublic = process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY;
     
     console.log('💳 Key Diagnostic:', {
       publicLength: rawPublic?.length || 0,
       secretLength: rawSecret?.length || 0,
-      nodeEnv: process.env.NODE_ENV
+      hasPublicPrefix: !!(process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY
     });
 
     const secretKey = (rawSecret || '').trim();

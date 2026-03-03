@@ -65,8 +65,11 @@ export async function createGeniusPayment(packId: string) {
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
     const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
 
-    if (!secretKey || !publicKey) {
-      throw new Error("Configuration paiement incomplète sur le serveur.");
+    if (!publicKey) {
+      throw new Error("Configuration : GENIUS_PAY_PUBLIC_KEY manquante sur Vercel.");
+    }
+    if (!secretKey) {
+      throw new Error("Configuration : GENIUS_PAY_SECRET_KEY manquante sur Vercel.");
     }
 
     const response = await fetch(GENIUS_API_URL, {

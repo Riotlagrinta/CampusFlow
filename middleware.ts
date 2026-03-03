@@ -22,7 +22,7 @@ export default auth(async (req) => {
   // --- IDENTIFICATION ---
   let userEmail = req.auth?.user?.email;
 
-  // Identification Mobile
+  // Identification Mobile (Token Bearer)
   if (!userEmail && isApiRoute) {
     const authHeader = req.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
@@ -36,16 +36,21 @@ export default auth(async (req) => {
 
   // --- LOGIQUE DE PASSAGE ---
   if (isApiRoute) {
-    const response = NextResponse.next();
+    // CRITIQUE : Pour que l'API reçoive le header, il faut le mettre dans req.headers 
+    // et passer req à NextResponse.next
+    const requestHeaders = new Headers(req.headers);
     if (userEmail) {
-      response.headers.set("x-user-email", userEmail);
+      requestHeaders.set("x-user-email", userEmail);
     }
-    // On ne retourne PLUS de 401 ici. On laisse l'API décider.
-    // Cela règle le problème des sessions instables sur iPhone.
-    return response;
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
-  // Protection des pages Web (uniquement pour les pages, pas les APIs)
+  // Protection des pages Web
   if (!userEmail && !isAuthPage) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }

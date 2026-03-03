@@ -29,7 +29,33 @@ export async function createGeniusPayment(packId: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new Error("Utilisateur introuvable.");
 
-    // 1. Création de la transaction locale
+    // --- DIAGNOSTIC VARIABLE VERCEL ---
+    // On liste les clés dispos pour voir si Genius est là (SÉCURISÉ : On ne log pas les valeurs)
+    const envKeys = Object.keys(process.env);
+    const geniusKeysFound = envKeys.filter(k => k.includes('GENIUS'));
+    
+    console.log('🔍 Diagnostic des variables dispo sur Vercel:', geniusKeysFound);
+
+    // Lecture multi-sources (Vercel est parfois capricieux avec les Server Actions)
+    const publicKey = (
+        process.env.GENIUS_PAY_PUBLIC_KEY || 
+        (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY || 
+        (process.env as any).GENIUS_PUBLIC_KEY
+    )?.trim();
+
+    const secretKey = (
+        process.env.GENIUS_PAY_SECRET_KEY || 
+        (process.env as any).GENIUS_SECRET_KEY
+    )?.trim();
+
+    if (!publicKey) {
+      throw new Error(`Clé Publique ABSENTE. Clés trouvées sur le serveur : ${geniusKeysFound.join(', ') || 'AUCUNE'}. Vérifiez le nom sur Vercel.`);
+    }
+    if (!secretKey) {
+      throw new Error("Clé Secrète ABSENTE sur le serveur.");
+    }
+
+    // --- SUITE DE LA LOGIQUE ---
     const dbTransaction = await prisma.transaction.create({
       data: {
         userId: user.id,
@@ -61,28 +87,7 @@ export async function createGeniusPayment(packId: string) {
       }
     };
 
-    const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
-    // Diagnostic des clés (visible dans les logs Vercel, pas chez le client)
-    const rawSecret = process.env.GENIUS_PAY_SECRET_KEY;
-    const rawPublic = process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY;
-    
-    console.log('💳 Key Diagnostic:', {
-      publicLength: rawPublic?.length || 0,
-      secretLength: rawSecret?.length || 0,
-      hasPublicPrefix: !!(process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY
-    });
-
-    const secretKey = (rawSecret || '').trim();
-    const publicKey = (rawPublic || '').trim();
-
-    if (!publicKey || publicKey.length < 5) {
-      throw new Error(`Erreur Configuration: La clé publique est ${!rawPublic ? 'absente' : 'trop courte'}. Vérifiez vos variables d'environnement Vercel.`);
-    }
-    if (!secretKey || secretKey.length < 5) {
-      throw new Error(`Erreur Configuration: La clé secrète est ${!rawSecret ? 'absente' : 'trop courte'}. Vérifiez vos variables d'environnement Vercel.`);
-    }
-
-    const response = await fetch(GENIUS_API_URL, {
+    const response = await fetch('https://pay.genius.ci/api/v1/merchant/payments', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -107,7 +112,7 @@ export async function createGeniusPayment(packId: string) {
 
     return { url: geniusData.checkout_url };
   } catch (error: any) {
-    console.error('🔥 Server Action Error:', error.message);
+    console.error('🔥 Server Action Payment Error:', error.message);
     return { error: error.message };
   }
 }

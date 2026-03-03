@@ -16,6 +16,7 @@ export default function RegisterPage() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '', // Ajout du champ téléphone
     password: '',
     fieldId: '',
     levelId: '',
@@ -128,12 +129,12 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md space-y-8 text-center">
-          <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-xl">
-            <Mail size={32} />
+          <div className="w-16 h-16 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-xl">
+            <Smartphone size={32} />
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-black tracking-tight">Vérifiez votre email</h1>
-            <p className="text-zinc-500 text-sm">Nous avons envoyé un code de validation à <br /><span className="font-bold text-zinc-900 dark:text-zinc-100">{formData.email}</span></p>
+            <h1 className="text-3xl font-black tracking-tight">Vérifiez WhatsApp</h1>
+            <p className="text-zinc-500 text-sm">Nous avons envoyé un code de validation à <br /><span className="font-bold text-zinc-900 dark:text-zinc-100">{formData.phone}</span></p>
           </div>
 
           <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-xl space-y-6">
@@ -221,6 +222,21 @@ export default function RegisterPage() {
                   onChange={e => setFormData({...formData, email: e.target.value})}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-zinc-500 ml-1">Numéro WhatsApp (avec code pays)</label>
+              <div className="relative">
+                <Smartphone className="absolute left-4 top-3.5 text-zinc-400" size={18} />
+                <input 
+                  type="tel" required
+                  className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  placeholder="22890000000"
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                />
+              </div>
+              <p className="text-[9px] text-zinc-400 ml-1">Le code de validation sera envoyé sur ce numéro.</p>
             </div>
 
             <div className="space-y-2">

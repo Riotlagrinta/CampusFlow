@@ -3,63 +3,55 @@ import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/mail';
 import bcrypt from "bcryptjs"; // Importez bcryptjs
 
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+
 export async function POST(req: Request) {
   try {
-    const { email, firstName, lastName, password, fieldId, levelId, referralCode } = await req.json();
+    const { email, phone, firstName, lastName, password, fieldId, levelId, referralCode } = await req.json();
 
-    if (!email || !firstName || !lastName || !password || !fieldId || !levelId) {
+    if (!email || !phone || !firstName || !lastName || !password || !fieldId || !levelId) {
       return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
     }
 
     // Vérifier si l'utilisateur existe déjà
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email }, { phone }] }
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 });
+      const fieldUsed = existingUser.email === email ? 'Cet email' : 'Ce numéro de téléphone';
+      return NextResponse.json({ error: `${fieldUsed} est déjà utilisé` }, { status: 400 });
     }
 
-    // Hacher le mot de passe
+    // ... (hachage et parrainage inchangés) ...
     const hashedPassword = await bcrypt.hash(password, 10);
-    // LOGIQUE DE PARRAINAGE
     let referredById = null;
     let initialBonus = 0;
 
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({
-        where: { referralCode }
-      });
-
+      const referrer = await prisma.user.findUnique({ where: { referralCode } });
       if (referrer) {
         referredById = referrer.id;
-        initialBonus = 5; // On offre 5 jetons au nouvel utilisateur
-
-        // On offre 5 jetons au parrain immédiatement
+        initialBonus = 5;
         await prisma.user.update({
           where: { id: referrer.id },
           data: { aiBonusRequests: { increment: 5 } }
         });
-        console.log(`🎁 Parrainage: 5 jetons offerts à ${referrer.email}`);
       }
     }
 
-    // Récupérer les infos de filière/niveau pour le mail
     const [field, level] = await Promise.all([
       prisma.field.findUnique({ where: { id: fieldId } }),
       prisma.level.findUnique({ where: { id: levelId } })
     ]);
 
-    // Générer un code OTP à 6 chiffres
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 12).toUpperCase();
 
-    // Générer un nouveau code de parrainage pour cet utilisateur
-    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 12).toUpperCase(); // Augmenté à 10 caractères aléatoires
-
-    // Création de l'utilisateur (INACTIF)
     const user = await prisma.user.create({
       data: {
         email,
+        phone,
         firstName,
         lastName,
         password: hashedPassword,
@@ -76,10 +68,13 @@ export async function POST(req: Request) {
       }
     });
 
-    // --- ENVOI DES EMAILS (OTP + Admin) ---
-    console.log(`ℹ️ Début du processus d'envoi d'email pour ${email}`);
+    // --- ENVOI DES CODES (WhatsApp + Email) ---
+    
+    // 1. WhatsApp (Priorité car plus direct au Togo)
+    const whatsappMsg = `*DefiTech Student Hub* 🚀\n\nBonjour ${firstName} ! Voici votre code de validation : *${otpCode}*\n\nUtilisez-le pour activer votre compte. Bienvenue parmi nous !`;
+    await sendWhatsAppMessage(phone, whatsappMsg);
 
-    // 1. Mail pour l'étudiant (Priorité Haute)
+    // 2. Email (Roue de secours)
     try {
       await sendEmail({
         to: email,
@@ -91,14 +86,10 @@ export async function POST(req: Request) {
             <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 20px; background: #f3f4f6; border-radius: 10px; display: inline-block; margin: 20px 0;">
               ${otpCode}
             </div>
-            <p style="font-size: 14px; color: #666;">Ce code expirera bientôt. Ne le partagez avec personne.</p>
           </div>
         `
       });
-      console.log('✅ Mail de validation envoyé à l\'étudiant.');
-    } catch (mailError: any) {
-      console.error('❌ ÉCHEC envoi mail OTP étudiant:', mailError.message);
-    }
+    } catch (e) {}
 
     // 2. Mail pour l'administrateur (Notification)
     try {

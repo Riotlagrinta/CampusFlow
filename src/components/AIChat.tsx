@@ -16,6 +16,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useSound } from '@/hooks/useSound';
 import { useSession } from 'next-auth/react';
+import { createGeniusPayment } from '@/lib/actions/payment';
 import Mermaid from './Mermaid';
 
 interface Message {
@@ -305,16 +306,12 @@ export default function AIChat() {
   const handleBuyPack = async (packId: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/payment/genius/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packId, email: session?.user?.email }),
-      });
-
-      const data = await res.json();
+      const data = await createGeniusPayment(packId);
 
       if (data.url) {
         window.location.href = data.url; // Rediriger vers la page de paiement
+      } else {
+        alert(data.error || 'Erreur lors de la création du paiement');
       }
     } catch (err) {
       console.error(err);

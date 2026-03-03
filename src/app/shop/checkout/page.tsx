@@ -27,6 +27,7 @@ const TMONEY_NUMBER = "71796050";
 const FLOOZ_NUMBER = "79683081";
 
 import { useSession } from 'next-auth/react';
+import { createGeniusPayment } from '@/lib/actions/payment';
 
 export default function CheckoutPage() {
   const { data: session } = useSession();
@@ -53,16 +54,8 @@ export default function CheckoutPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch('/api/payment/genius/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          packId,
-          method: selectedMethod,
-          email: session.user.email // Passage explicite de l'email
-        })
-      });
-      const data = await res.json();
+      const data = await createGeniusPayment(packId);
+      
       if (data.url) {
         window.location.href = data.url;
       } else {

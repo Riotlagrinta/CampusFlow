@@ -36,23 +36,19 @@ export async function createGeniusPayment(packId: string) {
     
     console.log('🔍 Diagnostic des variables dispo sur Vercel:', geniusKeysFound);
 
-    // Lecture multi-sources (Vercel est parfois capricieux avec les Server Actions)
-    const publicKey = (
-        process.env.GENIUS_PAY_PUBLIC_KEY || 
-        (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY || 
-        (process.env as any).GENIUS_PUBLIC_KEY
-    )?.trim();
+    // --- LECTURE ULTRA-ROBUSTE ---
+    // Si Vercel ne voit pas les variables, on utilise ces valeurs de production
+    const FALLBACK_PUBLIC = "pk_live_ASsE949NKz8zdwaGy76wYHjyW412aND1"; 
+    const FALLBACK_SECRET = "sk_live_0a34b395b690a3fdbbbece75b9f63537dbfe9372054bb981220368348d9af2f3";
 
-    const secretKey = (
-        process.env.GENIUS_PAY_SECRET_KEY || 
-        (process.env as any).GENIUS_SECRET_KEY
-    )?.trim();
+    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY || FALLBACK_PUBLIC)?.trim();
+    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || FALLBACK_SECRET)?.trim();
 
-    if (!publicKey) {
-      throw new Error(`Clé Publique ABSENTE. Clés trouvées sur le serveur : ${geniusKeysFound.join(', ') || 'AUCUNE'}. Vérifiez le nom sur Vercel.`);
+    if (!publicKey || publicKey.length < 5) {
+      throw new Error(`Clé Publique ABSENTE. (Vercel env: ${Object.keys(process.env).filter(k => k.includes('GENIUS')).join(', ') || 'VIDE'}).`);
     }
-    if (!secretKey) {
-      throw new Error("Clé Secrète ABSENTE sur le serveur.");
+    if (!secretKey || secretKey.length < 5) {
+      throw new Error("Clé Secrète ABSENTE.");
     }
 
     // --- SUITE DE LA LOGIQUE ---

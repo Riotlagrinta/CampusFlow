@@ -62,14 +62,24 @@ export async function createGeniusPayment(packId: string) {
     };
 
     const GENIUS_API_URL = 'https://pay.genius.ci/api/v1/merchant/payments';
-    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || '').trim();
-    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || '').trim();
+    // Diagnostic des clés (visible dans les logs Vercel, pas chez le client)
+    const rawSecret = process.env.GENIUS_PAY_SECRET_KEY;
+    const rawPublic = process.env.GENIUS_PAY_PUBLIC_KEY;
+    
+    console.log('💳 Key Diagnostic:', {
+      publicLength: rawPublic?.length || 0,
+      secretLength: rawSecret?.length || 0,
+      nodeEnv: process.env.NODE_ENV
+    });
 
-    if (!publicKey) {
-      throw new Error("Configuration : GENIUS_PAY_PUBLIC_KEY manquante sur Vercel.");
+    const secretKey = (rawSecret || '').trim();
+    const publicKey = (rawPublic || '').trim();
+
+    if (!publicKey || publicKey.length < 5) {
+      throw new Error(`Erreur Configuration: La clé publique est ${!rawPublic ? 'absente' : 'trop courte'}. Vérifiez vos variables d'environnement Vercel.`);
     }
-    if (!secretKey) {
-      throw new Error("Configuration : GENIUS_PAY_SECRET_KEY manquante sur Vercel.");
+    if (!secretKey || secretKey.length < 5) {
+      throw new Error(`Erreur Configuration: La clé secrète est ${!rawSecret ? 'absente' : 'trop courte'}. Vérifiez vos variables d'environnement Vercel.`);
     }
 
     const response = await fetch(GENIUS_API_URL, {

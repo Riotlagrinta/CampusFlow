@@ -2,7 +2,6 @@ import { auth } from "./auth";
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-// Même clé que dans l'API Login
 const getSecretKey = () => {
     const secret = process.env.AUTH_SECRET || "fallback_secret_for_dev_only";
     return new TextEncoder().encode(secret);
@@ -12,7 +11,6 @@ export default auth(async (req) => {
   const isApiRoute = req.nextUrl.pathname.startsWith("/api");
   const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
   
-  // Routes publiques (Auth, Callbacks, etc.)
   const isPublicApi = 
     req.nextUrl.pathname.startsWith("/api/auth") || 
     req.nextUrl.pathname.startsWith("/api/payment/genius/callback");
@@ -21,10 +19,10 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
-  // --- IDENTIFICATION ROBUSTE (Web + Mobile) ---
+  // --- IDENTIFICATION ---
   let userEmail = req.auth?.user?.email;
 
-  // Si pas de session Web, on vérifie si c'est un appel Mobile avec Token Bearer
+  // Identification Mobile
   if (!userEmail && isApiRoute) {
     const authHeader = req.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
@@ -32,27 +30,22 @@ export default auth(async (req) => {
         const token = authHeader.split(" ")[1];
         const { payload } = await jwtVerify(token, getSecretKey());
         userEmail = payload.email as string;
-      } catch (e) {
-        console.error("Middleware: Token Mobile invalide");
-      }
+      } catch (e) {}
     }
   }
 
-  // --- PROTECTION & INJECTION ---
+  // --- LOGIQUE DE PASSAGE ---
   if (isApiRoute) {
-    // Si on a identifié l'utilisateur, on injecte son email dans un header
-    // que l'API pourra lire de manière fiable.
     const response = NextResponse.next();
     if (userEmail) {
       response.headers.set("x-user-email", userEmail);
-    } else if (!isPublicApi) {
-      // Si aucune identification pour une API privée, on bloque
-      return NextResponse.json({ error: "Identification requise" }, { status: 401 });
     }
+    // On ne retourne PLUS de 401 ici. On laisse l'API décider.
+    // Cela règle le problème des sessions instables sur iPhone.
     return response;
   }
 
-  // Protection des pages Web classiques
+  // Protection des pages Web (uniquement pour les pages, pas les APIs)
   if (!userEmail && !isAuthPage) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Platform, KeyboardAvoidingView, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { User, Mail, Lock, Check, ArrowLeft, BookOpen, GraduationCap } from 'lucide-react-native';
+import { User, Mail, Lock, Check, ArrowLeft, BookOpen, GraduationCap, Smartphone } from 'lucide-react-native';
 import api from '../../src/services/api';
 
 export default function Register() {
@@ -9,6 +9,7 @@ export default function Register() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     password: '',
     fieldId: '',
     academicLevelId: '',
@@ -32,16 +33,22 @@ export default function Register() {
   }, []);
 
   const handleRegister = async () => {
-    if (!formData.email || !formData.password || !formData.fieldId || !formData.academicLevelId) {
+    if (!formData.email || !formData.phone || !formData.password || !formData.fieldId || !formData.academicLevelId) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await api.post('/auth/register', formData);
+      // Transformation technique pour l'API qui attend levelId
+      const apiData = {
+        ...formData,
+        levelId: formData.academicLevelId
+      };
+      
+      const res = await api.post('/auth/register', apiData);
       if (res.data.success) {
-        Alert.alert('Succès', 'Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
+        Alert.alert('Succès', 'Votre compte a été créé. Un code de validation vous a été envoyé sur WhatsApp.');
         router.push('/auth/login');
       } else {
         Alert.alert('Erreur', res.data.error || "Une erreur est survenue.");
@@ -107,6 +114,21 @@ export default function Register() {
                   autoCapitalize="none"
                 />
               </View>
+            </View>
+
+            <View>
+              <Text className="text-slate-700 font-medium mb-2">Numéro WhatsApp</Text>
+              <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
+                <Smartphone size={20} color="#64748b" />
+                <TextInput 
+                  placeholder="22890000000"
+                  value={formData.phone}
+                  onChangeText={(text) => setFormData({...formData, phone: text})}
+                  className="flex-1 ml-3 text-slate-900"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <Text className="text-[10px] text-slate-400 mt-1 ml-1">Le code de validation sera envoyé sur ce numéro.</Text>
             </View>
 
             <View>

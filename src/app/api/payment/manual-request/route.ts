@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from "@/../auth";
 import { prisma } from "@/lib/prisma";
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export async function POST(req: Request) {
   try {
@@ -35,6 +36,14 @@ export async function POST(req: Request) {
             reference: `MANUAL_${method}_${Date.now()}`
         }
     });
+
+    // --- NOTIFICATION ADMIN (WhatsApp) ---
+    const adminPhone = "22871796050"; // Votre numéro
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`;
+    const amountStr = `${selectedPack.amount} FCFA`;
+    
+    const adminWhatsAppMsg = `⏳ *Nouvelle Demande de Paiement Manuel* ⏳\n\n👤 *Client :* ${userName}\n📧 *Email :* ${user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${selectedPack.name}\n💳 *Méthode :* ${method}\n\nL'étudiant attend la validation de son paiement. 🚀`;
+    await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
 
     return NextResponse.json(dbTransaction);
   } catch (error: any) {

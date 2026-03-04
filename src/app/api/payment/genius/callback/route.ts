@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { sendPushNotification } from "@/lib/notifications";
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendEmail } from '@/lib/mail';
 import crypto from 'crypto';
 
 export async function POST(req: Request) {
@@ -101,6 +103,42 @@ export async function POST(req: Request) {
           "Paiement Validé ! ✅",
           `Votre compte a été crédité. Merci de votre confiance !`
         );
+    }
+
+    // --- NOUVEAUX NOTIFICATIONS (WhatsApp + Email) ---
+    const adminPhone = "22871796050"; // Votre numéro
+    const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "djkeda82@gmail.com";
+    const userName = `${dbTransaction.user.firstName} ${dbTransaction.user.lastName}`;
+    const amountStr = `${dbTransaction.amount} FCFA`;
+    const packStr = dbTransaction.packName;
+
+    // 1. Notification à l'ADMIN (WhatsApp)
+    const adminWhatsAppMsg = `💰 *Nouveau Paiement Reçu !* 💰\n\n👤 *Client :* ${userName}\n📧 *Email :* ${dbTransaction.user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${packStr}\n\nL'application vient de créditer le compte automatiquement. 🚀`;
+    await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
+
+    // 2. Notification à l'ADMIN (Email)
+    try {
+      await sendEmail({
+        to: adminEmail,
+        subject: `💰 Nouveau Paiement - ${amountStr} - ${userName}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #059669;">Nouveau Paiement Reçu ! ✅</h2>
+            <p><strong>Client :</strong> ${userName} (${dbTransaction.user.email})</p>
+            <p><strong>Montant :</strong> <span style="font-size: 20px; color: #059669; font-weight: bold;">${amountStr}</span></p>
+            <p><strong>Pack :</strong> ${packStr}</p>
+            <p><strong>ID Transaction :</strong> ${dbTransaction.id}</p>
+            <hr />
+            <p style="font-size: 12px; color: #666;">Notification automatique de DefiTech Student Hub</p>
+          </div>
+        `
+      });
+    } catch (e) {}
+
+    // 3. Notification au CLIENT (WhatsApp si numéro dispo)
+    if (dbTransaction.user.phone) {
+      const clientWhatsAppMsg = `*DefiTech Student Hub* ✅\n\nMerci ${dbTransaction.user.firstName} ! Votre paiement de *${amountStr}* pour le pack *${packStr}* a été validé avec succès.\n\nVos accès sont désormais actifs. Profitez bien de la plateforme ! 🚀`;
+      await sendWhatsAppMessage(dbTransaction.user.phone, clientWhatsAppMsg);
     }
 
     console.log(`🎉 SUCCÈS : Crédit effectué pour ${dbTransaction.user.email}`);

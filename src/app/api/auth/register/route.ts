@@ -46,6 +46,7 @@ export async function POST(req: Request) {
     ]);
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpCodeExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 heures
     const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 12).toUpperCase();
 
     const user = await prisma.user.create({
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
         referralCode: newReferralCode,
         isActive: false,
         otpCode,
+        otpCodeExpires,
         xp: 0,
         level: 1,
         streak: 1

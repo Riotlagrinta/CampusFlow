@@ -22,13 +22,20 @@ export async function POST(req: Request) {
     recentRequests.push(now);
     rateLimit.set(ip, recentRequests);
 
-    const { email, code, newPassword } = await req.json();
+    const { identifier, code, newPassword } = await req.json(); // Changé 'email' par 'identifier'
 
-    if (!email || !code || !newPassword) {
+    if (!identifier || !code || !newPassword) {
       return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier }
+        ]
+      }
+    });
 
     if (!user || user.resetCode !== code) {
       return NextResponse.json({ error: 'Code de validation incorrect' }, { status: 400 });
@@ -42,7 +49,7 @@ export async function POST(req: Request) {
     // Mise à jour du mot de passe et nettoyage du code de reset
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: {
         password: hashedPassword,
         resetCode: null,

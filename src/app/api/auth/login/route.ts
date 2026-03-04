@@ -26,14 +26,19 @@ export async function POST(req: Request) {
     recentRequests.push(now);
     rateLimit.set(ip, recentRequests);
 
-    const { email, password } = await req.json();
+    const { identifier, password } = await req.json(); // Changé 'email' par 'identifier'
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 });
+    if (!identifier || !password) {
+      return NextResponse.json({ error: 'Email/Téléphone et mot de passe requis' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier }
+        ]
+      },
       include: { field: true, academicLevel: true }
     });
 
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
     }
 
     if (!user.isActive) {
-        return NextResponse.json({ error: 'Compte non activé. Vérifiez vos emails.' }, { status: 403 });
+        return NextResponse.json({ error: 'Compte non activé. Vérifiez vos messages (WhatsApp/Email).' }, { status: 403 });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);

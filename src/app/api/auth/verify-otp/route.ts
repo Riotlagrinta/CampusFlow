@@ -21,14 +21,19 @@ export async function POST(req: Request) {
     recentRequests.push(now);
     rateLimit.set(ip, recentRequests);
 
-    const { email, code } = await req.json();
+    const { identifier, code } = await req.json(); // Changé 'email' par 'identifier'
 
-    if (!email || !code) {
+    if (!identifier || !code) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email }
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier }
+        ]
+      }
     });
 
     if (!user) {
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
 
     // Activer le compte et vider le code OTP
     await prisma.user.update({
-      where: { email },
+      where: { id: user.id },
       data: {
         isActive: true,
         otpCode: null,

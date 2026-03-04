@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/mail';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 const rateLimit = new Map();
 const LIMIT = 5; // 5 requêtes
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    // Sécurité : Ne pas révéler si l'email existe ou non pour éviter le brute-force d'emails
+    // Sécurité : Ne pas révéler si l'email existe ou non
     if (!user) {
       return NextResponse.json({ success: true, message: 'Si cet email existe, un code a été envoyé.' });
     }
@@ -44,8 +45,15 @@ export async function POST(req: Request) {
       data: { resetCode, resetCodeExpires: expires }
     });
 
-    // --- ENVOI DU CODE DE RÉINITIALISATION ---
-    console.log(`ℹ️ Tentative d'envoi de code de réinitialisation à ${email}`);
+    // --- ENVOI DU CODE (WhatsApp + Email) ---
+    
+    // 1. WhatsApp (si dispo)
+    if (user.phone) {
+        const whatsappMsg = `*Récupération Student Hub* 🔐\n\nBonjour ${user.firstName || ''} ! Voici votre code de sécurité pour réinitialiser votre mot de passe : *${resetCode}*\n\nCe code expire dans 15 minutes.`;
+        await sendWhatsAppMessage(user.phone, whatsappMsg);
+    }
+
+    // 2. Email (Roue de secours)
     try {
       await sendEmail({
         to: email,
@@ -53,16 +61,14 @@ export async function POST(req: Request) {
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333; text-align: center;">
             <h1 style="color: #2563eb;">Récupération de compte</h1>
-            <p>Vous avez demandé la réinitialisation de votre mot de passe. Voici votre code de sécurité :</p>
+            <p>Voici votre code de sécurité :</p>
             <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 20px; background: #fef2f2; border: 2px solid #fee2e2; border-radius: 15px; display: inline-block; margin: 20px 0; color: #dc2626;">
               ${resetCode}
             </div>
             <p style="font-size: 14px; color: #666;">Ce code expirera dans <strong>15 minutes</strong>.</p>
-            <p style="font-size: 12px; color: #999; margin-top: 20px;">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
           </div>
         `
       });
-      console.log('✅ Mail de réinitialisation envoyé.');
     } catch (mailError: any) {
       console.error('❌ ÉCHEC envoi mail réinitialisation:', mailError.message);
     }

@@ -1,10 +1,11 @@
 export async function sendWhatsAppMessage(to: string, message: string) {
-  const instanceId = process.env.WHATSAPP_INSTANCE_ID;
-  const token = process.env.WHATSAPP_TOKEN;
+  // Récupération sécurisée avec backup
+  const instanceId = process.env.WHATSAPP_INSTANCE_ID || "instance163891";
+  const token = process.env.WHATSAPP_TOKEN || "z0qxf3wh7bpnws3z";
 
   if (!instanceId || !token) {
-    console.warn("⚠️ WHATSAPP : Instance ID ou Token manquant dans les variables d'environnement.");
-    return;
+    console.warn("⚠️ WHATSAPP : Identifiants manquants.");
+    return false;
   }
 
   // Nettoyage du numéro (doit commencer par le code pays sans le +)

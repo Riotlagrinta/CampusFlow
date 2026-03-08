@@ -12,9 +12,9 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-      { protocol: 'https', hostname: 'pub-*.r2.dev' }, // Cloudflare R2 / S3 générique
-      { protocol: 'https', hostname: '*.vercel-storage.com' }, // Vercel Blob
-      { protocol: 'https', hostname: 'cdn-icons-png.flaticon.com' } // Icônes par défaut
+      { protocol: 'https', hostname: 'pub-*.r2.dev' },
+      { protocol: 'https', hostname: '*.vercel-storage.com' },
+      { protocol: 'https', hostname: 'cdn-icons-png.flaticon.com' }
     ],
     formats: ['image/avif', 'image/webp'],
   },
@@ -41,11 +41,11 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-XSS-Protection", value: "1; mode=block" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" }, // Bloquer l'accès matériel par défaut
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
     ];
   },
 };
 
-module.exports = withPWA(nextConfig);
+export default withPWA(nextConfig);

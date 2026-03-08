@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Platform, KeyboardAvoidingView, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { User, Mail, Lock, Check, ArrowLeft, BookOpen, GraduationCap, Smartphone } from 'lucide-react-native';
+import { Mail, Lock, ArrowLeft, Smartphone } from 'lucide-react-native';
 import api from '../../src/services/api';
+
+interface AcademicOption {
+  id: string;
+  name: string;
+  code?: string;
+}
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -15,20 +21,17 @@ export default function Register() {
     academicLevelId: '',
   });
 
-  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [options, setOptions] = useState<{ fields: AcademicOption[], levels: AcademicOption[] }>({ fields: [], levels: [] });
   const [loading, setLoading] = useState(false);
-  const [fetchingOptions, setFetchingOptions] = useState(true);
 
   useEffect(() => {
     // Charger les filières et niveaux depuis le serveur
     api.get('/academic/options')
       .then(res => {
         setOptions(res.data);
-        setFetchingOptions(false);
       })
       .catch(err => {
         console.error("Erreur options:", err);
-        setFetchingOptions(false);
       });
   }, []);
 
@@ -53,9 +56,13 @@ export default function Register() {
       } else {
         Alert.alert('Erreur', res.data.error || "Une erreur est survenue.");
       }
-    } catch (error: any) {
-      const msg = error.response?.data?.error || "Impossible de contacter le serveur.";
-      Alert.alert('Erreur d\'inscription', msg);
+    } catch (error: unknown) {
+      let msg = "Impossible de contacter le serveur.";
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string } } };
+        msg = axiosError.response?.data?.error || msg;
+      }
+      Alert.alert('Erreur d&apos;inscription', msg);
     } finally {
       setLoading(false);
     }
@@ -181,7 +188,7 @@ export default function Register() {
             disabled={loading}
             className={`w-full py-4 rounded-xl items-center shadow-md mb-6 ${loading ? 'bg-slate-300' : 'bg-green-600 shadow-green-200'}`}
           >
-            {loading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">S'inscrire</Text>}
+            {loading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">S&apos;inscrire</Text>}
           </TouchableOpacity>
 
           <View className="flex-row justify-center pb-8">

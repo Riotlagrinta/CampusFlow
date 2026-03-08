@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { ShoppingBag, Zap, Sparkles, MessageCircle, ChevronLeft, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { Zap, Sparkles, MessageCircle, ChevronLeft, ArrowRight, CheckCircle2 } from 'lucide-react-native';
 import { router } from 'expo-router';
 
 const PACKS = [
@@ -46,7 +46,7 @@ export default function ShopScreen() {
       <ScrollView className="p-4" showsVerticalScrollIndicator={false}>
         <View className="mb-6 mt-2">
           <Text className="text-2xl font-black text-slate-900 leading-tight">
-            Libérez la puissance de l'IA pour vos études
+            Libérez la puissance de l&apos;IA pour vos études
           </Text>
           <Text className="text-slate-500 font-medium mt-2">
             Rechargez vos jetons en un clic via T-Money ou Flooz.

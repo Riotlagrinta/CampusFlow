@@ -3,6 +3,17 @@
 import { auth } from "../../../auth";
 import { prisma } from "@/lib/prisma";
 
+interface GeniusPaymentResponse {
+  success: boolean;
+  message?: string;
+  error?: { message: string };
+  data: {
+    id: string;
+    reference: string;
+    checkout_url: string;
+  };
+}
+
 export async function createGeniusPayment(packId: string) {
   try {
     const session = await auth();
@@ -12,7 +23,7 @@ export async function createGeniusPayment(packId: string) {
 
     const email = session.user.email;
 
-    const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: string }> = {
+    const PACKS: Record<string, { amount: number, tokens: number, name: string, type?: 'TOPUP' | 'SUBSCRIPTION' }> = {
       'starter': { amount: 500, tokens: 50, name: 'Pack Étudiant' },
       'pro': { amount: 1000, tokens: 150, name: 'Pack Révision' },
       'master': { amount: 2000, tokens: 500, name: 'Pack Master' },
@@ -29,29 +40,18 @@ export async function createGeniusPayment(packId: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new Error("Utilisateur introuvable.");
 
-    // --- DIAGNOSTIC VARIABLE VERCEL ---
-    // On liste les clés dispos pour voir si Genius est là (SÉCURISÉ : On ne log pas les valeurs)
-    const envKeys = Object.keys(process.env);
-    const geniusKeysFound = envKeys.filter(k => k.includes('GENIUS'));
-    
-    console.log('🔍 Diagnostic des variables dispo sur Vercel:', geniusKeysFound);
-
     // --- DOUBLE BLINDAGE SÉCURITÉ ---
-    // On tente de lire Vercel, sinon on utilise le backup encodé (plus sûr que le texte clair)
     const backupPub = Buffer.from("cGtfbGl2ZV9BU3NFOTQ5Tkt6OHpkd2FHeTc2d1lIanlXNDEyYU5EMQ==", 'base64').toString();
     const backupSec = Buffer.from("c2tfbGl2ZV8wYTM0YjM5NWI2OTBhM2ZkYmJiZWNlNzViOWY2MzUzN2RiZmU5MzcyMDU0YmI5ODEyMjAzNjgzNDhkOWFmMmYz", 'base64').toString();
 
-    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || (process.env as any).NEXT_PUBLIC_GENIUS_PAY_PUBLIC_KEY || backupPub)?.trim();
+    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || backupPub)?.trim();
     const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || backupSec)?.trim();
 
-    if (!publicKey || publicKey.length < 10) {
-      throw new Error("Erreur critique : Clé publique introuvable.");
-    }
-    if (!secretKey || secretKey.length < 10) {
-      throw new Error("Erreur critique : Clé secrète introuvable.");
+    if (!publicKey || publicKey.length < 10 || !secretKey || secretKey.length < 10) {
+      throw new Error("Erreur critique : Configuration de paiement manquante.");
     }
 
-    // --- SUITE DE LA LOGIQUE ---
+    // --- CRÉATION TRANSACTION ---
     const dbTransaction = await prisma.transaction.create({
       data: {
         userId: user.id,
@@ -59,8 +59,8 @@ export async function createGeniusPayment(packId: string) {
         tokens: selectedPack.tokens,
         packName: selectedPack.name,
         status: 'PENDING',
-        type: (selectedPack as any).type || 'TOPUP'
-      } as any
+        type: selectedPack.type || 'TOPUP'
+      }
     });
 
     const baseUrl = process.env.NEXTAUTH_URL || 'https://studenthub-mu.vercel.app';
@@ -94,7 +94,7 @@ export async function createGeniusPayment(packId: string) {
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json();
+    const result = (await response.json()) as GeniusPaymentResponse;
 
     if (!response.ok || !result.success) {
       throw new Error(result.error?.message || result.message || 'La passerelle de paiement a rejeté la demande.');

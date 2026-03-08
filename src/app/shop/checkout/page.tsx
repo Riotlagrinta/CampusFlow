@@ -226,7 +226,7 @@ export default function CheckoutPage() {
                 </div>
 
                 <p className="text-sm text-zinc-500 font-medium">
-                  Une fois le transfert effectué, envoyez une <b>capture d'écran</b> de la confirmation à l'administrateur pour activer vos jetons.
+                  Une fois le transfert effectué, envoyez une <b>capture d&apos;écran</b> de la confirmation à l&apos;administrateur pour activer vos jetons.
                 </p>
 
                 <button

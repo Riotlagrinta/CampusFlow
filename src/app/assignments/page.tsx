@@ -59,7 +59,7 @@ export default function AssignmentsPage() {
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-3">
             <FileText className="text-emerald-600" /> Devoirs & Projets
           </h1>
-          <p className="text-zinc-500 font-medium text-sm">Gérez vos échéances académiques en un coup d'œil.</p>
+          <p className="text-zinc-500 font-medium text-sm">Gérez vos échéances académiques en un coup d&apos;œil.</p>
         </div>
 
         <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">

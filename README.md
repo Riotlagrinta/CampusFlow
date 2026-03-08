@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## 🔐 Confidentialité et Droits d'auteur
+Ce projet est une propriété intellectuelle exclusive de l'agence **Kelvix** (fondée par **KARABOKA Kelvyn** et **DJATOZ Stephane**). 
+
+Toute reproduction, copie du code source, ou distribution non autorisée du logiciel **DefiTech Student Hub** est strictement interdite par la loi. Le code source est confidentiel et réservé à l'usage interne de l'école DEFITECH et de Kelvix Digital Solutions.
+
+Pour toute information légale, consultez le fichier [LEGAL.md](./LEGAL.md).
+
+---
+© 2026 Kelvix Digital Solutions. Tous droits réservés.

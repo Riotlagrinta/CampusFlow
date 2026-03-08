@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ChevronLeft, Smartphone, CheckCircle2, Copy, Info, MessageCircle, ArrowLeft } from 'lucide-react-native';
+import { Smartphone, Copy, Info, MessageCircle, ArrowLeft } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import api from '../../src/services/api';
 import { useAuth } from '../../src/context/AuthContext';
@@ -19,7 +19,7 @@ const FLOOZ_NUMBER = "79683081";
 export default function CheckoutScreen() {
   const { packId } = useLocalSearchParams();
   const pack = PACKS[packId as string] || PACKS.starter;
-  const { user } = useAuth(); // Récupérer l'utilisateur
+  const { user } = useAuth();
 
   const [method, setMethod] = useState<'TMONEY' | 'FLOOZ' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,23 +32,24 @@ export default function CheckoutScreen() {
 
     setLoading(true);
     try {
-      // Envoi de l'email pour garantir l'identification sur mobile
       const res = await api.post('/payment/genius/create', { 
         packId,
         email: user.email 
       });
       
       if (res.data.url) {
-        // Ouvrir l'URL de paiement dans le navigateur du smartphone
         await Linking.openURL(res.data.url);
-        // Rediriger vers l'accueil ou le profil après ouverture
         router.replace('/(tabs)');
       } else {
         Alert.alert('Erreur', res.data.error || "Impossible d'initialiser le paiement.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      const serverError = error.response?.data?.error || error.response?.data?.details || "Problème de connexion au serveur de paiement.";
+      let serverError = "Problème de connexion au serveur de paiement.";
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string, details?: string } } };
+        serverError = axiosError.response?.data?.error || axiosError.response?.data?.details || serverError;
+      }
       Alert.alert('Erreur', serverError);
     } finally {
       setLoading(false);
@@ -64,10 +65,8 @@ export default function CheckoutScreen() {
     setLoading(true);
     
     try {
-        // 1. Enregistrer l'intention sur le serveur
         await api.post('/payment/manual-request', { packId, method });
 
-        // 2. Préparer le message WhatsApp
         const message = `Bonjour Admin ! Je viens d'effectuer un transfert de ${pack.price} FCFA par ${method} pour le ${pack.name}. Voici ma preuve de paiement (capture d'écran) :`;
         const whatsappUrl = `whatsapp://send?phone=${ADMIN_PHONE.replace(/\+/g, '')}&text=${encodeURIComponent(message)}`;
         
@@ -75,7 +74,6 @@ export default function CheckoutScreen() {
         if (canOpen) {
           await Linking.openURL(whatsappUrl);
         } else {
-          // Fallback vers l'URL web
           await Linking.openURL(`https://wa.me/${ADMIN_PHONE.replace(/\+/g, '')}?text=${encodeURIComponent(message)}`);
         }
         
@@ -121,7 +119,6 @@ export default function CheckoutScreen() {
           </View>
           
           <View className="space-y-4">
-            {/* Genius Pay Automatic */}
             <TouchableOpacity 
               onPress={handleGeniusPay}
               disabled={loading}
@@ -167,7 +164,6 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        {/* Step 2 & 3 */}
         {method && (
           <View className="space-y-6">
             <View className="flex-row items-center mb-4">
@@ -207,7 +203,7 @@ export default function CheckoutScreen() {
             </View>
 
             <Text className="text-sm text-slate-500 font-medium mb-4">
-              Une fois le transfert effectué, envoyez une capture d'écran de la confirmation à l'administrateur.
+              Une fois le transfert effectué, envoyez une capture d&apos;écran de la confirmation à l&apos;administrateur.
             </Text>
 
             <TouchableOpacity 

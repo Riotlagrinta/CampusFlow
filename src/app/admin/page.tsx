@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Shield, Circle, Loader2, Activity, Mail, Trash2, Zap,
@@ -23,49 +23,49 @@ type Level = { id: string; name: string; _count: { users: number } };
 type Resource = { id: string; title: string; type: string; url: string; createdAt: string; subject: { name: string; code: string | null } | null; author: { firstName: string; lastName: string }; };
 type Subject = { id: string; name: string; code: string | null; field: { name: string }; level: { name: string }; _count: { resources: number } };
 
+interface DashboardChartData {
+  name: string;
+  tokens: number;
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'users' | 'fields' | 'levels' | 'subjects' | 'resources' | 'transactions'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [fields, setFields] = useState<Field[]>([]);
-  const [levels, setLevels] = useState<Level[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [totalTokens, setTotalTokens] = useState(0);
   const [totalRevenue, setTotalRevenue] = useState(0);
-  const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    await Promise.all([fetchUsers(), fetchFields(), fetchLevels(), fetchSubjects(), fetchResources(), fetchTransactions()]);
-    setLoading(false);
-  };
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/users');
       const data = await res.json();
       if (res.ok) {
         setUsers(data.users);
-        setTotalTokens(data.totalTokensToday);
         setTotalRevenue(data.totalRevenue || 0);
-        setChartData(data.chartData);
       }
     } catch (err) { console.error(err); }
-  };
+  }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/transactions');
       const data = await res.json();
       if (res.ok) setTransactions(data);
     } catch (err) { console.error(err); }
-  };
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchUsers(), fetchTransactions()]);
+    setLoading(false);
+  }, [fetchUsers, fetchTransactions]);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(() => setCurrentTime(Date.now()), 60000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const handleDeleteUser = async (id: string, name: string) => {
     if (!confirm(`ATTENTION : Voulez-vous vraiment supprimer l'utilisateur ${name} ? Cette action supprimera également toutes ses données (quiz, transactions, etc.) et est irréversible.`)) return;
@@ -96,17 +96,10 @@ export default function AdminDashboard() {
     } catch (err) { console.error(err); }
   };
 
-  // --- Mock Functions pour la démo ---
-  const fetchResources = async () => { try { const res = await fetch('/api/resources'); if (res.ok) setResources(await res.json()); } catch (e) { } };
-  const fetchFields = async () => { try { const res = await fetch('/api/admin/academic/fields'); if (res.ok) setFields(await res.json()); } catch (e) { } };
-  const fetchLevels = async () => { try { const res = await fetch('/api/admin/academic/levels'); if (res.ok) setLevels(await res.json()); } catch (e) { } };
-  const fetchSubjects = async () => { try { const res = await fetch('/api/admin/academic/subjects'); if (res.ok) setSubjects(await res.json()); } catch (e) { } };
-
   const isOnline = (lastActive: string) => {
     if (!lastActive) return false;
     const last = new Date(lastActive).getTime();
-    const now = Date.now();
-    return (now - last) < 300000; // 5 minutes
+    return (currentTime - last) < 300000; // 5 minutes
   };
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Zap, ShieldCheck, CreditCard, Loader2, ArrowRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
@@ -36,12 +37,14 @@ const PACKS = [
 ];
 
 export default function ShopPage() {
+  const router = useRouter();
   const { play } = useSound();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const handleBuy = (packId: string) => {
+    setLoadingId(packId);
     play('xp');
-    window.location.href = `/shop/checkout?packId=${packId}`;
+    router.push(`/shop/checkout?packId=${packId}`);
   };
 
   return (
@@ -60,13 +63,13 @@ export default function ShopPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="text-4xl md:text-6xl font-black tracking-tight text-zinc-900 dark:text-white"
           >
-            Libérez la puissance de l'IA <br/> pour vos études
+            Libérez la puissance de l&apos;IA <br/> pour vos études
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="text-zinc-500 max-w-xl mx-auto text-sm md:text-base font-medium"
           >
-            Rechargez vos jetons en un clic via <span className="text-zinc-900 dark:text-white font-bold">T-Money</span> ou <span className="text-zinc-900 dark:text-white font-bold">Flooz</span> et accédez à l'assistant le plus intelligent du Togo.
+            Rechargez vos jetons en un clic via <span className="text-zinc-900 dark:text-white font-bold">T-Money</span> ou <span className="text-zinc-900 dark:text-white font-bold">Flooz</span> et accédez à l&apos;assistant le plus intelligent du Togo.
           </motion.p>
         </div>
 
@@ -111,7 +114,7 @@ export default function ShopPage() {
                   <CheckCircle2 size={16} className="text-emerald-500" /> Analyse de PDF
                 </div>
                 <div className="flex items-center gap-3 text-xs font-bold text-zinc-600 dark:text-zinc-400">
-                  <CheckCircle2 size={16} className="text-emerald-500" /> Pas de date d'expiration
+                  <CheckCircle2 size={16} className="text-emerald-500" /> Pas de date d&apos;expiration
                 </div>
               </div>
 

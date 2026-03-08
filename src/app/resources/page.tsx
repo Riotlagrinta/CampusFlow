@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -37,6 +37,11 @@ type Resource = {
   parentId: string | null;
 };
 
+interface AcademicOption {
+  id: string;
+  name: string;
+}
+
 export default function ResourcesPage() {
   const { play } = useSound();
   const [resources, setResources] = useState<Resource[]>([]);
@@ -52,15 +57,12 @@ export default function ResourcesPage() {
   const [previewFile, setPreviewFile] = useState<Resource | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [options, setOptions] = useState<{ fields: AcademicOption[], levels: AcademicOption[] }>({ fields: [], levels: [] });
 
   // Form States
   const [title, setTitle] = useState('');
-  const [type, setType] = useState('PDF');
   const [fieldId, setFieldId] = useState('');
   const [levelId, setLevelId] = useState('');
-  const [inputType, setInputType] = useState<'FILE' | 'LINK'>('FILE');
-  const [externalUrl, setExternalUrl] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -69,17 +71,7 @@ export default function ResourcesPage() {
   const [folderLevelId, setFolderLevelId] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
 
-  useEffect(() => {
-    fetchResources(currentFolder?.id || null);
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setIsAdmin(user.role === 'ADMIN');
-    }
-    fetch('/api/academic/options').then(res => res.json()).then(data => setOptions(data));
-  }, [currentSemester]);
-
-  const fetchResources = async (parentId: string | null) => {
+  const fetchResources = useCallback(async (parentId: string | null) => {
     setLoading(true);
     try {
       const pid = parentId === 'null' || !parentId ? 'null' : parentId;
@@ -93,7 +85,17 @@ export default function ResourcesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentSemester]);
+
+  useEffect(() => {
+    fetchResources(currentFolder?.id || null);
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setIsAdmin(user.role === 'ADMIN');
+    }
+    fetch('/api/academic/options').then(res => res.json()).then(data => setOptions(data));
+  }, [currentSemester, fetchResources, currentFolder?.id]);
 
   const handleEnterFolder = (folder: Resource) => {
     setCurrentFolder(folder);
@@ -125,7 +127,7 @@ export default function ResourcesPage() {
     e.preventDefault();
     console.log("Tentative d'importation...");
 
-    if (inputType === 'FILE' && (!files || files.length === 0)) {
+    if (!files || files.length === 0) {
       alert("Veuillez sélectionner au moins un fichier.");
       return;
     }
@@ -140,75 +142,53 @@ export default function ResourcesPage() {
     let failCount = 0;
 
     try {
-      if (inputType === 'FILE' && files && files.length > 0) {
-        // --- TRAITEMENT DES FICHIERS ---
-        for (let i = 0; i < files.length; i++) {
-          const currentFile = files[i];
-          const fileTitle = files.length > 1 ? currentFile.name : (title || currentFile.name);
+      // --- TRAITEMENT DES FICHIERS ---
+      for (let i = 0; i < files.length; i++) {
+        const currentFile = files[i];
+        const fileTitle = files.length > 1 ? currentFile.name : (title || currentFile.name);
 
-          let finalPayload: any = null;
-          let isJson = false;
+        let finalPayload: any = null;
+        let isJson = false;
 
-          try {
-            // TENTATIVE 1 : UPLOAD DIRECT (BLOB)
-            console.log(`Upload direct vers Vercel Blob (${i + 1}/${files.length})...`);
-            const newBlob = await upload(currentFile.name, currentFile, {
-              access: 'public',
-              handleUploadUrl: '/api/upload',
-            });
-
-            finalPayload = {
-              title: fileTitle,
-              type: type,
-              url: newBlob.url,
-              size: `${(currentFile.size / (1024 * 1024)).toFixed(2)} MB`,
-              fieldId: fieldId,
-              levelId: levelId,
-              parentId: currentFolder?.id || null,
-            };
-            isJson = true;
-
-          } catch (blobError) {
-            console.warn("Echec Upload Direct, passage en mode Secours (FormData)", blobError);
-            // TENTATIVE 2 : FALLBACK CLASSIQUE
-            const formData = new FormData();
-            formData.append('file', currentFile);
-            formData.append('title', fileTitle);
-            formData.append('type', type);
-            formData.append('fieldId', fieldId);
-            formData.append('levelId', levelId);
-            if (currentFolder) formData.append('parentId', currentFolder.id);
-
-            finalPayload = formData;
-            isJson = false;
-          }
-
-          // ENREGISTREMENT EN BASE DE DONNÉES
-          const res = await fetch('/api/resources', {
-            method: 'POST',
-            headers: isJson ? { 'Content-Type': 'application/json' } : undefined,
-            body: isJson ? JSON.stringify(finalPayload) : finalPayload
+        try {
+          // TENTATIVE 1 : UPLOAD DIRECT (BLOB)
+          console.log(`Upload direct vers Vercel Blob (${i + 1}/${files.length})...`);
+          const newBlob = await upload(currentFile.name, currentFile, {
+            access: 'public',
+            handleUploadUrl: '/api/upload',
           });
 
-          if (res.ok) successCount++;
-          else failCount++;
+          finalPayload = {
+            title: fileTitle,
+            type: 'PDF',
+            url: newBlob.url,
+            size: `${(currentFile.size / (1024 * 1024)).toFixed(2)} MB`,
+            fieldId: fieldId,
+            levelId: levelId,
+            parentId: currentFolder?.id || null,
+          };
+          isJson = true;
+
+        } catch (blobError) {
+          console.warn("Echec Upload Direct, passage en mode Secours (FormData)", blobError);
+          // TENTATIVE 2 : FALLBACK CLASSIQUE
+          const formData = new FormData();
+          formData.append('file', currentFile);
+          formData.append('title', fileTitle);
+          formData.append('type', 'PDF');
+          formData.append('fieldId', fieldId);
+          formData.append('levelId', levelId);
+          if (currentFolder) formData.append('parentId', currentFolder.id);
+
+          finalPayload = formData;
+          isJson = false;
         }
 
-      } else {
-        // --- TRAITEMENT LIEN EXTERNE ---
-        const payload = {
-          title: title || "Lien externe",
-          type: type,
-          externalUrl: externalUrl,
-          fieldId: fieldId,
-          levelId: levelId,
-          parentId: currentFolder?.id || null,
-        };
-
+        // ENREGISTREMENT EN BASE DE DONNÉES
         const res = await fetch('/api/resources', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          headers: isJson ? { 'Content-Type': 'application/json' } : undefined,
+          body: isJson ? JSON.stringify(finalPayload) : finalPayload
         });
 
         if (res.ok) successCount++;
@@ -221,7 +201,6 @@ export default function ResourcesPage() {
         setIsModalOpen(false);
         setTitle('');
         setFiles(null);
-        setExternalUrl('');
         fetchResources(currentFolder?.id || null);
       } else if (failCount > 0) {
         alert("Certains éléments n'ont pas pu être ajoutés.");

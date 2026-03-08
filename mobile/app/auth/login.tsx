@@ -21,8 +21,9 @@ export default function Login() {
     try {
       await signIn(email, password);
       router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Erreur de connexion', error.message || 'Email ou mot de passe incorrect');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Email ou mot de passe incorrect';
+      Alert.alert('Erreur de connexion', message);
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function Login() {
         <View className="flex-row justify-center mt-6">
           <Text className="text-slate-500">Pas encore de compte ? </Text>
           <TouchableOpacity onPress={() => router.push('/auth/register')}>
-            <Text className="text-blue-600 font-bold">S'inscrire</Text>
+            <Text className="text-blue-600 font-bold">S&apos;inscrire</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -22,7 +22,37 @@ import Link from 'next/link';
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
-const ICON_MAP: Record<string, any> = {
+import { LucideIcon } from 'lucide-react';
+
+interface DashboardStat {
+  label: string;
+  value: string | number;
+  icon: string;
+  trend: string;
+}
+
+interface ActivityItem {
+  title: string;
+  date: string;
+  status: string;
+}
+
+interface NextCourse {
+  title: string;
+  time: string;
+  teacher: string;
+}
+
+interface DashboardData {
+  stats: DashboardStat[];
+  activities: ActivityItem[];
+  nextCourse: NextCourse | null;
+  role: string;
+  isSubscribed: boolean;
+  subscriptionExpiresAt: string;
+}
+
+const ICON_MAP: Record<string, LucideIcon> = {
   Activity,
   BookOpen,
   Zap,
@@ -31,7 +61,7 @@ const ICON_MAP: Record<string, any> = {
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -177,7 +207,7 @@ export default function Home() {
 
       {/* Glassmorphism Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 px-4">
-        {data?.stats.map((stat: any, i: number) => {
+        {data?.stats.map((stat, i) => {
           const Icon = ICON_MAP[stat.icon] || Activity;
           return (
             <motion.div
@@ -205,7 +235,7 @@ export default function Home() {
           <section className="space-y-4">
             <h2 className="text-[10px] md:text-sm font-black text-zinc-400 uppercase tracking-[0.3em]">Activités Récentes</h2>
             <div className="space-y-3">
-              {data?.activities.length > 0 ? data.activities.map((item: any, i: number) => (
+              {data && data.activities.length > 0 ? data.activities.map((item, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}

@@ -65,7 +65,7 @@ export default function PaymentSuccessPage() {
             href="/ai-assistant"
             className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:opacity-90 transition-all"
           >
-            <MessageSquare size={18} /> Tester l'IA maintenant <ArrowRight size={16} />
+            <MessageSquare size={18} /> Tester l&apos;IA maintenant <ArrowRight size={16} />
           </Link>
           
           <Link 
@@ -83,7 +83,7 @@ export default function PaymentSuccessPage() {
           transition={{ delay: 0.6 }}
           className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600"
         >
-          <Sparkles size={14} /> Astuce : Gagnez de l'XP en posant des questions pertinentes
+          <Sparkles size={14} /> Astuce : Gagnez de l&apos;XP en posant des questions pertinentes
         </motion.div>
 
       </div>

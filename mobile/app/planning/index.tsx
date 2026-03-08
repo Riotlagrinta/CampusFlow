@@ -5,8 +5,17 @@ import { router } from 'expo-router';
 import api from '../../src/services/api';
 import { cacheData, getCachedData } from '../../src/services/cache';
 
+interface ScheduleEvent {
+  subjectName?: string;
+  subject?: { name: string };
+  type?: string;
+  day: string;
+  time: string;
+  teacher?: string;
+}
+
 export default function PlanningScreen() {
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -14,13 +23,13 @@ export default function PlanningScreen() {
   const fetchSchedules = async () => {
     try {
       const cachedSchedules = await getCachedData('userSchedules');
-      if (cachedSchedules) setSchedules(cachedSchedules);
+      if (cachedSchedules) setSchedules(cachedSchedules as ScheduleEvent[]);
 
       const response = await api.get('/planning/personal');
       setSchedules(response.data);
       await cacheData('userSchedules', response.data);
       setIsOffline(false);
-    } catch (error) {
+    } catch {
       console.log('Mode hors-ligne détecté pour le planning');
       setIsOffline(true);
     } finally {

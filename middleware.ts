@@ -30,7 +30,9 @@ export default auth(async (req) => {
         const token = authHeader.split(" ")[1];
         const { payload } = await jwtVerify(token, getSecretKey());
         userEmail = payload.email as string;
-      } catch (e) {}
+      } catch {
+        // Ignorer l'erreur de vérification du token, l'accès sera refusé si nécessaire plus tard
+      }
     }
   }
 

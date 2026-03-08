@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowRight, CheckCircle, Shield, Zap } from 'lucide-react-native';
+import { ArrowRight, CheckCircle, Zap } from 'lucide-react-native';
 
 export default function OnboardingScreen() {
   return (
@@ -16,7 +16,7 @@ export default function OnboardingScreen() {
             DefiTech Student Hub
           </Text>
           <Text className="text-lg text-center text-slate-500 mb-8">
-            L'ERP institutionnel nouvelle génération pour votre réussite académique.
+            L&apos;ERP institutionnel nouvelle génération pour votre réussite académique.
           </Text>
         </View>
 
@@ -57,7 +57,7 @@ export default function OnboardingScreen() {
             onPress={() => router.push('/(tabs)')}
             className="py-2 items-center"
           >
-            <Text className="text-slate-400 text-sm">Continuer en tant qu'invité (Demo)</Text>
+            <Text className="text-slate-400 text-sm">Continuer en tant qu&apos;invité (Demo)</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

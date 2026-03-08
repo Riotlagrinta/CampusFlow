@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const { play } = useSound();
   
   const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [showOTP, setShowOTP] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -118,13 +119,6 @@ export default function RegisterPage() {
   }
 
   // --- Étape Validation OTP ---
-  if (loading === false && formData.email && !success && otpCode !== 'DONE') {
-     // Si on a déjà soumis mais pas encore validé
-  }
-
-  // Utilisons un état simple pour basculer vers l'écran OTP
-  const [showOTP, setShowOTP] = useState(false);
-
   if (showOTP) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">
@@ -167,6 +161,7 @@ export default function RegisterPage() {
     );
   }
 
+  // Rendu normal du formulaire d'inscription
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left side: Form */}
@@ -319,6 +314,10 @@ export default function RegisterPage() {
               {loading ? <Loader2 className="animate-spin" size={20} /> : 'Créer mon compte'}
               {!loading && <ArrowRight size={20} />}
             </button>
+
+            <p className="text-[10px] text-center text-zinc-400 mt-4 leading-relaxed px-4">
+              En cliquant sur &quot;Créer mon compte&quot;, vous acceptez notre <Link href="/legal" className="text-blue-600 font-bold hover:underline">Clause de Confidentialité</Link> et le traitement de vos données académiques par Kelvix.
+            </p>
           </form>
 
           <p className="text-center text-sm text-zinc-500">

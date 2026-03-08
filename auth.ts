@@ -1,7 +1,36 @@
-import NextAuth from "next-auth";
+import NextAuth, { type DefaultSession } from "next-auth";
+import { type JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs"; // Importez bcryptjs
+import bcrypt from "bcryptjs";
+
+// Extend the built-in types
+declare module "next-auth" {
+  interface User {
+    id?: string;
+    role: string;
+    isSubscribed: boolean;
+    subscriptionExpiresAt: Date | null;
+  }
+
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+      isSubscribed: boolean;
+      subscriptionExpiresAt: Date | null;
+    } & DefaultSession["user"];
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: string;
+    isSubscribed: boolean;
+    subscriptionExpiresAt: Date | null;
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -21,7 +50,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user) return null;
 
-        // Vérifier le mot de passe
         const passwordMatch = await bcrypt.compare(credentials.password as string, user.password);
         if (!passwordMatch) {
           return null;
@@ -45,19 +73,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role;
-        token.id = user.id;
-        token.isSubscribed = (user as any).isSubscribed;
-        token.subscriptionExpiresAt = (user as any).subscriptionExpiresAt;
+        token.role = user.role;
+        token.id = user.id as string;
+        token.isSubscribed = user.isSubscribed;
+        token.subscriptionExpiresAt = user.subscriptionExpiresAt;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-        (session.user as any).isSubscribed = token.isSubscribed;
-        (session.user as any).subscriptionExpiresAt = token.subscriptionExpiresAt;
+        session.user.role = token.role as string;
+        session.user.id = token.id as string;
+        session.user.isSubscribed = token.isSubscribed as boolean;
+        session.user.subscriptionExpiresAt = token.subscriptionExpiresAt as Date | null;
       }
       return session;
     },

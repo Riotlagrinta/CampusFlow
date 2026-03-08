@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { Send, Bot, User, ChevronLeft, Sparkles, Zap } from 'lucide-react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { Send, Bot, ChevronLeft, Zap } from 'lucide-react-native';
 import { router } from 'expo-router';
 import api from '../../src/services/api';
 
@@ -13,7 +13,7 @@ interface Message {
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: "Bonjour ! Je suis votre assistant DefiTech. Comment puis-je vous aider dans vos révisions aujourd'hui ?", sender: 'ai', timestamp: new Date() }
+    { id: '1', text: "Bonjour ! Je suis votre assistant DefiTech. Comment puis-je vous aider dans vos révisions aujourd&apos;hui ?", sender: 'ai', timestamp: new Date() }
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -58,8 +58,16 @@ export default function AIAssistant() {
       // Mettre à jour les jetons après la réponse
       if (tokens > 0) setTokens(prev => prev - 1);
 
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.reply || "Désolé, j'ai rencontré une erreur. Vérifiez vos jetons IA.";
+    } catch (error: unknown) {
+      let errorMessage = "Désolé, j'ai rencontré une erreur. Vérifiez vos jetons IA.";
+      let quotaExceeded = false;
+
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { reply?: string, quotaExceeded?: boolean } } };
+        errorMessage = axiosError.response?.data?.reply || errorMessage;
+        quotaExceeded = axiosError.response?.data?.quotaExceeded || false;
+      }
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         text: errorMessage,
@@ -68,10 +76,10 @@ export default function AIAssistant() {
       };
       setMessages(prev => [...prev, aiMsg]);
       
-      if (error.response?.data?.quotaExceeded) {
-          Alert.alert("Quota Épuisé", "Vous avez épuisé vos 10 requêtes gratuites. Rechargez vos jetons dans la boutique !", [
+      if (quotaExceeded) {
+          Alert.alert("Quota Épuisé", "Vous avez épuisé vos requêtes IA. Rechargez vos jetons dans la boutique !", [
               { text: "Boutique", onPress: () => router.push('/shop') },
-              { text: "D'accord" }
+              { text: "D&apos;accord" }
           ]);
       }
     } finally {

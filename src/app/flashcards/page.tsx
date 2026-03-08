@@ -112,7 +112,7 @@ export default function FlashcardsPage() {
         <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex items-center gap-3">
             <Sparkles size={18} className="text-blue-600 shrink-0" />
             <p className="text-[11px] font-bold text-blue-700 uppercase tracking-tight">
-                Mode BETA : L'interface de révision est en cours d'optimisation visuelle.
+                Mode BETA : L&apos;interface de révision est en cours d&apos;optimisation visuelle.
             </p>
         </div>
 
@@ -189,7 +189,7 @@ export default function FlashcardsPage() {
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-3">
             <Layers className="text-blue-600" /> Mes Flashcards
           </h1>
-          <p className="text-zinc-500 font-medium text-sm">Mémorisez vos cours rapidement avec l'IA.</p>
+          <p className="text-zinc-500 font-medium text-sm">Mémorisez vos cours rapidement avec l&apos;IA.</p>
         </div>
       </div>
 
@@ -199,11 +199,11 @@ export default function FlashcardsPage() {
           <div className="flex items-center gap-2 text-blue-400 font-black text-[10px] uppercase tracking-[0.2em]">
             <Sparkles size={14} /> Génération Instantanée
           </div>
-          <h2 className="text-2xl font-bold">Que voulez-vous réviser aujourd'hui ?</h2>
+          <h2 className="text-2xl font-bold">Que voulez-vous réviser aujourd&apos;hui ?</h2>
           <div className="flex flex-col md:flex-row gap-3">
             <input 
               type="text" 
-              placeholder="Ex: Les bases de Python, La loi d'Ohm..."
+              placeholder="Ex: Les bases de Python, La loi d&apos;Ohm..."
               className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
               value={topic}
               onChange={e => setTopic(e.target.value)}
@@ -259,7 +259,7 @@ export default function FlashcardsPage() {
           {sets.length === 0 && !loading && (
             <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-100 dark:border-zinc-900 rounded-[3rem]">
                <Layers size={48} className="mx-auto mb-4 opacity-10" />
-               <p className="text-zinc-400 font-medium">Vous n'avez pas encore de jeux de cartes.<br/>Générez-en un avec l'IA ci-dessus !</p>
+               <p className="text-zinc-400 font-medium">Vous n&apos;avez pas encore de jeux de cartes.<br/>Générez-en un avec l&apos;IA ci-dessus !</p>
             </div>
           )}
         </div>

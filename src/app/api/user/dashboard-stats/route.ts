@@ -2,7 +2,22 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from "@/../auth";
 
-export async function GET(req: Request) {
+import { QuizAttempt, Quiz, User, UserBadge, Subject, PersonalSchedule } from '@prisma/client';
+
+type QuizAttemptWithQuiz = QuizAttempt & {
+  quiz: Quiz;
+};
+
+type UserWithRelations = User & {
+  quizAttempts: QuizAttempt[];
+  badges: UserBadge[];
+};
+
+type ScheduleWithSubject = PersonalSchedule & {
+  subject: Subject | null;
+};
+
+export async function GET(_req: Request) {
   try {
     const session = await auth();
 
@@ -10,13 +25,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = (await prisma.user.findUnique({
       where: { email: session.user.email },
       include: {
         quizAttempts: true,
         badges: true
       }
-    });
+    })) as UserWithRelations | null;
 
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
@@ -25,21 +40,22 @@ export async function GET(req: Request) {
     const level = user.level;
     const quizCount = user.quizAttempts.length;
 
-    // GPA fictif basé sur les scores de quiz (ex: moyenne des scores / 25 pour avoir sur 4.0)
+    // GPA fictif basé sur les scores de quiz
+    const totalScore = user.quizAttempts.reduce((acc, curr) => acc + curr.score, 0);
     const averageScore = user.quizAttempts.length > 0
-      ? user.quizAttempts.reduce((acc: number, curr: any) => acc + curr.score, 0) / user.quizAttempts.length
+      ? totalScore / user.quizAttempts.length
       : 0;
     const gpa = (averageScore / 25).toFixed(1);
 
     // Activités récentes
-    const recentQuizzes = await prisma.quizAttempt.findMany({
+    const recentQuizzes = (await prisma.quizAttempt.findMany({
       where: { userId: user.id },
       include: { quiz: true },
       orderBy: { createdAt: 'desc' },
       take: 3
-    });
+    })) as QuizAttemptWithQuiz[];
 
-    const recentActivities = recentQuizzes.map((q: any) => ({
+    const recentActivities = recentQuizzes.map((q) => ({
       title: `Quiz terminé : ${q.quiz.title}`,
       date: new Date(q.createdAt).toLocaleDateString(),
       status: `Score : ${q.score}%`
@@ -50,14 +66,14 @@ export async function GET(req: Request) {
     const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
     const today = days[now.getDay()];
 
-    const nextCourse = await prisma.personalSchedule.findFirst({
+    const nextCourse = (await prisma.personalSchedule.findFirst({
       where: {
         day: today,
         isAcademic: true
       },
       include: { subject: { select: { name: true } } },
       orderBy: { time: 'asc' }
-    });
+    })) as ScheduleWithSubject | null;
 
     // Calcul du classement optimisé
     const higherRankUserCount = await prisma.user.count({
@@ -68,8 +84,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       rank,
       role: user.role,
-      isSubscribed: (user as any).isSubscribed,
-      subscriptionExpiresAt: (user as any).subscriptionExpiresAt,
+      isSubscribed: user.isSubscribed,
+      subscriptionExpiresAt: user.subscriptionExpiresAt,
       stats: [
         { label: 'GPA Actuel', value: `${gpa}/4.0`, trend: 'Basé sur quiz', icon: 'Activity' },
         { label: 'Quizz Complétés', value: `${quizCount}`, trend: 'Total', icon: 'BookOpen' },

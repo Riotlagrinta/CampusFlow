@@ -37,8 +37,8 @@ export async function GET(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    // Isolation dynamique au lieu d'IDs en dur
-    let fieldFilter: any = user.fieldId;
+    // Isolation dynamique
+    let fieldFilter: string | { in: string[] } | null = user.fieldId;
     
     // Si l'utilisateur est en GL ou RIT, il partage certaines ressources (tronc commun)
     if (user.fieldId) {
@@ -57,8 +57,10 @@ export async function GET(req: Request) {
         parentId: parentId,
         semester,
         ...(user.role === 'ADMIN' ? {} : {
-          fieldId: fieldFilter,
-          levelId: user.academicLevelId
+          OR: [
+            { fieldId: fieldFilter, levelId: user.academicLevelId },
+            { fieldId: null, levelId: null } // Ressources publiques/tronc commun global
+          ]
         })
       },
       include: {
@@ -84,20 +86,20 @@ export async function POST(req: Request) {
     if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const contentType = req.headers.get("content-type") || "";
-    let data: any = {};
+    let uploadData: Record<string, any> = {};
     let isJson = false;
 
     if (contentType.includes("application/json")) {
-        data = await req.json();
+        uploadData = await req.json();
         isJson = true;
     } else {
         const formData = await req.formData();
-        data = Object.fromEntries(formData);
-        data.file = formData.get('file');
+        uploadData = Object.fromEntries(formData);
+        uploadData.file = formData.get('file');
     }
 
     // Validation Zod
-    const validation = resourceSchema.safeParse(data);
+    const validation = resourceSchema.safeParse(uploadData);
     if (!validation.success) {
         return NextResponse.json({ error: "Données invalides", details: validation.error.format() }, { status: 400 });
     }

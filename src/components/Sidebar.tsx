@@ -37,7 +37,14 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems = [
+interface NavItem {
+  icon: React.ElementType;
+  label: string;
+  href: string;
+  comingSoon?: boolean;
+}
+
+const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/' },
   { icon: FileText, label: 'Devoirs', href: '/assignments', comingSoon: true },
   { icon: Calendar, label: 'Planning', href: '/planning' },
@@ -55,25 +62,19 @@ const navItems = [
 export default function Sidebar() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   const userName = session?.user?.name || 'Étudiant';
-  const isAdmin = (session?.user as any)?.role === 'ADMIN';
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const pathname = usePathname();
-  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
     const isMobile = window.innerWidth < 1024;
     const initialOpen = !isMobile;
     setIsOpen(initialOpen);
-    if (isMobile) {
-      document.documentElement.style.setProperty('--sidebar-width', '0px');
-    } else {
-      document.documentElement.style.setProperty('--sidebar-width', initialOpen ? '260px' : '72px');
-    }
   }, []);
 
   useEffect(() => {
@@ -162,7 +163,7 @@ export default function Sidebar() {
 
           {navItems.map((item, index) => {
             const isActive = pathname === item.href;
-            const isComingSoon = (item as any).comingSoon;
+            const isComingSoon = item.comingSoon;
 
             const content = (
               <div
@@ -214,7 +215,7 @@ export default function Sidebar() {
                 <Sun className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-90 scale-0" : "rotate-0 scale-100")} size={18} />
                 <Moon className={cn("absolute inset-0 transition-all", resolvedTheme === 'dark' ? "rotate-0 scale-100" : "-rotate-90 scale-0")} size={18} />
               </div>
-              {isOpen && <span className="text-xs font-semibold ml-1">{resolvedTheme === 'dark' ? 'Mode Clair' : 'Mode Sombre'}</span>}
+              {isOpen && <span className="text-xs font-semibold ml-1">{resolvedTheme === 'dark' ? 'Mode Sombre' : 'Mode Clair'}</span>}
             </button>
           )}
 
@@ -226,13 +227,22 @@ export default function Sidebar() {
             {isOpen && <span className="text-xs font-bold">Déconnexion</span>}
           </button>
 
+          <Link 
+            href="/legal" 
+            onClick={handleLinkClick}
+            className="flex items-center gap-3 w-full px-3 py-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all"
+          >
+            <ShieldCheck size={14} />
+            {isOpen && <span className="text-[10px] font-bold uppercase tracking-widest">Mentions Légales</span>}
+          </Link>
+
           <Link href="/profile" onClick={handleLinkClick} className={cn(
             "flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm",
             !isOpen && "justify-center"
           )}>
             <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
-              {(session?.user as any)?.image ? (
-                <Image src={(session?.user as any).image} alt="Avatar" fill className="object-cover" />
+              {session?.user?.image ? (
+                <Image src={session.user.image} alt="Avatar" fill className="object-cover" />
               ) : (
                 <UserIcon size={16} className="text-zinc-400 dark:text-zinc-500" />
               )}

@@ -1,24 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
-import { Calendar, BookOpen, MessageSquare, GraduationCap, Bell, User, ShoppingBag, Sparkles, Bot } from 'lucide-react-native';
+import { Calendar, BookOpen, MessageSquare, GraduationCap, User, Sparkles, Bot } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import api from '../../src/services/api';
 import { registerForPushNotificationsAsync } from '../../src/services/notifications';
 import { cacheData, getCachedData } from '../../src/services/cache';
 
+interface UserData {
+  firstName: string;
+  xp: number;
+  level: number;
+  aiBonusRequests: number;
+  field?: { name: string };
+  academicLevel?: { name: string };
+}
+
 export default function Dashboard() {
-  const { token, signOut } = useAuth();
-  const [userData, setUserData] = useState<any>(null);
+  const { token } = useAuth();
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       // Tenter de charger le cache d'abord
       const cachedProfile = await getCachedData('userProfile');
       if (cachedProfile && !userData) {
-        setUserData(cachedProfile);
+        setUserData(cachedProfile as UserData);
         setLoading(false);
       }
 
@@ -31,16 +40,15 @@ export default function Dashboard() {
       await registerForPushNotificationsAsync();
     } catch (error) {
       console.error('Erreur fetch profile (hors-ligne ?):', error);
-      // Si erreur réseau, on garde les données du cache
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [userData]);
 
   useEffect(() => {
     if (token) fetchUserData();
-  }, [token]);
+  }, [token, fetchUserData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -93,7 +101,7 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Prochain Cours Widget (Simulation dynamique) */}
+        {/* Prochain Cours Widget */}
         <View className="bg-white p-5 rounded-[2rem] mb-8 border border-slate-100 shadow-sm">
             <View className="flex-row items-center justify-between mb-4">
                 <Text className="text-xs font-black text-slate-400 uppercase tracking-widest">En ce moment</Text>
@@ -108,14 +116,14 @@ export default function Dashboard() {
             </View>
         </View>
 
-        {/* Stats Summary / Banner */}
+        {/* Stats Summary */}
         <View className="bg-blue-600 p-6 rounded-3xl mb-8 shadow-lg shadow-blue-200">
           <Text className="text-white/80 text-sm mb-1">XP Actuelle</Text>
           <Text className="text-white text-3xl font-bold mb-4">{userData?.xp || 0} XP</Text>
           <View className="h-2 bg-white/20 rounded-full overflow-hidden">
             <View 
               className="h-full bg-white" 
-              style={{ width: `${Math.min((userData?.xp % 1000) / 10, 100)}%` }} 
+              style={{ width: `${Math.min((userData?.xp || 0 % 1000) / 10, 100)}%` }} 
             />
           </View>
           <Text className="text-white/80 text-xs mt-2 text-right">Niveau {userData?.level || 1}</Text>

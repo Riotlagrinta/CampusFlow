@@ -100,7 +100,7 @@ export default function SupportPage() {
           <div className="p-6 bg-blue-600 rounded-[2rem] text-white space-y-4">
              <h4 className="font-bold flex items-center gap-2 italic"><HelpCircle size={18} /> Aide Rapide</h4>
              <p className="text-xs text-blue-100 leading-relaxed">
-               Si vous avez perdu vos accès, contactez l'administration de DEFITECH avec votre carte d'étudiant.
+               Si vous avez perdu vos accès, contactez l&apos;administration de DEFITECH avec votre carte d&apos;étudiant.
              </p>
           </div>
         </div>

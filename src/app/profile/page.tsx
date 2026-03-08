@@ -1,44 +1,26 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   Trophy,
   Target,
-  Star,
   Award,
   Flame,
-  ShieldCheck,
   Code,
   BookOpen,
   Globe,
   Database,
   Flag,
   Loader2,
-  Edit,
   Camera,
   Brain,
-  CreditCard,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Bell,
-  BellOff
+  Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSound } from '@/hooks/useSound';
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  'Code': Code,
-  'Globe': Globe,
-  'Database': Database,
-  'Flag': Flag,
-  'Star': Star,
-  'ShieldCheck': ShieldCheck,
-  'Award': Award,
-  'Brain': Brain,
-  'Flame': Flame
-};
 
 type UserData = {
   firstName: string;
@@ -56,15 +38,83 @@ type UserData = {
   badges: { badge: { id: string; name: string; icon: string; slug: string; description: string } }[];
 };
 
+interface LeaderboardUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  xp: number;
+}
+
+interface Transaction {
+  id: string;
+  packName: string;
+  amount: number;
+  createdAt: string;
+  status: string;
+}
+
 export default function ProfilePage() {
+  const router = useRouter();
   const { play } = useSound();
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  const fetchProfileData = useCallback(async () => {
+    try {
+      const lbRes = await fetch('/api/leaderboard');
+      const lbData = await lbRes.json();
+      if (!lbData.error) setLeaderboard(lbData);
+
+      const txRes = await fetch('/api/user/transactions');
+      const txData = await txRes.json();
+      if (!txData.error) setTransactions(txData);
+
+      const statsRes = await fetch('/api/user/stats');
+      const data = await statsRes.json();
+      
+      if (!data.error) {
+        setUserData({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          bio: data.bio,
+          image: data.image,
+          xp: data.xp,
+          level: data.level,
+          streak: data.streak,
+          rank: data.rank,
+          aiBonusRequests: data.aiBonusRequests || 0,
+          referralCode: data.referralCode,
+          averageScore: data.averageScore,
+          quizAttemptsCount: data.quizAttemptsCount,
+          badges: data.badges
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du profil:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      router.push('/login');
+      return;
+    }
+    
+    const user = JSON.parse(userStr);
+    if (!user.email) {
+      router.push('/login');
+      return;
+    }
+
+    fetchProfileData();
+  }, [router, fetchProfileData]);
 
   const copyReferral = () => {
     if (!userData?.referralCode) return;
@@ -75,15 +125,10 @@ export default function ProfilePage() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', bio: '' });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [pushLoading, setPushLoading] = useState(false);
-
   const handlePushRegistration = async () => {
     setPushLoading(true);
     try {
-      // Simulation pour le Web (En attendant l'intégration d'un vrai provider PWA comme Firebase ou OneSignal)
-      const token = "WEB-" + Math.random().toString(36).substr(2, 9);
+      const token = "WEB-" + Math.random().toString(36).substring(2, 11);
       const res = await fetch('/api/user/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,45 +145,6 @@ export default function ProfilePage() {
     }
   };
 
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (!user.email) {
-      window.location.href = '/login';
-      return;
-    }
-
-    // 1. Récupérer le classement global
-    fetch('/api/leaderboard').then(res => res.json()).then(data => { if (!data.error) setLeaderboard(data); });
-
-    // 2. Récupérer les transactions
-    fetch('/api/user/transactions').then(res => res.json()).then(data => { if (!data.error) setTransactions(data); });
-
-    // 3. Récupérer les stats
-    fetch('/api/user/stats')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          setUserData({
-            firstName: data.firstName,
-            lastName: data.lastName,
-            bio: data.bio,
-            image: data.image,
-            xp: data.xp,
-            level: data.level,
-            streak: data.streak,
-            rank: data.rank,
-            aiBonusRequests: data.aiBonusRequests || 0,
-            referralCode: data.referralCode,
-            averageScore: data.averageScore,
-            quizAttemptsCount: data.quizAttemptsCount,
-            badges: data.badges
-          });
-          setEditForm({ firstName: data.firstName || '', lastName: data.lastName || '', bio: data.bio || '' });
-        }
-        setLoading(false);
-      });
-  }, []);
-
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
   const xpCurrentLevel = userData ? userData.xp % 500 : 0;
@@ -152,10 +158,12 @@ export default function ProfilePage() {
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
           <div className="relative group">
             <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-zinc-800 border border-white/10 flex items-center justify-center text-3xl md:text-4xl shadow-2xl overflow-hidden relative">
-              {userData?.image ? <img src={userData.image} className="w-full h-full object-cover" /> : "👨‍💻"}
-              <button onClick={() => setIsModalOpen(true)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              {userData?.image ? (
+                <Image src={userData.image} alt="Profile" width={128} height={128} className="w-full h-full object-cover" />
+              ) : "👨‍💻"}
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Camera size={20} className="text-white" />
-              </button>
+              </div>
             </div>
             <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-blue-600 rounded-lg text-[10px] font-black uppercase">LVL {userData?.level || 1}</div>
           </div>

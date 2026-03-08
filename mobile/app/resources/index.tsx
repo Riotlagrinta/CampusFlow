@@ -1,29 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
-import { GraduationCap, FileText, Download, PlayCircle, ChevronLeft, WifiOff, Search } from 'lucide-react-native';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, RefreshControl } from 'react-native';
+import { FileText, Download, PlayCircle, ChevronLeft, WifiOff } from 'lucide-react-native';
 import { router } from 'expo-router';
 import api from '../../src/services/api';
 import { cacheData, getCachedData } from '../../src/services/cache';
 
+interface Resource {
+  type: string;
+  title: string;
+  subject?: { name: string };
+  size?: string;
+}
+
 export default function ResourcesScreen() {
-  const [resources, setResources] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchResources = async () => {
     try {
       const cached = await getCachedData('userResources');
-      if (cached) setResources(cached);
+      if (cached) setResources(cached as Resource[]);
 
       const response = await api.get('/resources');
       setResources(response.data);
       await cacheData('userResources', response.data);
       setIsOffline(false);
-    } catch (error) {
+    } catch {
       setIsOffline(true);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };

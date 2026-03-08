@@ -21,9 +21,19 @@ export async function GET(req: Request) {
     const filterLevelId = searchParams.get('levelId');
     const semester = parseInt(searchParams.get('semester') || '1');
 
-    const GL_ID = "5752636c-824a-44e1-bc75-7e091b22342d";
-    const RIT_ID = "137ef97d-2186-43f5-a795-875ca26fb194";
-    const isTroncCommun = user.fieldId === GL_ID || user.fieldId === RIT_ID;
+    // Isolation dynamique pour le tronc commun
+    let fieldFilter: string | { in: string[] } | null = user.fieldId;
+    
+    if (user.fieldId) {
+        const userField = await prisma.field.findUnique({ where: { id: user.fieldId } });
+        if (userField?.code === 'GL' || userField?.code === 'RIT') {
+            const sharedFields = await prisma.field.findMany({
+                where: { code: { in: ['GL', 'RIT'] } },
+                select: { id: true }
+            });
+            fieldFilter = { in: sharedFields.map(f => f.id) };
+        }
+    }
 
     let whereClause: any = {
       semester,
@@ -31,19 +41,19 @@ export async function GET(req: Request) {
         { userId: user.id },
         {
           isAcademic: true,
-          fieldId: isTroncCommun ? { in: [GL_ID, RIT_ID] } : user.fieldId,
+          fieldId: fieldFilter,
           levelId: user.academicLevelId
         }
       ]
     };
 
-    // Admin Override: Si des filtres sont appliqués, on montre l'emploi du temps spécifique de cette classe
+    // Admin Override
     if (user.role === 'ADMIN' && filterFieldId && filterLevelId) {
       whereClause = {
         isAcademic: true,
         fieldId: filterFieldId,
         levelId: filterLevelId,
-        semester: semester // FIX: Ne pas oublier le filtre par semestre ici aussi
+        semester: semester
       };
     }
 
@@ -67,7 +77,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { day, time, subject: subjectName, type, fieldId, levelId, semester } = body;
+    const { day, time, subject: subjectName, type, fieldId, levelId, semester } = body as { day: string, time: string, subject: string, type?: string, fieldId?: string, levelId?: string, semester?: string };
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -77,7 +87,7 @@ export async function POST(req: Request) {
     const finalSemester = parseInt(semester || '1');
 
     // Gestion automatique de la matière
-    let subjectId = null;
+    let subjectId: string | null = null;
     if (subjectName && finalFieldId && finalLevelId) {
       const existingSub = await prisma.subject.findFirst({
         where: {
@@ -94,8 +104,8 @@ export async function POST(req: Request) {
         const newSub = await prisma.subject.create({
           data: {
             name: subjectName,
-            fieldId: finalFieldId,
-            levelId: finalLevelId,
+            fieldId: finalFieldId as string,
+            levelId: finalLevelId as string,
             semester: finalSemester
           }
         });
@@ -136,7 +146,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, day, time, subject: subjectName, type, fieldId, levelId, semester } = body;
+    const { id, day, time, subject: subjectName, type, fieldId, levelId, semester } = body as { id: string, day: string, time: string, subject: string, type?: string, fieldId?: string, levelId?: string, semester?: string };
 
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
 
@@ -156,7 +166,7 @@ export async function PUT(req: Request) {
     const finalSemester = parseInt(semester || '1');
 
     // Gestion automatique de la matière
-    let subjectId = null;
+    let subjectId: string | null = null;
     if (subjectName && finalFieldId && finalLevelId) {
       const existingSub = await prisma.subject.findFirst({
         where: {
@@ -173,8 +183,8 @@ export async function PUT(req: Request) {
         const newSub = await prisma.subject.create({
           data: {
             name: subjectName,
-            fieldId: finalFieldId,
-            levelId: finalLevelId,
+            fieldId: finalFieldId as string,
+            levelId: finalLevelId as string,
             semester: finalSemester
           }
         });

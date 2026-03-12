@@ -39,8 +39,8 @@ export async function GET(req: Request) {
             subject: {
               semester,
               ...(user.role === 'ADMIN' ? {} : {
-                fieldId: fieldFilter,
-                levelId: user.academicLevelId
+                fieldId: fieldFilter ?? undefined,
+                levelId: user.academicLevelId ?? undefined
               })
             }
           }

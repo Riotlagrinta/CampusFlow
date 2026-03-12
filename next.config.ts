@@ -1,27 +1,31 @@
 import type { NextConfig } from "next";
+// @ts-ignore
+import withPWAInit from "next-pwa";
 
-const withPWA = require('next-pwa')({
-  dest: 'public',
+const withPWA = withPWAInit({
+  dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development'
+  disable: process.env.NODE_ENV === "development",
 });
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-      { protocol: 'https', hostname: 'pub-*.r2.dev' },
-      { protocol: 'https', hostname: '*.vercel-storage.com' },
-      { protocol: 'https', hostname: 'cdn-icons-png.flaticon.com' }
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "pub-*.r2.dev" },
+      { protocol: "https", hostname: "*.vercel-storage.com" },
+      { protocol: "https", hostname: "cdn-icons-png.flaticon.com" },
     ],
-    formats: ['image/avif', 'image/webp'],
+    formats: ["image/avif", "image/webp"],
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '15mb',
+      bodySizeLimit: "15mb",
     },
+    // Autoriser Turbopack malgré la présence de webpack (next-pwa)
+    // turbopack: {},
   },
   async headers() {
     return [

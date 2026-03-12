@@ -126,8 +126,8 @@ export async function POST(req: Request) {
     let fileUrl = validatedData.url || '';
     let sizeStr = validatedData.size || '0 MB';
 
-    if (!isJson && data.file && typeof data.file !== 'string') {
-        const file = data.file as File;
+    if (!isJson && uploadData.file && typeof uploadData.file !== 'string') {
+        const file = uploadData.file as File;
         sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
         
         if (process.env.BLOB_READ_WRITE_TOKEN) {

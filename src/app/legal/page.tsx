@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Lock, FileText, Scale, Eye, Globe, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Lock, FileText, Scale, Eye, Globe, ArrowLeft, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LegalPage() {

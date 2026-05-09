@@ -7,7 +7,6 @@ import AIChat from "@/components/AIChat";
 import Heartbeat from "@/components/Heartbeat";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/../auth";
-import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
 import BottomNav from "@/components/BottomNav";
@@ -71,7 +70,7 @@ export default async function RootLayout({
                 {session && <Sidebar />}
                 <main
                   className="flex-1 p-4 md:p-8 pb-24 md:pb-8 transition-all duration-300 relative"
-                  style={{ marginLeft: session ? 'var(--sidebar-width, 260px)' : '0' }}
+                  style={{ marginLeft: session ? 'var(--sidebar-width, 260px)' : undefined }}
                 >
                   {children}
                 </main>

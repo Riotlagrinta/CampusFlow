@@ -11,7 +11,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { play } = useSound();
   
-  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [options, setOptions] = useState<{ fields: { id: string; name: string }[], levels: { id: string; name: string }[] }>({ fields: [], levels: [] });
   const [showOTP, setShowOTP] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -62,7 +62,7 @@ export default function RegisterPage() {
         const data = await res.json();
         setError(data.error || 'Code invalide');
       }
-    } catch (err) {
+    } catch {
       setError('Erreur de validation');
     } finally {
       setIsVerifying(false);
@@ -93,7 +93,7 @@ export default function RegisterPage() {
       } else {
         setError(data.error || 'Une erreur est survenue');
       }
-    } catch (err) {
+    } catch {
       setError('Impossible de contacter le serveur');
     } finally {
       setLoading(false);
@@ -321,7 +321,7 @@ export default function RegisterPage() {
           </form>
 
           <p className="text-center text-sm text-zinc-500">
-            Déjà inscrit ? <Link href="/" className="text-blue-600 font-bold hover:underline">Se connecter</Link>
+            Déjà inscrit ? <Link href="/login" className="text-blue-600 font-bold hover:underline">Se connecter</Link>
           </p>
         </div>
       </div>

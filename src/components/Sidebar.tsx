@@ -15,14 +15,14 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  Command,
   LogOut,
   Brain,
   ShoppingCart,
   Layers,
   FileText,
   LifeBuoy,
-  Sparkles as SparklesIcon
+  Sparkles as SparklesIcon,
+  type LucideIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -30,7 +30,7 @@ import { twMerge } from 'tailwind-merge';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSession, signOut as nextSignOut } from "next-auth/react";
 
 function cn(...inputs: ClassValue[]) {
@@ -38,7 +38,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 interface NavItem {
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   href: string;
   comingSoon?: boolean;
@@ -59,11 +59,15 @@ const navItems: NavItem[] = [
   { icon: BookOpen, label: 'Ressources', href: '/resources' },
 ];
 
+function getInitialOpen() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth >= 1024;
+}
+
 export default function Sidebar() {
   const { data: session } = useSession();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(getInitialOpen);
   const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
 
   const userName = session?.user?.name || 'Étudiant';
   const isAdmin = session?.user?.role === 'ADMIN';
@@ -71,22 +75,12 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    setMounted(true);
     const isMobile = window.innerWidth < 1024;
-    const initialOpen = !isMobile;
-    setIsOpen(initialOpen);
-  }, []);
-
-  useEffect(() => {
-    if (mounted) {
-      const isMobile = window.innerWidth < 1024;
-      if (isMobile) {
-        document.documentElement.style.setProperty('--sidebar-width', '0px');
-      } else {
-        document.documentElement.style.setProperty('--sidebar-width', isOpen ? '260px' : '72px');
-      }
-    }
-  }, [isOpen, mounted]);
+    document.documentElement.style.setProperty(
+      '--sidebar-width',
+      isMobile ? '0px' : isOpen ? '260px' : '72px'
+    );
+  }, [isOpen]);
 
   const handleLinkClick = () => {
     if (window.innerWidth < 1024) setIsOpen(false);
@@ -139,7 +133,7 @@ export default function Sidebar() {
               <Image src="/logo.svg" alt="DefiTech Logo" fill className="object-cover" />
             </div>
             {isOpen && (
-              <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-50 uppercase tracking-[0.1em]">Student Hub</span>
+              <span className="font-bold text-sm text-zinc-900 dark:text-zinc-50 uppercase tracking-[0.1em]">Student Hub</span>
             )}
           </Link>
         </div>
@@ -206,7 +200,7 @@ export default function Sidebar() {
         </div>
 
         <div className="p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-900/10 border-t border-zinc-100 dark:border-zinc-900">
-          {mounted && (
+          {resolvedTheme !== undefined && (
             <button
               onClick={toggleTheme}
               className="flex items-center gap-3 w-full px-3 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900"

@@ -2,43 +2,34 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
-const rateLimit = new Map();
-const LIMIT = 5; 
-const WINDOW_SIZE = 10 * 60 * 1000; 
-
-// Utiliser AUTH_SECRET pour signer le token (doit être dans .env)
+// CRITICAL FIX: plus de fallback faible — AUTH_SECRET est obligatoire.
 const getSecretKey = () => {
-    const secret = process.env.AUTH_SECRET || "fallback_secret_for_dev_only";
-    return new TextEncoder().encode(secret);
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error('AUTH_SECRET manquant dans les variables d\'environnement.');
+  return new TextEncoder().encode(secret);
 };
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'anonymous';
-    const now = Date.now();
-    const requests = rateLimit.get(ip) || [];
-
-    const recentRequests = requests.filter((timestamp: number) => now - timestamp < WINDOW_SIZE);
-    if (recentRequests.length >= LIMIT) {
-      return NextResponse.json({ error: 'Trop de tentatives. Réessayez dans 10 min.' }, { status: 429 });
+    const key = getRateLimitKey(req);
+    const { allowed, retryAfterMs } = checkRateLimit(key, 5, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Trop de tentatives. Réessayez dans 10 min.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
+      );
     }
-    recentRequests.push(now);
-    rateLimit.set(ip, recentRequests);
 
-    const { identifier, password } = await req.json(); // Changé 'email' par 'identifier'
+    const { identifier, password } = await req.json();
 
     if (!identifier || !password) {
       return NextResponse.json({ error: 'Email/Téléphone et mot de passe requis' }, { status: 400 });
     }
 
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: identifier },
-          { phone: identifier }
-        ]
-      },
+      where: { OR: [{ email: identifier }, { phone: identifier }] },
       include: { field: true, academicLevel: true }
     });
 
@@ -47,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     if (!user.isActive) {
-        return NextResponse.json({ error: 'Compte non activé. Vérifiez vos messages (WhatsApp/Email).' }, { status: 403 });
+      return NextResponse.json({ error: 'Compte non activé. Vérifiez vos messages (WhatsApp/Email).' }, { status: 403 });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
@@ -55,30 +46,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 });
     }
 
-    // --- GENERATION DU JWT POUR MOBILE ---
-    // On expire dans 30 jours pour le confort mobile
-    const token = await new SignJWT({ 
-        id: user.id, 
-        email: user.email, 
-        role: user.role 
+    const token = await new SignJWT({
+      id: user.id,
+      email: user.email,
+      role: user.role
     })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('30d')
-    .sign(getSecretKey());
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('30d')
+      .sign(getSecretKey());
 
-    return NextResponse.json({ 
-      success: true, 
-      token, // Envoyer le token au mobile
-      user: { 
-        id: user.id, 
-        email: user.email, 
-        firstName: user.firstName, 
+    return NextResponse.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
         field: user.field?.name,
         level: user.academicLevel?.name
-      } 
+      }
     });
   } catch (error) {
     console.error('Erreur API Login:', error);

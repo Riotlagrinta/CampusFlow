@@ -6,8 +6,11 @@ export async function GET(req: Request) {
   try {
     const session = await auth();
 
-    // Vérification de sécurité via la session serveur
-    if (!session || (session.user as any).role !== 'ADMIN') {
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+    const sessionUser = await prisma.user.findUnique({ where: { email: session.user.email }, select: { role: true } });
+    if (!sessionUser || sessionUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
     }
 
@@ -22,7 +25,7 @@ export async function GET(req: Request) {
         xp: true,
         role: true,
         isActive: true,
-        otpCode: true,
+        // MEDIUM FIX: otpCode retiré — ne jamais exposer les codes OTP en clair via l'API
         referralCode: true,
         referredById: true,
         field: { select: { name: true, code: true } },
@@ -45,7 +48,7 @@ export async function GET(req: Request) {
     const usages = await prisma.dailyAIUsage.findMany({
       where: { date: today }
     });
-    const totalTokensToday = usages.reduce((acc: number, curr: any) => acc + (curr.tokensUsed || 0), 0);
+    const totalTokensToday = usages.reduce((acc: number, curr: { tokensUsed?: number }) => acc + (curr.tokensUsed || 0), 0);
 
     // Statistiques des 7 derniers jours pour les graphiques
     const sevenDaysAgo = new Date();
@@ -56,8 +59,8 @@ export async function GET(req: Request) {
       orderBy: { date: 'asc' }
     });
 
-    // Grouper par date pour le graphique
-    const chartData = weeklyUsages.reduce((acc: any, curr: any) => {
+    type ChartEntry = { day: string; tokens: number; requests: number };
+    const chartData = weeklyUsages.reduce((acc: Record<string, ChartEntry>, curr: { date: Date; tokensUsed?: number; requestCount?: number }) => {
       const day = curr.date.toLocaleDateString('fr-FR', { weekday: 'short' });
       if (!acc[day]) acc[day] = { day, tokens: 0, requests: 0 };
       acc[day].tokens += curr.tokensUsed || 0;
@@ -71,7 +74,7 @@ export async function GET(req: Request) {
       totalRevenue,
       chartData: Object.values(chartData) 
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

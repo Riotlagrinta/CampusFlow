@@ -54,16 +54,17 @@ export default function QuizPage() {
     else finishQuiz(newAnswers);
   };
 
-  const finishQuiz = async (_finalAnswers: number[]) => {
+  const finishQuiz = async (finalAnswers: number[]) => {
     if (!activeQuiz) return;
     setSubmitting(true);
-    const finalScore = Math.round((score / activeQuiz.questions.length) * 100);
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      await fetch('/api/quiz', {
+      // HIGH FIX: on envoie les réponses brutes — le score est calculé côté serveur.
+      const res = await fetch('/api/quiz', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quizId: activeQuiz.id, score: finalScore, email: user.email }),
+        body: JSON.stringify({ quizId: activeQuiz.id, answers: finalAnswers }),
       });
+      const data = await res.json();
+      if (data.score !== undefined) setScore(Math.round((data.score / 100) * activeQuiz.questions.length));
       play('success'); setStep('result');
     } catch (err) { console.error(err); }
     finally { setSubmitting(false); }

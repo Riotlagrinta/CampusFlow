@@ -45,9 +45,11 @@ export async function POST(req: Request) {
       prisma.level.findUnique({ where: { id: levelId } })
     ]);
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpCodeExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 heures
-    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + Math.random().toString(36).substring(2, 12).toUpperCase();
+    // HIGH FIX: Math.random() est prédictible — on utilise crypto.randomInt()
+    const { randomInt, randomBytes } = await import('crypto');
+    const otpCode = randomInt(100000, 999999).toString();
+    const otpCodeExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const newReferralCode = (firstName?.substring(0, 3) || 'DEFI').toUpperCase() + '-' + randomBytes(4).toString('hex').toUpperCase();
 
     const user = await prisma.user.create({
       data: {
@@ -96,7 +98,7 @@ export async function POST(req: Request) {
     // 2. Mail pour l'administrateur (Notification)
     try {
       await sendEmail({
-        to: process.env.ADMIN_NOTIFICATION_EMAIL || 'djkeda82@gmail.com',
+        to: process.env.ADMIN_NOTIFICATION_EMAIL || '',
         subject: '🚀 Nouvelle pré-inscription sur le Hub',
         html: `
           <p><strong>${firstName} ${lastName}</strong> (${email}) s'est inscrit en <strong>${field?.name}</strong>.</p>
@@ -104,8 +106,8 @@ export async function POST(req: Request) {
         `
       });
       console.log('✅ Notification admin envoyée.');
-    } catch (adminMailError: any) {
-      console.error('⚠️ ÉCHEC envoi notification admin:', adminMailError.message);
+    } catch (adminMailError) {
+      console.error('⚠️ ÉCHEC envoi notification admin:', adminMailError);
     }
 
     // On donne le badge "Premiers Pas" automatiquement

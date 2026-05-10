@@ -53,7 +53,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Vérification de paiement échouée' }, { status: 403 });
         }
         console.log('✅ Vérification de sécurité passée avec succès.');
-    } catch (e) {
+    } catch {
         console.warn('⚠️ Impossible de faire la double vérification, on continue avec prudence.');
     }
 
@@ -71,15 +71,17 @@ export async function POST(req: Request) {
         data: { status: 'COMPLETED' }
     });
 
-    if ((dbTransaction as any).type === 'SUBSCRIPTION') {
-        const expiresAt = dbTransaction.user.subscriptionExpiresAt && dbTransaction.user.subscriptionExpiresAt > new Date()
+    if ((dbTransaction as { type?: string }).type === 'SUBSCRIPTION') {
+        const base = dbTransaction.user.subscriptionExpiresAt && dbTransaction.user.subscriptionExpiresAt > new Date()
           ? new Date(dbTransaction.user.subscriptionExpiresAt)
           : new Date();
 
+        // MEDIUM FIX: setMonth() est non-atomique et bugge en fin de mois (ex: 31 jan + 1 mois = 3 mars).
+        // On utilise une addition en millisecondes pour un calcul déterministe.
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
         const name = dbTransaction.packName.toLowerCase();
-        if (name.includes('trimestriel')) expiresAt.setMonth(expiresAt.getMonth() + 3);
-        else if (name.includes('semestriel')) expiresAt.setMonth(expiresAt.getMonth() + 6);
-        else expiresAt.setMonth(expiresAt.getMonth() + 1);
+        const daysToAdd = name.includes('trimestriel') ? 90 : name.includes('semestriel') ? 180 : 30;
+        const expiresAt = new Date(base.getTime() + daysToAdd * MS_PER_DAY);
 
         await prisma.user.update({
           where: { id: dbTransaction.userId },
@@ -105,19 +107,21 @@ export async function POST(req: Request) {
         );
     }
 
-    // --- NOUVEAUX NOTIFICATIONS (WhatsApp + Email) ---
-    const adminPhone = "22871796050"; // Votre numéro
-    const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "djkeda82@gmail.com";
+    // LOW FIX: numéro et email admin passent par les variables d'env
+    const adminPhone = process.env.ADMIN_WHATSAPP_PHONE || '';
+    const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || '';
     const userName = `${dbTransaction.user.firstName} ${dbTransaction.user.lastName}`;
     const amountStr = `${dbTransaction.amount} FCFA`;
     const packStr = dbTransaction.packName;
 
     // 1. Notification à l'ADMIN (WhatsApp)
-    const adminWhatsAppMsg = `💰 *Nouveau Paiement Reçu !* 💰\n\n👤 *Client :* ${userName}\n📧 *Email :* ${dbTransaction.user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${packStr}\n\nL'application vient de créditer le compte automatiquement. 🚀`;
-    await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
+    if (adminPhone) {
+      const adminWhatsAppMsg = `💰 *Nouveau Paiement Reçu !* 💰\n\n👤 *Client :* ${userName}\n📧 *Email :* ${dbTransaction.user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${packStr}\n\nL'application vient de créditer le compte automatiquement. 🚀`;
+      await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
+    }
 
     // 2. Notification à l'ADMIN (Email)
-    try {
+    if (adminEmail) try {
       await sendEmail({
         to: adminEmail,
         subject: `💰 Nouveau Paiement - ${amountStr} - ${userName}`,
@@ -144,7 +148,7 @@ export async function POST(req: Request) {
     console.log(`🎉 SUCCÈS : Crédit effectué pour ${dbTransaction.user.email}`);
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('🔥 Erreur Webhook:', error);
     return NextResponse.json({ error: 'Erreur interne Webhook' }, { status: 500 });
   }

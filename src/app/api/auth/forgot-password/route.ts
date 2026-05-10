@@ -2,71 +2,53 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/mail';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
-
-const rateLimit = new Map();
-const LIMIT = 5; // 5 requêtes
-const WINDOW_SIZE = 10 * 60 * 1000; // 10 minutes
+import { checkRateLimit, getRateLimitKey } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'anonymous'; // Obtenir l'adresse IP
-    const now = Date.now();
-    const requests = rateLimit.get(ip) || [];
-
-    // Filtrer les requêtes anciennes
-    const recentRequests = requests.filter((timestamp: number) => now - timestamp < WINDOW_SIZE);
-
-    if (recentRequests.length >= LIMIT) {
-      return NextResponse.json({ error: 'Trop de tentatives. Veuillez réessayer plus tard.' }, { status: 429 });
+    const key = getRateLimitKey(req);
+    const { allowed, retryAfterMs } = checkRateLimit(key, 5, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Trop de tentatives. Veuillez réessayer plus tard.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
+      );
     }
 
-    recentRequests.push(now);
-    rateLimit.set(ip, recentRequests);
-
-    const { identifier } = await req.json(); // Changé 'email' par 'identifier'
-
+    const { identifier } = await req.json();
     if (!identifier) {
       return NextResponse.json({ error: 'Email ou numéro de téléphone requis' }, { status: 400 });
     }
 
-    // Rechercher par email OU téléphone
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: identifier },
-          { phone: identifier }
-        ]
-      }
+      where: { OR: [{ email: identifier }, { phone: identifier }] }
     });
 
-    // Sécurité : Ne pas révéler si l'utilisateur existe ou non
+    // Ne pas révéler si le compte existe ou non
     if (!user) {
       return NextResponse.json({ success: true, message: 'Si ce compte existe, un code a été envoyé.' });
     }
 
-    // Générer un code à 6 chiffres
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    // HIGH FIX: Math.random() est prédictible — on utilise crypto.randomInt()
+    const { randomInt } = await import('crypto');
+    const resetCode = randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
 
     await prisma.user.update({
-      where: { id: user.id }, // Utiliser l'ID unique
+      where: { id: user.id },
       data: { resetCode, resetCodeExpires: expires }
     });
 
-    // --- ENVOI DU CODE (WhatsApp + Email) ---
-    
-    // 1. WhatsApp (si dispo)
     if (user.phone) {
-        const whatsappMsg = `*Récupération Student Hub* 🔐\n\nBonjour ${user.firstName || ''} ! Voici votre code de sécurité pour réinitialiser votre mot de passe : *${resetCode}*\n\nCe code expire dans 15 minutes.`;
-        await sendWhatsAppMessage(user.phone, whatsappMsg);
+      const whatsappMsg = `*Récupération Student Hub* 🔐\n\nBonjour ${user.firstName || ''} ! Voici votre code de sécurité : *${resetCode}*\n\nCe code expire dans 15 minutes.`;
+      await sendWhatsAppMessage(user.phone, whatsappMsg);
     }
 
-    // 2. Email (Roue de secours)
     if (user.email) {
       try {
         await sendEmail({
           to: user.email,
-          subject: `Réinitialisation de votre mot de passe - ${resetCode}`,
+          subject: `Réinitialisation de votre mot de passe`,
           html: `
             <div style="font-family: sans-serif; padding: 20px; color: #333; text-align: center;">
               <h1 style="color: #2563eb;">Récupération de compte</h1>
@@ -78,8 +60,8 @@ export async function POST(req: Request) {
             </div>
           `
         });
-      } catch (mailError: any) {
-        console.error('❌ ÉCHEC envoi mail réinitialisation:', mailError.message);
+      } catch (mailError) {
+        console.error('Échec envoi mail réinitialisation:', mailError);
       }
     }
 

@@ -37,16 +37,18 @@ export async function POST(req: Request) {
         }
     });
 
-    // --- NOTIFICATION ADMIN (WhatsApp) ---
-    const adminPhone = "22871796050"; // Votre numéro
+    // LOW FIX: numéro admin via variable d'env
+    const adminPhone = process.env.ADMIN_WHATSAPP_PHONE || '';
     const userName = `${user.firstName || ''} ${user.lastName || ''}`;
     const amountStr = `${selectedPack.amount} FCFA`;
-    
-    const adminWhatsAppMsg = `⏳ *Nouvelle Demande de Paiement Manuel* ⏳\n\n👤 *Client :* ${userName}\n📧 *Email :* ${user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${selectedPack.name}\n💳 *Méthode :* ${method}\n\nL'étudiant attend la validation de son paiement. 🚀`;
-    await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
+
+    if (adminPhone) {
+      const adminWhatsAppMsg = `⏳ *Nouvelle Demande de Paiement Manuel* ⏳\n\n👤 *Client :* ${userName}\n📧 *Email :* ${user.email}\n💵 *Montant :* ${amountStr}\n📦 *Pack :* ${selectedPack.name}\n💳 *Méthode :* ${method}\n\nL'étudiant attend la validation de son paiement. 🚀`;
+      await sendWhatsAppMessage(adminPhone, adminWhatsAppMsg);
+    }
 
     return NextResponse.json(dbTransaction);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Erreur Manual Payment:', error);
     return NextResponse.json({ error: 'Erreur lors de l\'enregistrement' }, { status: 500 });
   }

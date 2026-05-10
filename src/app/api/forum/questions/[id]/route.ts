@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@/../auth';
 
 export async function GET(
   req: Request,
@@ -10,7 +11,7 @@ export async function GET(
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
-        author: { select: { firstName: true, lastName: true, level: true } }, 
+        author: { select: { firstName: true, lastName: true, level: true } },
         answers: {
           include: {
             author: { select: { firstName: true, lastName: true, level: true } }
@@ -21,7 +22,6 @@ export async function GET(
     });
 
     if (!question) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
     return NextResponse.json(question);
   } catch (error) {
     console.error('Erreur GET question detail:', error);
@@ -34,18 +34,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email');
-
-    const user = await prisma.user.findUnique({ where: { email: email || '' } });
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    // CRITICAL FIX: la vérification admin se basait sur un paramètre email
+    // fourni par le client — n'importe qui pouvait passer l'email d'un admin.
+    // On utilise désormais uniquement la session serveur.
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    // Supprimer les réponses d'abord
+    const caller = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true }
+    });
+
+    if (!caller || caller.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+    }
+
+    const { id } = await params;
     await prisma.answer.deleteMany({ where: { questionId: id } });
-    // Supprimer la question
     await prisma.question.delete({ where: { id } });
 
     return NextResponse.json({ success: true });

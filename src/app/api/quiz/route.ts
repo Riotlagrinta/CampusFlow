@@ -17,25 +17,24 @@ export async function GET(req: Request) {
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    // Isolation dynamique
     let fieldFilter: string | { in: string[] } | null = user.fieldId;
-    
+
     if (user.fieldId && user.role !== 'ADMIN') {
-        const userField = await prisma.field.findUnique({ where: { id: user.fieldId } });
-        if (userField?.code === 'GL' || userField?.code === 'RIT') {
-            const sharedFields = await prisma.field.findMany({
-                where: { code: { in: ['GL', 'RIT'] } },
-                select: { id: true }
-            });
-            fieldFilter = { in: sharedFields.map(f => f.id) };
-        }
+      const userField = await prisma.field.findUnique({ where: { id: user.fieldId } });
+      if (userField?.code === 'GL' || userField?.code === 'RIT') {
+        const sharedFields = await prisma.field.findMany({
+          where: { code: { in: ['GL', 'RIT'] } },
+          select: { id: true }
+        });
+        fieldFilter = { in: sharedFields.map(f => f.id) };
+      }
     }
 
     const quizzes = await prisma.quiz.findMany({
       where: {
         OR: [
-          { subjectId: null }, // Quizz généraux
-          { 
+          { subjectId: null },
+          {
             subject: {
               semester,
               ...(user.role === 'ADMIN' ? {} : {
@@ -46,10 +45,7 @@ export async function GET(req: Request) {
           }
         ]
       },
-      include: {
-        _count: { select: { questions: true } },
-        subject: true
-      }
+      include: { _count: { select: { questions: true } }, subject: true }
     });
     return NextResponse.json(quizzes);
   } catch (error) {
@@ -60,29 +56,42 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { quizId, score, email } = await req.json();
+    // HIGH FIX: le score était envoyé par le client — on recalcule désormais
+    // le score côté serveur en vérifiant chaque réponse.
+    const session = await auth();
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+    const { quizId, answers } = await req.json();
+
+    if (!quizId || !Array.isArray(answers)) {
+      return NextResponse.json({ error: 'Données invalides' }, { status: 400 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { questions: true }
+    });
 
     if (!user || !quiz) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // Calcul de l'XP gagné : xpReward * score%
+    // Calcul du score côté serveur
+    let correctCount = 0;
+    for (let i = 0; i < quiz.questions.length; i++) {
+      if (answers[i] === quiz.questions[i].answer) correctCount++;
+    }
+    const score = Math.round((correctCount / quiz.questions.length) * 100);
     const xpGained = Math.round((quiz.xpReward * score) / 100);
 
     const attempt = await prisma.quizAttempt.create({
-      data: {
-        userId: user.id,
-        quizId,
-        score,
-        xpGained
-      }
+      data: { userId: user.id, quizId, score, xpGained }
     });
 
-    // Ajouter l'XP à l'utilisateur
     await addXP(user.id, xpGained);
 
-    return NextResponse.json({ success: true, attempt, xpGained });
+    return NextResponse.json({ success: true, attempt, xpGained, score });
   } catch (error) {
     console.error('Erreur Quiz POST:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

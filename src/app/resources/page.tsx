@@ -18,6 +18,7 @@ import {
   Upload,
   RefreshCw
 } from 'lucide-react';
+import { TiltCard } from '@/components/TiltCard';
 import { upload } from '@vercel/blob/client';
 import { useSound } from '@/hooks/useSound';
 import { ResourceCard } from '@/components/resources/ResourceCard';
@@ -147,7 +148,7 @@ export default function ResourcesPage() {
         const currentFile = files[i];
         const fileTitle = files.length > 1 ? currentFile.name : (title || currentFile.name);
 
-        let finalPayload: any = null;
+        let finalPayload: FormData | string | null = null;
         let isJson = false;
 
         try {
@@ -158,7 +159,7 @@ export default function ResourcesPage() {
             handleUploadUrl: '/api/upload',
           });
 
-          finalPayload = {
+          finalPayload = JSON.stringify({
             title: fileTitle,
             type: 'PDF',
             url: newBlob.url,
@@ -166,7 +167,7 @@ export default function ResourcesPage() {
             fieldId: fieldId,
             levelId: levelId,
             parentId: currentFolder?.id || null,
-          };
+          });
           isJson = true;
 
         } catch (blobError) {
@@ -206,9 +207,10 @@ export default function ResourcesPage() {
         alert("Certains éléments n'ont pas pu être ajoutés.");
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erreur critique upload:", error);
-      alert(`Erreur technique : ${error.message || "Impossible de contacter le serveur"}`);
+      const msg = error instanceof Error ? error.message : "Impossible de contacter le serveur";
+      alert(`Erreur technique : ${msg}`);
     } finally {
       setUploading(false);
     }
@@ -249,51 +251,52 @@ export default function ResourcesPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20 px-2 md:px-0 text-zinc-900 dark:text-zinc-100">
+      {/* Ambient blob */}
+      <motion.div className="fixed top-20 right-20 w-80 h-80 bg-amber-500/5 rounded-full blur-[120px] -z-10 pointer-events-none"
+        animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity }} />
+
       <div className="flex flex-col gap-4 px-2">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+        >
           <div className="space-y-1">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Ressources</h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">Gestion et organisation des cours.</p>
           </div>
           <div className="flex items-center gap-2 w-full md:w-auto">
             <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200 dark:border-zinc-700">
-              <button
-                onClick={() => setCurrentSemester(1)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500'}`}
-              >
-                S1
-              </button>
-              <button
-                onClick={() => setCurrentSemester(2)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500'}`}
-              >
-                S2
-              </button>
+              {[1, 2].map(s => (
+                <motion.button key={s} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  onClick={() => setCurrentSemester(s)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === s ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-sm' : 'text-zinc-500'}`}
+                >S{s}</motion.button>
+              ))}
             </div>
-            <button
+            <motion.button whileHover={{ rotate: 180 }} transition={{ duration: 0.4 }}
               onClick={() => fetchResources(currentFolder?.id || null)}
               className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition-all border border-zinc-200 dark:border-zinc-700"
             >
               <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
+            </motion.button>
             {isAdmin && (
               <>
-                <button
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={() => setIsFolderCreateOpen(true)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl font-bold border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
                 >
                   <Folder size={18} className="text-amber-500" /> <span>Dossier</span>
-                </button>
-                <button
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={() => setIsModalOpen(true)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all"
                 >
                   <Upload size={18} /> <span>Importer ici</span>
-                </button>
+                </motion.button>
               </>
             )}
           </div>
-        </div>
+        </motion.div>
 
         <div className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 overflow-x-auto no-scrollbar py-2 border-b border-zinc-100 dark:border-zinc-800">
           <button

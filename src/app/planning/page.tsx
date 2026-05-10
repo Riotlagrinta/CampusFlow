@@ -58,7 +58,7 @@ export default function PlanningPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [options, setOptions] = useState<{ fields: any[], levels: any[] }>({ fields: [], levels: [] });
+  const [options, setOptions] = useState<{ fields: { id: string; name: string }[], levels: { id: string; name: string }[] }>({ fields: [], levels: [] });
 
   // Admin Filters
   const [filterFieldId, setFilterFieldId] = useState('');
@@ -158,7 +158,7 @@ export default function PlanningPage() {
     }
   };
 
-  const handleEditClick = (event: any) => {
+  const handleEditClick = (event: Course) => {
     // Retrouver l'événement original pour avoir toutes les infos (fieldId, levelId)
     const originalEvent = personalEvents.find(e => e.id === event.id);
     if (!originalEvent) return;
@@ -260,8 +260,13 @@ export default function PlanningPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
 
+      {/* Ambient blob */}
+      <motion.div className="fixed top-20 right-10 w-80 h-80 bg-blue-500/5 rounded-full blur-[120px] -z-10 pointer-events-none"
+        animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 9, repeat: Infinity }} />
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Planning Hebdomadaire</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
@@ -291,7 +296,7 @@ export default function PlanningPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
           <div className="flex bg-white dark:bg-zinc-900 p-1.5 rounded-2xl border-2 border-zinc-100 dark:border-zinc-800 shadow-sm">
             <button
               onClick={() => setCurrentSemester(1)}
@@ -337,20 +342,23 @@ export default function PlanningPage() {
                 </div>
               </button>
             )}
-            <button
+            <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all active:scale-95"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all"
             >
               <Plus size={20} />
               <span className="hidden sm:inline">Ajouter</span>
-            </button>
+            </motion.button>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
+
 
       {isLoading ? (
         <div className="flex justify-center py-20">
-          <Loader2 size={40} className="animate-spin text-blue-600" />
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+            <Loader2 size={40} className="text-blue-600" />
+          </motion.div>
         </div>
       ) : (
         /* Schedule Grid */

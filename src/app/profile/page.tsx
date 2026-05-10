@@ -3,55 +3,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import {
-  Trophy,
-  Target,
-  Award,
-  Flame,
-  Code,
-  BookOpen,
-  Globe,
-  Database,
-  Flag,
-  Loader2,
-  Camera,
-  Brain,
-  Bell
-} from 'lucide-react';
+import { motion, useInView } from 'framer-motion';
+import { Trophy, Target, Award, Flame, Code, BookOpen, Globe, Database, Flag, Loader2, Camera, Brain, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSound } from '@/hooks/useSound';
+import { TiltCard } from '@/components/TiltCard';
+import { useRef } from 'react';
 
 type UserData = {
-  firstName: string;
-  lastName: string;
-  bio: string | null;
-  image: string | null;
-  xp: number;
-  level: number;
-  streak: number;
-  rank: number;
-  aiBonusRequests: number;
-  referralCode: string;
-  averageScore: number;
-  quizAttemptsCount: number;
+  firstName: string; lastName: string; bio: string | null; image: string | null;
+  xp: number; level: number; streak: number; rank: number; aiBonusRequests: number;
+  referralCode: string; averageScore: number; quizAttemptsCount: number;
   badges: { badge: { id: string; name: string; icon: string; slug: string; description: string } }[];
 };
+interface LeaderboardUser { id: string; firstName: string; lastName: string; xp: number; }
+interface Transaction { id: string; packName: string; amount: number; createdAt: string; status: string; }
 
-interface LeaderboardUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  xp: number;
-}
-
-interface Transaction {
-  id: string;
-  packName: string;
-  amount: number;
-  createdAt: string;
-  status: string;
-}
+const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay, type: 'spring' as const, stiffness: 80 } });
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -63,38 +31,27 @@ export default function ProfilePage() {
   const [isCopied, setIsCopied] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
 
+  const statsRef = useRef(null);
+  const statsInView = useInView(statsRef, { once: true });
+
   const fetchProfileData = useCallback(async () => {
     try {
-      const lbRes = await fetch('/api/leaderboard');
-      const lbData = await lbRes.json();
+      const [lbRes, txRes, statsRes] = await Promise.all([
+        fetch('/api/leaderboard'),
+        fetch('/api/user/transactions'),
+        fetch('/api/user/stats'),
+      ]);
+      const [lbData, txData, data] = await Promise.all([lbRes.json(), txRes.json(), statsRes.json()]);
       if (!lbData.error) setLeaderboard(lbData);
-
-      const txRes = await fetch('/api/user/transactions');
-      const txData = await txRes.json();
       if (!txData.error) setTransactions(txData);
-
-      const statsRes = await fetch('/api/user/stats');
-      const data = await statsRes.json();
-      
-      if (!data.error) {
-        setUserData({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          bio: data.bio,
-          image: data.image,
-          xp: data.xp,
-          level: data.level,
-          streak: data.streak,
-          rank: data.rank,
-          aiBonusRequests: data.aiBonusRequests || 0,
-          referralCode: data.referralCode,
-          averageScore: data.averageScore,
-          quizAttemptsCount: data.quizAttemptsCount,
-          badges: data.badges
-        });
-      }
+      if (!data.error) setUserData({
+        firstName: data.firstName, lastName: data.lastName, bio: data.bio, image: data.image,
+        xp: data.xp, level: data.level, streak: data.streak, rank: data.rank,
+        aiBonusRequests: data.aiBonusRequests || 0, referralCode: data.referralCode,
+        averageScore: data.averageScore, quizAttemptsCount: data.quizAttemptsCount, badges: data.badges
+      });
     } catch (error) {
-      console.error('Erreur lors du chargement du profil:', error);
+      console.error('Erreur chargement profil:', error);
     } finally {
       setLoading(false);
     }
@@ -102,26 +59,16 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
-    if (!userStr) {
-      router.push('/login');
-      return;
-    }
-    
+    if (!userStr) { router.push('/login'); return; }
     const user = JSON.parse(userStr);
-    if (!user.email) {
-      router.push('/login');
-      return;
-    }
-
+    if (!user.email) { router.push('/login'); return; }
     fetchProfileData();
   }, [router, fetchProfileData]);
 
   const copyReferral = () => {
     if (!userData?.referralCode) return;
-    const url = `${window.location.origin}/register?ref=${userData.referralCode}`;
-    navigator.clipboard.writeText(url);
-    setIsCopied(true);
-    play('xp');
+    navigator.clipboard.writeText(`${window.location.origin}/register?ref=${userData.referralCode}`);
+    setIsCopied(true); play('xp');
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -129,89 +76,102 @@ export default function ProfilePage() {
     setPushLoading(true);
     try {
       const token = "WEB-" + Math.random().toString(36).substring(2, 11);
-      const res = await fetch('/api/user/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pushToken: token })
-      });
-      if (res.ok) {
-        alert("Notifications activées ! 🔔");
-        play('xp');
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setPushLoading(false);
-    }
+      const res = await fetch('/api/user/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pushToken: token }) });
+      if (res.ok) { alert("Notifications activées ! 🔔"); play('xp'); }
+    } catch (error) { console.error(error); }
+    finally { setPushLoading(false); }
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+        <Loader2 className="text-blue-600" size={40} />
+      </motion.div>
+    </div>
+  );
 
   const xpCurrentLevel = userData ? userData.xp % 500 : 0;
   const progressPercent = (xpCurrentLevel / 500) * 100;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 md:space-y-12 pb-20 px-2 md:px-0">
+    <div className="max-w-6xl mx-auto space-y-8 md:space-y-12 pb-20 px-2 md:px-0 overflow-x-hidden">
+
+      {/* Ambient blobs */}
+      <motion.div className="fixed top-10 right-20 w-96 h-96 bg-blue-500/5 rounded-full blur-[150px] -z-10 pointer-events-none"
+        animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity }} />
 
       {/* Profile Header */}
-      <div className="card-pro p-6 md:p-8 bg-zinc-900 text-white overflow-hidden relative">
+      <motion.div {...fadeUp()} className="card-pro p-6 md:p-8 bg-zinc-900 text-white overflow-hidden relative rounded-[2rem]">
+        <motion.div
+          className="absolute top-0 right-0 w-80 h-80 bg-blue-600/10 blur-[80px] pointer-events-none"
+          animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
+          transition={{ duration: 6, repeat: Infinity }}
+        />
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
-          <div className="relative group">
+          <motion.div whileHover={{ scale: 1.05 }} className="relative group cursor-pointer">
             <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-zinc-800 border border-white/10 flex items-center justify-center text-3xl md:text-4xl shadow-2xl overflow-hidden relative">
-              {userData?.image ? (
-                <Image src={userData.image} alt="Profile" width={128} height={128} className="w-full h-full object-cover" />
-              ) : "👨‍💻"}
+              {userData?.image ? <Image src={userData.image} alt="Profile" width={128} height={128} className="w-full h-full object-cover" /> : "👨‍💻"}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Camera size={20} className="text-white" />
               </div>
             </div>
-            <div className="absolute -bottom-2 -right-2 px-3 py-1 bg-blue-600 rounded-lg text-[10px] font-black uppercase">LVL {userData?.level || 1}</div>
-          </div>
+            <motion.div
+              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.4, type: 'spring' }}
+              className="absolute -bottom-2 -right-2 px-3 py-1 bg-blue-600 rounded-lg text-[10px] font-black uppercase"
+            >
+              LVL {userData?.level || 1}
+            </motion.div>
+          </motion.div>
 
           <div className="space-y-3 text-center md:text-left flex-1 min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">
+            <motion.h1 {...fadeUp(0.1)} className="text-2xl md:text-3xl font-bold tracking-tight truncate">
               {userData?.firstName} {userData?.lastName}
-            </h1>
+            </motion.h1>
             <p className="text-zinc-400 text-xs md:text-sm max-w-xl line-clamp-2 italic">{userData?.bio || "Aucune bio."}</p>
             <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-1">
-              <span className="px-2 py-0.5 bg-white/5 border border-white/10 text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
-                <Brain size={10} className="text-blue-400" /> {userData?.aiBonusRequests} Jetons IA
-              </span>
-              <button
-                onClick={copyReferral}
-                className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-500/20 transition-all"
-              >
+              {[
+                { label: `${userData?.aiBonusRequests} Jetons IA`, color: 'blue', icon: <Brain size={10} className="text-blue-400" /> },
+              ].map((b, i) => (
+                <motion.span key={i} whileHover={{ scale: 1.05 }}
+                  className="px-2 py-0.5 bg-white/5 border border-white/10 text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+                  {b.icon} {b.label}
+                </motion.span>
+              ))}
+              <motion.button whileHover={{ scale: 1.05 }} onClick={copyReferral}
+                className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-500/20 transition-all">
                 <Target size={10} /> {isCopied ? 'Lien copié !' : `Parrainer (${userData?.referralCode})`}
-              </button>
-              <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.05 }}
+                className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Flame size={10} /> {userData?.streak || 0} Jours
-              </span>
-              <button
-                onClick={handlePushRegistration}
-                disabled={pushLoading}
-                className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-orange-500/20 transition-all disabled:opacity-50"
-              >
-                {pushLoading ? <Loader2 size={10} className="animate-spin" /> : <Bell size={10} />}
-                Notifications
-              </button>
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.05 }} onClick={handlePushRegistration} disabled={pushLoading}
+                className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-orange-500/20 transition-all disabled:opacity-50">
+                {pushLoading ? <Loader2 size={10} className="animate-spin" /> : <Bell size={10} />} Notifications
+              </motion.button>
             </div>
           </div>
 
           <div className="w-full md:w-auto flex flex-col items-center md:items-end gap-1 pt-4 md:pt-0 border-t border-white/5 md:border-none">
             <span className="text-[10px] font-bold text-zinc-500 uppercase">XP TOTALE</span>
-            <div className="text-3xl md:text-4xl font-black tracking-tighter">{userData?.xp.toLocaleString()}</div>
-            <div className="w-full md:w-48 h-1.5 bg-white/5 rounded-full overflow-hidden mt-2 relative">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${progressPercent}%` }} className="h-full bg-blue-600 absolute left-0 top-0" />
+            <motion.div
+              className="text-3xl md:text-4xl font-black tracking-tighter"
+              initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, type: 'spring' }}
+            >
+              {userData?.xp.toLocaleString()}
+            </motion.div>
+            <div className="w-full md:w-48 h-1.5 bg-white/5 rounded-full overflow-hidden mt-2">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${progressPercent}%` }} transition={{ duration: 1.2, ease: 'easeOut', delay: 0.5 }} className="h-full bg-blue-600" />
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-2 md:px-0">
-
         <div className="lg:col-span-2 space-y-10">
+
           {/* Stats */}
-          <section className="space-y-4">
+          <section className="space-y-4" ref={statsRef}>
             <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Analytiques</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
@@ -219,47 +179,51 @@ export default function ProfilePage() {
                 { label: 'Score Moyen', value: `${userData?.averageScore || 0}%`, icon: Target },
                 { label: 'Rang', value: `#${userData?.rank || '-'}`, icon: Trophy },
               ].map((stat, i) => (
-                <div key={i} className="card-pro p-6 flex flex-col gap-4">
-                  <stat.icon className="text-zinc-400" size={16} />
-                  <div>
-                    <h3 className="text-2xl font-bold">{stat.value}</h3>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase">{stat.label}</p>
-                  </div>
-                </div>
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                  animate={statsInView ? { opacity: 1, y: 0, scale: 1 } : {}}
+                  transition={{ delay: i * 0.1, type: 'spring', stiffness: 100 }}
+                >
+                  <TiltCard className="card-pro p-6 flex flex-col gap-4 cursor-default">
+                    <motion.div whileHover={{ rotate: 10 }}>
+                      <stat.icon className="text-zinc-400" size={16} />
+                    </motion.div>
+                    <div>
+                      <h3 className="text-2xl font-bold">{stat.value}</h3>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase">{stat.label}</p>
+                    </div>
+                  </TiltCard>
+                </motion.div>
               ))}
             </div>
           </section>
 
           {/* Transactions */}
-          <section className="space-y-4">
+          <motion.section {...fadeUp(0.3)} className="space-y-4">
             <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Historique des achats</h2>
             <div className="card-pro overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 font-bold uppercase text-[10px]">
-                    <tr>
-                      <th className="px-6 py-4">Pack</th>
-                      <th className="px-6 py-4">Montant</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4 text-right">Statut</th>
-                    </tr>
+                    <tr><th className="px-6 py-4">Pack</th><th className="px-6 py-4">Montant</th><th className="px-6 py-4">Date</th><th className="px-6 py-4 text-right">Statut</th></tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-900">
-                    {transactions.map((t) => (
-                      <tr key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                    {transactions.map((t, i) => (
+                      <motion.tr key={t.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                        className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
                         <td className="px-6 py-4 font-bold">{t.packName}</td>
                         <td className="px-6 py-4">{t.amount} FCFA</td>
                         <td className="px-6 py-4 text-zinc-500 text-xs">{new Date(t.createdAt).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right">
-                          <span className={cn(
-                            "px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                          <span className={cn("px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest",
                             t.status === 'COMPLETED' ? "bg-emerald-500/10 text-emerald-500" :
-                              t.status === 'FAILED' ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
+                            t.status === 'FAILED' ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
                           )}>
                             {t.status === 'COMPLETED' ? 'Validé' : t.status === 'FAILED' ? 'Échoué' : 'En attente'}
                           </span>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
                     {transactions.length === 0 && (
                       <tr><td colSpan={4} className="px-6 py-10 text-center text-zinc-400 italic">Aucun achat effectué.</td></tr>
@@ -268,26 +232,30 @@ export default function ProfilePage() {
                 </table>
               </div>
             </div>
-          </section>
+          </motion.section>
         </div>
 
-        {/* Sidebar */}
-        <section className="space-y-4">
+        {/* Leaderboard */}
+        <motion.section {...fadeUp(0.2)} className="space-y-4">
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Top Promotion</h2>
           <div className="card-pro overflow-hidden">
             {leaderboard.map((u, i) => (
-              <div key={u.id} className={cn("flex items-center gap-4 p-4", i === 0 && "bg-blue-50/30 dark:bg-blue-900/10")}>
+              <motion.div
+                key={u.id}
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                whileHover={{ x: 4 }}
+                className={cn("flex items-center gap-4 p-4 transition-colors", i === 0 && "bg-blue-50/30 dark:bg-blue-900/10")}
+              >
                 <span className="text-xs font-black text-zinc-400">0{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold truncate">{u.firstName} {u.lastName?.charAt(0)}.</p>
                   <p className="text-[10px] text-zinc-500">{u.xp.toLocaleString()} XP</p>
                 </div>
-                {i === 0 && <Trophy size={14} className="text-amber-500" />}
-              </div>
+                {i === 0 && <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }}><Trophy size={14} className="text-amber-500" /></motion.div>}
+              </motion.div>
             ))}
           </div>
-        </section>
-
+        </motion.section>
       </div>
     </div>
   );

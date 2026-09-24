@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { auth } from "@/../auth";
 
 const DEMO_USER_EMAIL = 'etudiant@defitech.tg';
 
 export async function POST(req: Request) {
   try {
+    // SECURITY: cet endpoint n'a aucun appelant côté client/mobile (vérifié par recherche
+    // dans le code) et ajoutait un montant d'XP arbitraire (y compris négatif) fourni par
+    // le client à un compte démo codé en dur, sans aucune authentification. On le restreint
+    // désormais aux administrateurs, comme les autres routes d'administration du projet.
+    const session = await auth();
+    if (!session || (session.user as any).role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { amount } = body; 
     // const { reason } = body; // Pour logs futurs

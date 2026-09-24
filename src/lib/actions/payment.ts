@@ -40,15 +40,15 @@ export async function createGeniusPayment(packId: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new Error("Utilisateur introuvable.");
 
-    // --- DOUBLE BLINDAGE SÉCURITÉ ---
-    const backupPub = Buffer.from("cGtfbGl2ZV9BU3NFOTQ5Tkt6OHpkd2FHeTc2d1lIanlXNDEyYU5EMQ==", 'base64').toString();
-    const backupSec = Buffer.from("c2tfbGl2ZV8wYTM0YjM5NWI2OTBhM2ZkYmJiZWNlNzViOWY2MzUzN2RiZmU5MzcyMDU0YmI5ODEyMjAzNjgzNDhkOWFmMmYz", 'base64').toString();
-
-    const publicKey = (process.env.GENIUS_PAY_PUBLIC_KEY || backupPub)?.trim();
-    const secretKey = (process.env.GENIUS_PAY_SECRET_KEY || backupSec)?.trim();
+    // SECURITY: d'anciennes clés Genius Pay codées en dur ont été retirées de ce fichier —
+    // elles ont fuité dans l'historique Git et DOIVENT être révoquées/régénérées depuis le
+    // tableau de bord Genius Pay. Aucun fallback silencieux n'est toléré : on échoue
+    // explicitement si les variables d'environnement ne sont pas configurées.
+    const publicKey = process.env.GENIUS_PAY_PUBLIC_KEY?.trim();
+    const secretKey = process.env.GENIUS_PAY_SECRET_KEY?.trim();
 
     if (!publicKey || publicKey.length < 10 || !secretKey || secretKey.length < 10) {
-      throw new Error("Erreur critique : Configuration de paiement manquante.");
+      throw new Error("Erreur critique : Configuration de paiement manquante (GENIUS_PAY_PUBLIC_KEY / GENIUS_PAY_SECRET_KEY).");
     }
 
     // --- CRÉATION TRANSACTION ---

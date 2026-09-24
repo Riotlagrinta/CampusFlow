@@ -38,9 +38,13 @@ export default auth(async (req) => {
 
   // --- LOGIQUE DE PASSAGE ---
   if (isApiRoute) {
-    // CRITIQUE : Pour que l'API reçoive le header, il faut le mettre dans req.headers 
+    // CRITIQUE : Pour que l'API reçoive le header, il faut le mettre dans req.headers
     // et passer req à NextResponse.next
+    // SECURITY: x-user-email ne doit jamais pouvoir être forgé par le client. On le
+    // supprime systématiquement d'abord, puis on ne le redéfinit que si une identité a
+    // été vérifiée ci-dessus (session NextAuth ou JWT Bearer valide).
     const requestHeaders = new Headers(req.headers);
+    requestHeaders.delete("x-user-email");
     if (userEmail) {
       requestHeaders.set("x-user-email", userEmail);
     }

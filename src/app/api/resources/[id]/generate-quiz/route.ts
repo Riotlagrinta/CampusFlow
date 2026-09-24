@@ -42,6 +42,32 @@ export async function POST(
       return NextResponse.json({ error: 'Ressource non trouvée' }, { status: 404 });
     }
 
+    // SECURITY (IDOR) : vérifier que la ressource appartient à la filière/niveau de
+    // l'utilisateur (ou est publique/tronc commun), comme le fait déjà GET /api/resources.
+    // Les ADMIN passent toujours.
+    if (user.role !== 'ADMIN') {
+      const isShared = resource.fieldId === null && resource.levelId === null;
+      let fieldFilter: string | { in: string[] } | null = user.fieldId;
+      if (user.fieldId) {
+        const userField = await prisma.field.findUnique({ where: { id: user.fieldId } });
+        if (userField?.code === 'GL' || userField?.code === 'RIT') {
+          const sharedFields = await prisma.field.findMany({
+            where: { code: { in: ['GL', 'RIT'] } },
+            select: { id: true }
+          });
+          fieldFilter = { in: sharedFields.map(f => f.id) };
+        }
+      }
+      const fieldMatches = fieldFilter && typeof fieldFilter === 'object'
+        ? !!resource.fieldId && fieldFilter.in.includes(resource.fieldId)
+        : resource.fieldId === fieldFilter;
+      const isOwn = fieldMatches && resource.levelId === user.academicLevelId;
+
+      if (!isShared && !isOwn) {
+        return NextResponse.json({ error: 'Accès refusé à cette ressource.' }, { status: 403 });
+      }
+    }
+
     let fullText = "";
 
     // 1. GESTION DES LIENS EXTERNES (Google Drive)

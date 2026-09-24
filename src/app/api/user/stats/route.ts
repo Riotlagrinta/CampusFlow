@@ -25,7 +25,9 @@ export async function GET(req: Request) {
       }
     }
 
-    // Accès mobile via header (JWT vérifié par le middleware)
+    // Accès mobile via header (JWT vérifié par le middleware). SECURITY: ce header n'est
+    // fiable que parce que middleware.ts le supprime désormais systématiquement et ne le
+    // redéfinit que pour une identité vérifiée — ne jamais le lire ailleurs sans cette garantie.
     if (!userEmail) {
       const headerEmail = req.headers.get('x-user-email');
       if (headerEmail) userEmail = headerEmail;

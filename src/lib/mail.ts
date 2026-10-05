@@ -1,38 +1,61 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
-export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
+// À utiliser pour toute donnée saisie par un utilisateur insérée dans un email HTML.
+export function escapeHtml(value: string | null | undefined): string {
+  return (value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+}
+
+let transporter: Transporter | null = null;
+
+function getTransporter(user: string, pass: string) {
+  transporter ??= nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  });
+  return transporter;
+}
+
+/**
+ * Envoie un email. Renvoie `true` si le serveur SMTP a accepté le message, `false` sinon
+ * (configuration absente ou échec d'envoi) : l'appelant décide quoi dire à l'utilisateur.
+ * Ni le destinataire, ni le sujet, ni le contenu (codes OTP) ne sont journalisés.
+ */
+export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
   if (!gmailUser || !gmailPass) {
-    console.warn('❌ CONFIG EMAIL : Identifiants Gmail manquants dans .env.local');
-    return;
+    console.warn('EMAIL : GMAIL_USER / GMAIL_APP_PASSWORD manquants, message non envoyé.');
+    return false;
   }
 
-  console.log(`📧 TENTATIVE D'ENVOI MAIL : Vers ${to} | Sujet: ${subject}`);
-
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: gmailUser,
-      pass: gmailPass,
-    },
-  });
+  if (!to || !to.includes('@')) return false;
 
   try {
-    const info = await transporter.sendMail({
+    await getTransporter(gmailUser, gmailPass).sendMail({
       from: `"StudentHub" <${gmailUser}>`,
       to,
       subject,
       html,
     });
-    console.log('✅ MAIL ENVOYÉ ! ID Message:', info.messageId);
-    return info;
-  } catch (error: any) {
-    console.error('❌ ERREUR LORS DE L\'ENVOI DU MAIL :', error.message);
-    if (error.code === 'EAUTH') {
-      console.error('   Piste : Erreur d\'authentification ! Vérifiez GMAIL_APP_PASSWORD.');
+    return true;
+  } catch (error) {
+    const err = error as { code?: string; responseCode?: number };
+    console.error('EMAIL : échec d\'envoi', { code: err.code, responseCode: err.responseCode });
+    if (err.code === 'EAUTH') {
+      console.error('EMAIL : authentification refusée, vérifiez GMAIL_APP_PASSWORD.');
     }
-    throw error;
+    return false;
   }
 }

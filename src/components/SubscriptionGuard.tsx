@@ -3,10 +3,14 @@
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
+// La liste des pages publiques (PUBLIC_PAGES) est la même que celle de src/proxy.ts : elle vit
+// dans src/lib/routeAccess.ts pour que les deux ne puissent pas diverger.
+import { isPublicPage } from "@/lib/routeAccess";
 
 /**
- * SubscriptionGuard sert maintenant uniquement à protéger le login.
- * L'accès aux fonctionnalités est libre (tant qu'on a des jetons).
+ * Filet de sécurité côté client : le proxy (src/proxy.ts) redirige déjà les visiteurs sans
+ * session, mais une session peut expirer ou être fermée dans un autre onglet pendant la
+ * navigation. L'accès aux fonctionnalités est libre (tant qu'on a des jetons).
  */
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     const { data: session, status } = useSession();
@@ -15,18 +19,14 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
 
     useEffect(() => {
         if (status === "loading") return;
+        if (isPublicPage(pathname)) return;
 
-        // 1. Liste des routes publiques (Accessibles à tous)
-        const publicRoutes = ["/", "/login", "/register", "/about", "/subscribe"];
-        const isPublicRoute = publicRoutes.some(route => pathname === route);
-
-        if (isPublicRoute || pathname.startsWith("/api/")) return;
-
-        // 2. Si pas de session, retour au login
+        // Pas de session sur une page protégée : retour au login, avec le chemin et les
+        // paramètres d'origine pour y revenir après connexion.
         if (!session) {
-            router.push("/login");
+            const target = `${window.location.pathname}${window.location.search}`;
+            router.replace(`/login?callbackUrl=${encodeURIComponent(target)}`);
         }
-        
     }, [session, status, pathname, router]);
 
     return <>{children}</>;

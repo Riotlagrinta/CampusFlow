@@ -1,48 +1,107 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import bcrypt from "bcryptjs";
-import { checkRateLimit, getRateLimitKey, safeCompare } from '@/lib/rateLimit';
+import { safeCompare } from '@/lib/rateLimit';
+import {
+  BCRYPT_COST,
+  MAX_OTP_ATTEMPTS,
+  checkLimits,
+  clientIp,
+  firstIssue,
+  identifierKey,
+  identifierSchema,
+  identifierWhere,
+  otpCodeSchema,
+  passwordSchema,
+  rateKey,
+  tooManyRequests,
+} from '@/lib/authHelpers';
+
+const resetSchema = z.object({
+  identifier: identifierSchema,
+  code: otpCodeSchema,
+  newPassword: passwordSchema,
+});
+
+// Message unique pour tous les échecs (compte inconnu, code faux, expiré, épuisé).
+const INVALID_CODE = { error: 'Code incorrect ou expiré. Veuillez refaire une demande.' };
 
 export async function POST(req: Request) {
   try {
-    const key = getRateLimitKey(req);
-    const { allowed, retryAfterMs } = checkRateLimit(key, 5, 10 * 60 * 1000);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: 'Trop de tentatives. Veuillez réessayer plus tard.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
-      );
+    const body = await req.json().catch(() => null);
+    const parsed = resetSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: firstIssue(parsed.error, 'Tous les champs sont requis') }, { status: 400 });
     }
+    const { identifier, code, newPassword } = parsed.data;
 
-    const { identifier, code, newPassword } = await req.json();
-
-    if (!identifier || !code || !newPassword) {
-      return NextResponse.json({ error: 'Tous les champs sont requis' }, { status: 400 });
-    }
-
-    if (newPassword.length < 8) {
-      return NextResponse.json({ error: 'Mot de passe trop court (minimum 8 caractères)' }, { status: 400 });
-    }
+    const limit = await checkLimits([
+      { key: rateKey('reset:ip', clientIp(req)), limit: 20, windowMs: 15 * 60 * 1000 },
+      { key: rateKey('reset:id', identifierKey(identifier)), limit: 10, windowMs: 15 * 60 * 1000 },
+    ]);
+    if (!limit.allowed) return tooManyRequests(limit.retryAfterMs);
 
     const user = await prisma.user.findFirst({
-      where: { OR: [{ email: identifier }, { phone: identifier }] }
+      where: { ...identifierWhere(identifier), isActive: true },
+      select: { id: true, resetCode: true, resetCodeExpires: true },
     });
 
-    // HIGH FIX: comparaison en temps constant pour éviter les timing attacks
-    const codeValid = user?.resetCode ? safeCompare(user.resetCode, code) : false;
-    if (!user || !codeValid) {
-      return NextResponse.json({ error: 'Code de validation incorrect' }, { status: 400 });
+    const storedCode = user?.resetCode;
+    if (!user || !storedCode) {
+      return NextResponse.json(INVALID_CODE, { status: 400 });
     }
 
-    if (!user.resetCodeExpires || new Date() > user.resetCodeExpires) {
-      return NextResponse.json({ error: 'Code expiré. Veuillez refaire une demande.' }, { status: 400 });
+    // Code expiré : on l'invalide.
+    if (!user.resetCodeExpires || user.resetCodeExpires <= new Date()) {
+      await prisma.user.updateMany({
+        where: { id: user.id, resetCode: storedCode },
+        data: { resetCode: null, resetCodeExpires: null, resetAttempts: 0 },
+      });
+      return NextResponse.json(INVALID_CODE, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: hashedPassword, resetCode: null, resetCodeExpires: null }
+    // L'essai est compté AVANT la comparaison (incrément conditionnel atomique) : des requêtes
+    // parallèles ne peuvent pas dépasser le plafond de tentatives.
+    const counted = await prisma.user.updateMany({
+      where: { id: user.id, resetCode: storedCode, resetAttempts: { lt: MAX_OTP_ATTEMPTS } },
+      data: { resetAttempts: { increment: 1 } },
     });
+    if (counted.count !== 1) {
+      await prisma.user.updateMany({
+        where: { id: user.id, resetAttempts: { gte: MAX_OTP_ATTEMPTS } },
+        data: { resetCode: null, resetCodeExpires: null },
+      });
+      return NextResponse.json(INVALID_CODE, { status: 400 });
+    }
+
+    if (!safeCompare(storedCode, code)) {
+      // Cinquième échec : le code est détruit.
+      await prisma.user.updateMany({
+        where: { id: user.id, resetAttempts: { gte: MAX_OTP_ATTEMPTS } },
+        data: { resetCode: null, resetCodeExpires: null },
+      });
+      return NextResponse.json(INVALID_CODE, { status: 400 });
+    }
+
+    // Le hachage (coûteux) n'a lieu qu'après validation du code.
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COST);
+
+    // Usage unique : la consommation du code est conditionnelle. `passwordChangedAt` révoque toutes
+    // les sessions ouvertes avant ce changement (voir getAuthUser).
+    const consumed = await prisma.user.updateMany({
+      where: { id: user.id, resetCode: storedCode, resetCodeExpires: { gt: new Date() } },
+      data: {
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        resetCode: null,
+        resetCodeExpires: null,
+        resetAttempts: 0,
+      },
+    });
+    if (consumed.count !== 1) {
+      return NextResponse.json(INVALID_CODE, { status: 400 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

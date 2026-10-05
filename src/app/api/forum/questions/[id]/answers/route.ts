@@ -1,61 +1,106 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { addXP } from '@/lib/xp';
-import { auth } from "@/../auth";
-import { sendPushNotification } from "@/lib/notifications";
+import { getAuthUser } from '@/lib/session';
+import { publicAuthorSelect } from '@/lib/selects';
+import { awardActionXP } from '@/lib/xp';
+import { getScopeProfile, questionScopeWhere } from '@/lib/academicScope';
+import { checkRateLimitDb, getRateLimitKey } from '@/lib/rateLimit';
+import { sendPushNotification } from '@/lib/notifications';
+import { ANSWER_XP_MIN_LENGTH, answerSchema, firstIssue } from '../../../_lib/forum';
 
-function sanitizeHtml(text: string): string {
-    // Supprime les balises script
-    return text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // Pour une désinfection plus robuste, une bibliothèque dédiée serait préférable (ex: DOMPurify ou xss)
-}
+const HOUR_MS = 60 * 60 * 1000;
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session || !session.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    const authUser = await getAuthUser(req);
+    if (!authUser) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const [byUser, byIp] = await Promise.all([
+      checkRateLimitDb(`forum-answer:user:${authUser.id}`, 30, HOUR_MS),
+      checkRateLimitDb(`forum-answer:ip:${getRateLimitKey(req)}`, 60, HOUR_MS),
+    ]);
+    if (!byUser.allowed || !byIp.allowed) {
+      const retryAfter = Math.ceil(Math.max(byUser.retryAfterMs, byIp.retryAfterMs) / 1000);
+      return NextResponse.json(
+        { error: 'Trop de réponses publiées. Réessayez plus tard.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      );
     }
 
     const { id } = await params;
-    const { content } = await req.json();
-    
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const sanitizedContent = sanitizeHtml(content);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Corps de requête invalide' }, { status: 400 });
+    }
+    const parsed = answerSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
+    const { content } = parsed.data;
 
-    const answer = await prisma.answer.create({
-      data: {
-        content: sanitizedContent,
-        questionId: id,
-        authorId: user.id
-      },
-      include: {
-        author: { select: { firstName: true, lastName: true, level: true } },
-        question: { include: { author: true } }
-      }
+    const profile = await getScopeProfile(authUser.id);
+    if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    const scope = await questionScopeWhere(profile);
+
+    // Question inexistante ou hors de sa filière/niveau : 404.
+    const question = await prisma.question.findFirst({
+      where: { AND: [{ id }, scope] },
+      select: { id: true, authorId: true, author: { select: { pushToken: true } } },
     });
+    if (!question) return NextResponse.json({ error: 'Question introuvable' }, { status: 404 });
 
-    // Envoyer une notification Push à l'auteur de la question (si ce n'est pas lui qui répond)
-    if (answer.question.authorId !== user.id && answer.question.author.pushToken) {
-        await sendPushNotification(
-            answer.question.author.pushToken,
-            "Nouvelle réponse ! 💬",
-            `${user.firstName} a répondu à votre question sur le forum.`,
-            { questionId: id }
-        );
+    const duplicate = await prisma.answer.findFirst({
+      where: { questionId: question.id, authorId: authUser.id, content },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return NextResponse.json({ error: 'Vous avez déjà publié cette réponse' }, { status: 409 });
     }
 
-    // Bonus XP automatique (+10 XP)
-    await addXP(user.id, 10);
+    const answer = await prisma.answer.create({
+      data: { content, questionId: question.id, authorId: authUser.id },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        isAccepted: true,
+        author: { select: publicAuthorSelect },
+      },
+    });
 
-    return NextResponse.json(answer);
+    const isOwnQuestion = question.authorId === authUser.id;
+
+    // Notification push à l'auteur de la question (jamais bloquante).
+    if (!isOwnQuestion && question.author.pushToken) {
+      try {
+        await sendPushNotification(
+          question.author.pushToken,
+          'Nouvelle réponse ! 💬',
+          `${answer.author.firstName ?? 'Un étudiant'} a répondu à votre question sur le forum.`,
+          { questionId: question.id }
+        );
+      } catch (e) {
+        console.error('Erreur notification réponse:', e);
+      }
+    }
+
+    // XP plafonné par jour, jamais pour répondre à sa propre question ni pour une réponse trop courte.
+    let xpGained = 0;
+    if (!isOwnQuestion && content.length >= ANSWER_XP_MIN_LENGTH) {
+      try {
+        xpGained = (await awardActionXP(authUser.id, 'forum_answer')).amount;
+      } catch (e) {
+        console.error('Erreur XP réponse:', e);
+      }
+    }
+
+    return NextResponse.json({ ...answer, xpGained });
   } catch (error) {
     console.error('Erreur POST answer:', error);
-    return NextResponse.json({ error: 'Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -1,28 +1,27 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from "@/../auth";
+import { getAuthUser } from '@/lib/session';
 
 export async function DELETE(
-  req: Request, 
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session || !session.user?.email) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const user = await getAuthUser(req);
+    if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
     const { id: setId } = await params;
 
-    // Vérifier la propriété
-    const set = await prisma.flashcardSet.findUnique({ where: { id: setId } });
-    if (!set || set.userId !== user.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
-
-    await prisma.flashcardSet.delete({ where: { id: setId } });
+    // Propriété vérifiée dans la requête elle-même (pas de lire-puis-supprimer).
+    // Les cartes sont supprimées en cascade (onDelete: Cascade sur Flashcard.set).
+    const deleted = await prisma.flashcardSet.deleteMany({ where: { id: setId, userId: user.id } });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Jeu de cartes introuvable' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Server Error' }, { status: 500 });
+    console.error('[flashcards] DELETE:', error instanceof Error ? error.name : 'erreur inconnue');
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

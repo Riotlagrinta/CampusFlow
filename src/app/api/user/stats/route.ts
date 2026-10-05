@@ -1,50 +1,26 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from "@/../auth";
+import { getAuthUser } from '@/lib/session';
+import { getUserRank } from '@/lib/xp';
 
+// Statistiques de l'utilisateur connecté (cookie NextAuth ou Bearer mobile).
+// Aucune donnée d'un autre utilisateur n'est jamais renvoyée : pas de paramètre email.
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-
-    // CRITICAL FIX: on ignorait le paramètre email côté client qui permettait de lire
-    // les données de n'importe quel utilisateur. Désormais seul l'utilisateur connecté
-    // peut lire ses propres stats — sauf les admins qui peuvent passer un email cible.
-    let userEmail: string | null = null;
-
-    if (session?.user?.email) {
-      const caller = await prisma.user.findUnique({
-        where: { email: session.user.email },
-        select: { role: true }
-      });
-
-      if (caller?.role === 'ADMIN') {
-        const { searchParams } = new URL(req.url);
-        userEmail = searchParams.get('email') || session.user.email;
-      } else {
-        userEmail = session.user.email;
-      }
-    }
-
-    // Accès mobile via header (JWT vérifié par le middleware). SECURITY: ce header n'est
-    // fiable que parce que middleware.ts le supprime désormais systématiquement et ne le
-    // redéfinit que pour une identité vérifiée — ne jamais le lire ailleurs sans cette garantie.
-    if (!userEmail) {
-      const headerEmail = req.headers.get('x-user-email');
-      if (headerEmail) userEmail = headerEmail;
-    }
-
-    if (!userEmail) {
+    const authUser = await getAuthUser(req);
+    if (!authUser) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: userEmail },
+      where: { id: authUser.id },
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
         role: true,
+        isActive: true,
         image: true,
         xp: true,
         level: true,
@@ -52,8 +28,12 @@ export async function GET(req: Request) {
         bio: true,
         aiBonusRequests: true,
         referralCode: true,
-        badges: { include: { badge: true } },
-        quizAttempts: true
+        badges: {
+          select: {
+            obtainedAt: true,
+            badge: { select: { id: true, slug: true, name: true, description: true, icon: true } }
+          }
+        }
       }
     });
 
@@ -61,20 +41,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }
 
-    const averageScore = user.quizAttempts.length > 0
-      ? user.quizAttempts.reduce((acc: number, curr: { score: number }) => acc + curr.score, 0) / user.quizAttempts.length
-      : 0;
-
-    const higherRankUserCount = await prisma.user.count({
-      where: { xp: { gt: user.xp } }
-    });
-    const rank = higherRankUserCount + 1;
+    // Rang : même calcul que /api/user/dashboard-stats et le classement (/api/leaderboard).
+    // Un compte exclu du classement (ADMIN, compte IA, inactif) n'a pas de rang.
+    const [attempts, rank] = await Promise.all([
+      prisma.quizAttempt.aggregate({
+        where: { userId: user.id },
+        _avg: { score: true },
+        _count: { _all: true }
+      }),
+      getUserRank(user)
+    ]);
 
     return NextResponse.json({
       ...user,
       rank,
-      averageScore,
-      quizAttemptsCount: user.quizAttempts.length
+      averageScore: Math.round(attempts._avg.score ?? 0),
+      quizAttemptsCount: attempts._count._all
     });
   } catch (error) {
     console.error('Erreur stats user:', error);

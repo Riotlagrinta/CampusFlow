@@ -1,21 +1,25 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Zap, ShieldCheck, CreditCard, Loader2, ArrowRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 import { TiltCard } from '@/components/TiltCard';
+import { TOPUP_PACKS, formatPrice } from '@/lib/packs';
+import { isPaymentsEnabled } from '@/lib/payments';
 
-const PACKS = [
-  { id: 'starter', name: 'Pack Découverte', tokens: 50, price: 500, description: 'Parfait pour un devoir rapide.', color: 'from-blue-500 to-cyan-400', popular: false },
-  { id: 'pro', name: 'Pack Révision', tokens: 150, price: 1000, description: 'Idéal pour préparer un examen.', color: 'from-purple-600 to-blue-500', popular: true },
-  { id: 'master', name: 'Pack Master', tokens: 500, price: 2000, description: 'Accès illimité pour tout le semestre.', color: 'from-amber-500 to-orange-400', popular: false },
-];
+// Contenu (nom, prix, jetons) : source unique dans @/lib/packs. Ici, seulement l'apparence.
+const PACK_COLORS: Record<string, string> = {
+  starter: 'from-blue-500 to-cyan-400',
+  pro: 'from-purple-600 to-blue-500',
+  master: 'from-amber-500 to-orange-400',
+};
+const DEFAULT_COLOR = 'from-blue-500 to-cyan-400';
 
 const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay, type: 'spring' as const, stiffness: 80 } });
 
-export default function ShopPage() {
+function ShopContent() {
   const router = useRouter();
   const { play } = useSound();
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -54,7 +58,7 @@ export default function ShopPage() {
 
         {/* Packs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {PACKS.map((pack, index) => (
+          {TOPUP_PACKS.map((pack, index) => (
             <motion.div key={pack.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * index, type: 'spring', stiffness: 80 }}>
               <TiltCard>
                 <motion.div
@@ -72,7 +76,7 @@ export default function ShopPage() {
 
                   <motion.div
                     whileHover={{ rotate: 10, scale: 1.1 }}
-                    className={`w-14 h-14 bg-gradient-to-br ${pack.color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-6`}
+                    className={`w-14 h-14 bg-gradient-to-br ${PACK_COLORS[pack.id] ?? DEFAULT_COLOR} rounded-2xl flex items-center justify-center text-white shadow-lg mb-6`}
                   >
                     {pack.id === 'starter' ? <Zap /> : pack.id === 'pro' ? <MessageCircle /> : <Sparkles />}
                   </motion.div>
@@ -86,12 +90,12 @@ export default function ShopPage() {
                         className="text-4xl font-black tracking-tight"
                         initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + index * 0.1, type: 'spring' }}
                       >
-                        {pack.price}
+                        {formatPrice(pack.price)}
                       </motion.span>
                       <span className="text-sm font-bold uppercase">FCFA</span>
                     </div>
                     <div className="text-blue-600 dark:text-blue-400 font-black text-2xl mt-2">
-                      {pack.tokens} <span className="text-xs uppercase tracking-widest">Jetons</span>
+                      {formatPrice(pack.tokens)} <span className="text-xs uppercase tracking-widest">Jetons</span>
                     </div>
                   </div>
 
@@ -143,4 +147,11 @@ export default function ShopPage() {
       </div>
     </div>
   );
+}
+
+export default function ShopPage() {
+  // Paiements désactivés (freemium) : la page n'existe pas. Le proxy redirige déjà vers « / » ;
+  // ceci est le filet de sécurité si la page est atteinte autrement.
+  if (!isPaymentsEnabled()) redirect('/');
+  return <ShopContent />;
 }

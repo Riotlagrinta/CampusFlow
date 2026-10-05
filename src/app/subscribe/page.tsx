@@ -11,81 +11,74 @@ import {
     ArrowRight,
     Sparkles,
     Shield,
-    Clock
+    Clock,
+    AlertCircle
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import InteractiveTutorial from '@/components/InteractiveTutorial';
 import { createGeniusPayment } from '@/lib/actions/payment';
+import { SUBSCRIPTION_PACKS, formatDuration, formatPrice, type Pack } from '@/lib/packs';
+import { isPaymentsEnabled } from '@/lib/payments';
 
-export default function SubscribePage() {
-    const { data: session } = useSession();
-    const [loading, setLoading] = useState(false);
+// Présentation propre à la page. Prix, jetons et durée viennent de @/lib/packs (source unique).
+const PLAN_UI: Record<string, { icon: React.ReactNode; color: string; extras: string[] }> = {
+    monthly_basic: {
+        icon: <Shield className="text-zinc-400" />,
+        color: 'bg-zinc-500/10 text-zinc-500',
+        extras: ['Assistant IA standard', 'Ressources de base']
+    },
+    quarterly_promo: {
+        icon: <Zap className="text-blue-500" />,
+        color: 'bg-blue-500/10 text-blue-600',
+        extras: ['Support prioritaire']
+    },
+    semestriel_elite: {
+        icon: <Sparkles className="text-emerald-500" />,
+        color: 'bg-emerald-500/10 text-emerald-600',
+        extras: ['Accès avant-première']
+    },
+    token_master: {
+        icon: <CreditCard className="text-orange-500" />,
+        color: 'bg-orange-500/10 text-orange-600',
+        extras: ['Usage intensif IA']
+    }
+};
+
+function planFeatures(pack: Pack): string[] {
+    const features = [`Accès à la plateforme pendant ${pack.durationDays ? formatDuration(pack.durationDays) : '—'}`];
+    if (pack.tokens > 0) features.push(`${formatPrice(pack.tokens)} jetons IA inclus`);
+    return [...features, ...(PLAN_UI[pack.id]?.extras ?? [])];
+}
+
+function SubscribeContent() {
+    const { status } = useSession();
+    const [loadingId, setLoadingId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [showTutorial, setShowTutorial] = useState(true);
     const router = useRouter();
-    const PLANS = [
-        {
-            id: 'monthly_basic',
-            name: 'Basique',
-            price: '500',
-            duration: '1 mois',
-            features: ['Accès illimité au site', 'Assistant IA standard', 'Ressources de base'],
-            icon: <Shield className="text-zinc-400" />,
-            color: 'bg-zinc-500/10 text-zinc-500'
-        },
-        {
-            id: 'quarterly_promo',
-            name: 'Trimestriel',
-            price: '2.000',
-            duration: '3 mois',
-            bonus: '+500 Jetons IA',
-            features: ['Accès illimité 3 mois', '500 Jetons Bonus', 'Support prioritaire'],
-            icon: <Zap className="text-blue-500" />,
-            color: 'bg-blue-500/10 text-blue-600',
-            recommended: true
-        },
-        {
-            id: 'semestriel_elite',
-            name: 'Semestriel Elite',
-            price: '2.500',
-            duration: '6 mois',
-            bonus: '+1.000 Jetons IA',
-            features: ['Accès tout le semestre', '1000 Jetons Bonus', 'Accès avant-première'],
-            icon: <Sparkles className="text-emerald-500" />,
-            color: 'bg-emerald-500/10 text-emerald-600'
-        },
-        {
-            id: 'token_master',
-            name: 'Token Master',
-            price: '2.000',
-            duration: '1 mois offert',
-            bonus: '5.000 Jetons IA',
-            features: ['5000 Jetons IA', '1 mois d\'accès offert', 'Usage intensif IA'],
-            icon: <CreditCard className="text-orange-500" />,
-            color: 'bg-orange-500/10 text-orange-600'
-        }
-    ];
 
     const handleSubscribe = async (packId: string) => {
-        if (!session) {
+        if (status === 'loading') return;
+        if (status !== 'authenticated') {
             router.push("/login");
             return;
         }
-        setLoading(true);
+        setLoadingId(packId);
+        setError(null);
         try {
             const data = await createGeniusPayment(packId);
             if (data.url) {
-                window.location.href = data.url;
-            } else {
-                alert(data.error || "Une erreur est survenue");
+                window.location.assign(data.url);
+                return;
             }
-        } catch (error) {
-            console.error(error);
-            alert("Erreur d'initialisation du paiement");
-        } finally {
-            setLoading(false);
+            setError(data.error || "Une erreur est survenue");
+        } catch (e) {
+            console.error(e);
+            setError("Erreur d'initialisation du paiement");
         }
+        setLoadingId(null);
     };
 
     return (
@@ -120,9 +113,16 @@ export default function SubscribePage() {
                     </motion.p>
                 </div>
 
+                {error && (
+                    <div role="alert" className="max-w-xl mx-auto flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm font-medium">
+                        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                        <p>{error}</p>
+                    </div>
+                )}
+
                 {/* Pricing Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {PLANS.map((plan, idx) => (
+                    {SUBSCRIPTION_PACKS.map((plan, idx) => (
                         <motion.div
                             key={plan.id}
                             initial={{ opacity: 0, y: 30 }}
@@ -130,38 +130,38 @@ export default function SubscribePage() {
                             transition={{ delay: idx * 0.1 }}
                             className={cn(
                                 "glass-card p-8 bg-white dark:bg-zinc-900/50 rounded-[2.5rem] border-2 flex flex-col relative overflow-hidden transition-all hover:scale-[1.03]",
-                                plan.recommended ? "border-blue-600 shadow-2xl shadow-blue-500/10" : "border-zinc-100 dark:border-zinc-800"
+                                plan.popular ? "border-blue-600 shadow-2xl shadow-blue-500/10" : "border-zinc-100 dark:border-zinc-800"
                             )}
                         >
-                            {plan.recommended && (
+                            {plan.popular && (
                                 <div className="absolute top-4 right-4 px-3 py-1 bg-blue-600 text-[9px] font-black text-white rounded-full uppercase tracking-tighter">
                                     Recommandé
                                 </div>
                             )}
 
                             <div className="space-y-6 flex-1">
-                                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", plan.color)}>
-                                    {plan.icon}
+                                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", PLAN_UI[plan.id]?.color)}>
+                                    {PLAN_UI[plan.id]?.icon}
                                 </div>
 
                                 <div className="space-y-1">
-                                    <h3 className="text-xl font-black tracking-tight">{plan.name}</h3>
-                                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{plan.duration}</p>
+                                    <h3 className="text-xl font-black tracking-tight">{plan.shortName}</h3>
+                                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{plan.durationDays ? formatDuration(plan.durationDays) : ''}</p>
                                 </div>
 
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-4xl font-black tracking-tighter">{plan.price}</span>
+                                    <span className="text-4xl font-black tracking-tighter">{formatPrice(plan.price)}</span>
                                     <span className="text-xs font-bold text-zinc-400">FCFA</span>
                                 </div>
 
-                                {plan.bonus && (
+                                {plan.tokens > 0 && (
                                     <div className="px-3 py-2 bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-[10px] font-black uppercase text-center">
-                                        {plan.bonus}
+                                        +{formatPrice(plan.tokens)} Jetons IA
                                     </div>
                                 )}
 
                                 <ul className="space-y-3 pt-4">
-                                    {plan.features.map((feature, fIdx) => (
+                                    {planFeatures(plan).map((feature, fIdx) => (
                                         <li key={fIdx} className="flex items-center gap-2 text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
                                             <CheckCircle2 size={14} className="text-blue-500 shrink-0" />
                                             {feature}
@@ -172,13 +172,13 @@ export default function SubscribePage() {
 
                             <button
                                 onClick={() => handleSubscribe(plan.id)}
-                                disabled={loading}
+                                disabled={loadingId !== null}
                                 className={cn(
-                                    "w-full py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] mt-8 flex items-center justify-center gap-2 transition-all",
-                                    plan.recommended ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                                    "w-full py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] mt-8 flex items-center justify-center gap-2 transition-all disabled:opacity-60",
+                                    plan.popular ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                                 )}
                             >
-                                {loading ? <Clock size={14} className="animate-spin" /> : <>Débloquer <ArrowRight size={14} /></>}
+                                {loadingId === plan.id ? <Clock size={14} className="animate-spin" /> : <>Débloquer <ArrowRight size={14} /></>}
                             </button>
                         </motion.div>
                     ))}
@@ -198,4 +198,11 @@ export default function SubscribePage() {
             </div>
         </div>
     );
+}
+
+export default function SubscribePage() {
+    // Paiements désactivés (freemium) : la page n'existe pas. Le proxy redirige déjà vers « / » ;
+    // ceci est le filet de sécurité si la page est atteinte autrement.
+    if (!isPaymentsEnabled()) redirect('/');
+    return <SubscribeContent />;
 }

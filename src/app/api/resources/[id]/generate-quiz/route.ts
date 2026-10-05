@@ -1,192 +1,198 @@
-import { chatCompletionWithRotation } from "@/lib/ai";
 import { NextResponse } from "next/server";
-import fs from 'fs';
-import path from 'path';
-import { prisma } from '@/lib/prisma';
-import { auth } from "@/../auth";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { getAuthUser } from "@/lib/session";
+import {
+  UNTRUSTED_DATA_NOTICE,
+  aiFailureResponse,
+  canAccessResource,
+  chatCompletionWithRotation,
+  completionText,
+  inlineValue,
+  parseLlmJson,
+  readResourceText,
+  remainingBudgetMs,
+  resolveResourceSource,
+  wrapUntrusted,
+} from "@/lib/ai";
+import {
+  consumeAiRequest,
+  enforceRateLimit,
+  quotaExceededResponse,
+  recordAiTokens,
+  refundAiRequest,
+} from "@/lib/quota";
 
-const DAILY_QUIZ_LIMIT = 2;
+export const maxDuration = 60;
+
+const DOCUMENT_CHARS = 16_000;
+const MAX_QUESTIONS = 30;
+const MIN_VALID_QUESTIONS = 3;
+
+// Corps optionnel : ID d'un fichier choisi dans un dossier Google Drive (format validé plus loin).
+const bodySchema = z.object({ driveFileId: z.string().max(100).nullish() });
+
+// Sortie du LLM : jamais utilisée sans validation. `answer` = index de la bonne option.
+const questionSchema = z
+  .object({
+    question: z.string().trim().min(3).max(600),
+    options: z.array(z.string().trim().min(1).max(300)).min(2).max(6),
+    answer: z.coerce.number().int().min(0),
+  })
+  .refine((q) => q.answer < q.options.length, { message: "answer hors des options" });
+
+const quizHeaderSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(1000).optional(),
+});
+
+function normalizeQuiz(parsed: unknown) {
+  if (!parsed || typeof parsed !== "object") return null;
+  const obj = parsed as Record<string, unknown>;
+  if (!Array.isArray(obj.questions)) return null;
+
+  const questions: z.infer<typeof questionSchema>[] = [];
+  for (const item of obj.questions) {
+    const q = questionSchema.safeParse(item);
+    if (q.success) questions.push(q.data);
+    if (questions.length >= MAX_QUESTIONS) break;
+  }
+  if (questions.length < MIN_VALID_QUESTIONS) return null;
+
+  const header = quizHeaderSchema.safeParse(obj);
+  return {
+    title: header.success ? header.data.title : undefined,
+    description: header.success ? header.data.description : undefined,
+    questions,
+  };
+}
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startedAt = Date.now();
+
   try {
-    const session = await auth();
-    if (!session || !session.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    const authUser = await getAuthUser(req);
+    if (!authUser) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const { driveFileId } = await req.json(); // Optionnel : ID d'un fichier dans un dossier
-    const { PDFParse } = require('pdf-parse');
+    const limited = await enforceRateLimit(req, authUser.id, "ai-quiz", { perUser: 4, perIp: 15 });
+    if (limited) return limited;
+
+    const body = bodySchema.safeParse(await req.json().catch(() => ({})));
+    if (!body.success) return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+    const driveFileId = body.data.driveFileId || null;
+
     const { id } = await params;
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const dailyUsage = await prisma.dailyAIUsage.upsert({
-      where: { userId_date: { userId: user.id, date: today } },
-      update: {},
-      create: { userId: user.id, date: today, requestCount: 0 },
+    const user = await prisma.user.findUnique({
+      where: { id: authUser.id },
+      select: { role: true, fieldId: true, academicLevelId: true },
     });
+    if (!user) return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
 
-    if ((DAILY_QUIZ_LIMIT + user.aiBonusRequests - dailyUsage.quizRequestCount) <= 0) {
-      return NextResponse.json({ error: "Quota quizz dépassé.", quotaExceeded: true }, { status: 429 });
-    }
-
-    const resource = await prisma.resource.findUnique({ where: { id } });
-    if (!resource) {
-      return NextResponse.json({ error: 'Ressource non trouvée' }, { status: 404 });
-    }
-
-    // SECURITY (IDOR) : vérifier que la ressource appartient à la filière/niveau de
-    // l'utilisateur (ou est publique/tronc commun), comme le fait déjà GET /api/resources.
-    // Les ADMIN passent toujours.
-    if (user.role !== 'ADMIN') {
-      const isShared = resource.fieldId === null && resource.levelId === null;
-      let fieldFilter: string | { in: string[] } | null = user.fieldId;
-      if (user.fieldId) {
-        const userField = await prisma.field.findUnique({ where: { id: user.fieldId } });
-        if (userField?.code === 'GL' || userField?.code === 'RIT') {
-          const sharedFields = await prisma.field.findMany({
-            where: { code: { in: ['GL', 'RIT'] } },
-            select: { id: true }
-          });
-          fieldFilter = { in: sharedFields.map(f => f.id) };
-        }
-      }
-      const fieldMatches = fieldFilter && typeof fieldFilter === 'object'
-        ? !!resource.fieldId && fieldFilter.in.includes(resource.fieldId)
-        : resource.fieldId === fieldFilter;
-      const isOwn = fieldMatches && resource.levelId === user.academicLevelId;
-
-      if (!isShared && !isOwn) {
-        return NextResponse.json({ error: 'Accès refusé à cette ressource.' }, { status: 403 });
-      }
-    }
-
-    let fullText = "";
-
-    // 1. GESTION DES LIENS EXTERNES (Google Drive)
-    if (resource.url.startsWith('http')) {
-      if (resource.url.includes('drive.google.com')) {
-        try {
-          let fileId = driveFileId;
-
-          if (!fileId) {
-            // Détection robuste ID et Type (Dossier vs Fichier)
-            const folderMatch = resource.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-            const fileMatch = resource.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-            let idParam = "";
-            try {
-              idParam = new URL(resource.url).searchParams.get('id') || "";
-            } catch { }
-
-            // Si c'est un dossier (via /folders/ ou via l'URL contenant 'folders')
-            if (folderMatch || (idParam && resource.url.includes('folders'))) {
-              return NextResponse.json({
-                isFolder: true,
-                error: "Ce lien est un dossier. Veuillez sélectionner un fichier."
-              }, { status: 200 });
-            }
-
-            // Sinon on cherche l'ID du fichier
-            fileId = fileMatch ? fileMatch[1] : idParam;
-          }
-
-          if (!fileId) throw new Error("ID Google Drive introuvable");
-
-          // Utilisation de l'API Google Drive officielle pour plus de fiabilité
-          const apiKey = process.env.GOOGLE_API_KEY;
-          const downloadUrl = apiKey
-            ? `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`
-            : `https://drive.google.com/uc?export=download&id=${fileId}`;
-
-          const response = await fetch(downloadUrl);
-
-          if (!response.ok) throw new Error("Impossible de télécharger le fichier depuis Drive");
-
-          const buffer = Buffer.from(await response.arrayBuffer());
-          const parser = new PDFParse({ data: buffer });
-          const result = await parser.getText();
-          fullText = result.text.substring(0, 20000);
-        } catch (err) {
-          console.error("Erreur Drive:", err);
-          return NextResponse.json({ error: "Impossible de lire ce lien Drive pour générer le quiz. Assurez-vous qu'il est public (Tous les utilisateurs disposant du lien)." }, { status: 400 });
-        }
-      } else {
-        return NextResponse.json({ error: "La génération de quiz n'est supportée que pour les fichiers locaux et Google Drive (Public)." }, { status: 400 });
-      }
-    } else {
-      // 2. GESTION DES FICHIERS LOCAUX
-      if (resource.type !== 'PDF') {
-        return NextResponse.json({ error: 'Fichier PDF non trouvé (Seuls les PDF sont supportés)' }, { status: 404 });
-      }
-
-      try {
-        const filePath = path.join(process.cwd(), 'public', resource.url);
-        if (!fs.existsSync(filePath)) throw new Error("Fichier introuvable");
-
-        const dataBuffer = fs.readFileSync(filePath);
-        const parser = new PDFParse({ data: dataBuffer });
-        const result = await parser.getText();
-        fullText = result.text.substring(0, 20000);
-      } catch (err) {
-        return NextResponse.json({ error: "Erreur lecture fichier local." }, { status: 500 });
-      }
-    }
-
-    // Utilisation de la rotation IA centralisée
-
-    const prompt = `Analyse ce texte de cours et génère un quiz pédagogique exhaustif de 15 questions au format JSON uniquement.
-    Structure: { "title": "", "description": "", "questions": [{ "question": "", "options": [], "answer": 0 }] }`;
-
-    const completion = await chatCompletionWithRotation({
-      messages: [
-        { role: "system", content: "Réponds uniquement en JSON valide." },
-        { role: "user", content: `Texte: ${fullText}\n\nInstruction: ${prompt}` }
-      ],
-      temperature: 0.3,
-      response_format: { type: "json_object" }
-    });
-
-    if (!completion) {
-      throw new Error("Service IA temporairement indisponible (Rotation épuisée).");
-    }
-
-    const quizData = JSON.parse(completion.choices[0]?.message?.content || "{}");
-
-    const quiz = await prisma.quiz.create({
-      data: {
-        title: quizData.title,
-        description: quizData.description,
-        subjectName: resource.subjectName || 'Général',
-        subjectId: resource.subjectId,
-        resourceId: resource.id,
-        questions: {
-          create: quizData.questions.map((q: any) => ({
-            question: q.question,
-            options: JSON.stringify(q.options),
-            answer: q.answer
-          }))
-        }
-      }
-    });
-
-    await prisma.dailyAIUsage.update({
-      where: { id: dailyUsage.id },
-      data: {
-        quizRequestCount: { increment: 1 },
-        tokensUsed: { increment: completion.usage?.total_tokens || 0 }
+    const resource = await prisma.resource.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        url: true,
+        fieldId: true,
+        levelId: true,
+        subjectName: true,
+        subjectId: true,
       },
     });
+    if (!resource) {
+      return NextResponse.json({ error: "Ressource non trouvée" }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, quizId: quiz.id });
+    // Isolation par filière/niveau (comme GET /api/resources) ; les ADMIN passent toujours.
+    if (!(await canAccessResource(user, resource))) {
+      return NextResponse.json({ error: "Accès refusé à cette ressource." }, { status: 403 });
+    }
+
+    // Vérifications rapides AVANT de consommer du quota.
+    const resolved = resolveResourceSource(resource, driveFileId);
+    if (!resolved.ok) {
+      // Un dossier Drive n'est pas une erreur : le client doit proposer un fichier du dossier.
+      return NextResponse.json(
+        resolved.isFolder ? { isFolder: true, error: resolved.error } : { error: resolved.error },
+        { status: resolved.status }
+      );
+    }
+
+    // Quota atomique AVANT le téléchargement et l'appel LLM, remboursé si aucun quiz n'est créé.
+    const quota = await consumeAiRequest(authUser.id, "quiz");
+    if (!quota.ok) return quotaExceededResponse();
+    const { ticket } = quota;
+
+    try {
+      const fullText = await readResourceText(resolved.source, DOCUMENT_CHARS);
+
+      const completion = await chatCompletionWithRotation({
+        messages: [
+          {
+            role: "system",
+            content:
+              "Tu es un enseignant. Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour. " +
+              UNTRUSTED_DATA_NOTICE,
+          },
+          {
+            role: "user",
+            content:
+              `Texte de cours :\n${wrapUntrusted("document", fullText)}\n\n` +
+              `Génère un quiz pédagogique de 15 questions à choix multiples (4 options chacune) à partir de ce texte, dans sa langue.\n` +
+              `Format exact : {"title":"...","description":"...","questions":[{"question":"...","options":["...","...","...","..."],"answer":0}]}\n` +
+              `"answer" est l'index (à partir de 0) de la bonne option.`,
+          },
+        ],
+        temperature: 0.3,
+        maxTokens: 3500,
+        response_format: { type: "json_object" },
+        totalTimeoutMs: remainingBudgetMs(startedAt),
+      });
+
+      await recordAiTokens(ticket, completion.usage?.total_tokens);
+
+      const quizData = normalizeQuiz(parseLlmJson(completionText(completion)));
+      if (!quizData) {
+        await refundAiRequest(ticket);
+        return NextResponse.json(
+          { error: "L'IA n'a pas produit de quiz exploitable. Votre requête n'a pas été décomptée, réessayez." },
+          { status: 502 }
+        );
+      }
+
+      const quiz = await prisma.quiz.create({
+        data: {
+          title: quizData.title || `Quiz : ${inlineValue(resource.title, 150)}`,
+          description: quizData.description || null,
+          subjectName: resource.subjectName || "Général",
+          subjectId: resource.subjectId,
+          resourceId: resource.id,
+          questions: {
+            create: quizData.questions.map((q) => ({
+              question: q.question,
+              options: JSON.stringify(q.options),
+              answer: q.answer,
+            })),
+          },
+        },
+        select: { id: true },
+      });
+
+      return NextResponse.json({ success: true, quizId: quiz.id });
+    } catch (error) {
+      await refundAiRequest(ticket);
+      return aiFailureResponse(error, "generate-quiz");
+    }
   } catch (error) {
-    console.error('Erreur Quiz IA:', error);
-    return NextResponse.json({ error: 'Échec de la génération' }, { status: 500 });
+    console.error("[generate-quiz] erreur inattendue:", error instanceof Error ? error.name : "erreur inconnue");
+    return NextResponse.json({ error: "Échec de la génération" }, { status: 500 });
   }
 }

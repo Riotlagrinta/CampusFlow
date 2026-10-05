@@ -1,43 +1,54 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/../auth';
+import { requireAdmin } from '@/lib/session';
 
-// CRITICAL FIX: cette route était accessible sans authentification.
-// Seul un ADMIN peut désormais octroyer des bonus.
+const BONUS_GRANTED = 5;
+
+const bodySchema = z.object({
+  email: z.string().trim().max(254).email(),
+});
+
+// Réservé aux ADMIN (rôle relu en base à chaque appel).
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session || !session.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    }
-
-    const caller = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { role: true }
-    });
-
-    if (!caller || caller.role !== 'ADMIN') {
+    const admin = await requireAdmin(req);
+    if (!admin) {
+      // 401 si anonyme, 403 si connecté sans droits : requireAdmin ne les distingue pas, on reste prudent.
       return NextResponse.json({ error: 'Accès interdit' }, { status: 403 });
     }
 
-    const { email } = await req.json();
-    if (!email) {
-      return NextResponse.json({ error: 'Email requis' }, { status: 400 });
+    const body = bodySchema.safeParse(await req.json().catch(() => null));
+    if (!body.success) {
+      return NextResponse.json({ error: 'Email valide requis' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+    let updated: { id: string; aiBonusRequests: number };
+    try {
+      updated = await prisma.user.update({
+        where: { email: body.data.email },
+        data: { aiBonusRequests: { increment: BONUS_GRANTED } },
+        select: { id: true, aiBonusRequests: true },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+      }
+      throw e;
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: { aiBonusRequests: { increment: 5 } }
-    });
+    // Journal d'audit structuré (aucune donnée personnelle : identifiants uniquement).
+    console.info(JSON.stringify({
+      event: 'ai_bonus_granted',
+      by: admin.id,
+      to: updated.id,
+      amount: BONUS_GRANTED,
+    }));
 
-    return NextResponse.json({ success: true, newBonus: updatedUser.aiBonusRequests });
+    return NextResponse.json({ success: true, newBonus: updated.aiBonusRequests });
   } catch (error) {
-    console.error('Erreur grant bonus:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('[grant-bonus] erreur:', error instanceof Error ? error.name : 'erreur inconnue');
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

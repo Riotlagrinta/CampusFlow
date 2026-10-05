@@ -1,13 +1,18 @@
 "use client";
 
 import React from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { Code2, Terminal, Heart, Coffee, MessageCircle, Github, Linkedin, Globe, Cpu, Smartphone, Rocket, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { Code2, Terminal, Heart, Coffee, MessageCircle, Globe, Cpu, Smartphone, Rocket, Zap } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 import { TiltCard } from '@/components/TiltCard';
-import { useRef } from 'react';
+import { fadeUp } from '@/lib/utils';
+import { isPaymentsEnabled } from '@/lib/payments';
 
-const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay, type: 'spring' as const, stiffness: 80 } });
+// Contact du développeur : numéro configurable (NEXT_PUBLIC_ADMIN_WHATSAPP, chiffres uniquement,
+// indicatif inclus), avec le numéro publié jusqu'ici comme valeur par défaut.
+const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '22871796050').replace(/\D/g, '');
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
 
 const SKILLS = [
   { icon: Globe, title: 'Web & Cloud', desc: "Création d'applications web modernes, rapides et évolutives.", color: 'blue' },
@@ -23,14 +28,9 @@ const COLOR_CLASSES: Record<string, string> = {
 
 export default function AboutPage() {
   const { play } = useSound();
-  const heroRef = useRef(null);
+  const reduceMotion = useReducedMotion();
   const { scrollY } = useScroll();
   const parallaxY = useTransform(scrollY, [0, 300], [0, -40]);
-
-  const handleContact = () => {
-    play('xp');
-    window.open("https://wa.me/22871796050", "_blank");
-  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] pt-20 pb-20 px-4 text-zinc-900 dark:text-white overflow-x-hidden">
@@ -43,7 +43,7 @@ export default function AboutPage() {
           animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, delay: 2 }} />
 
         {/* Hero */}
-        <motion.div style={{ y: parallaxY }} ref={heroRef} className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
+        <motion.div style={reduceMotion ? undefined : { y: parallaxY }} className="flex flex-col md:flex-row items-center gap-10 text-center md:text-left">
           <motion.div initial={{ opacity: 0, scale: 0.5, rotate: -10 }} animate={{ opacity: 1, scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 120, damping: 15 }}
             className="relative flex-shrink-0"
@@ -114,22 +114,28 @@ export default function AboutPage() {
               <b>je suis là pour vous accompagner</b>.
             </motion.p>
             <div className="flex flex-wrap gap-4 pt-4">
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}
-                onClick={() => window.location.href = '/subscribe'}
-                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-blue-500/20"
-              >
-                <Zap size={18} fill="currentColor" /> S&apos;abonner (Premium)
-              </motion.button>
-              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}
-                onClick={handleContact}
-                className="px-8 py-4 bg-white text-zinc-900 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 border border-zinc-200"
-              >
-                <MessageCircle size={18} /> Support WhatsApp
-              </motion.button>
-              <div className="flex items-center gap-4 px-4">
-                <motion.button whileHover={{ scale: 1.2 }} className="text-zinc-400 hover:text-white transition-colors"><Github size={24} /></motion.button>
-                <motion.button whileHover={{ scale: 1.2 }} className="text-zinc-400 hover:text-white transition-colors"><Linkedin size={24} /></motion.button>
-              </div>
+              {/* Bouton d'abonnement : masqué tant que les paiements sont désactivés (freemium). */}
+              {isPaymentsEnabled() && (
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
+                  <Link
+                    href="/subscribe"
+                    className="px-8 py-4 min-h-12 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-blue-500/20"
+                  >
+                    <Zap size={18} fill="currentColor" aria-hidden="true" /> S&apos;abonner (Premium)
+                  </Link>
+                </motion.div>
+              )}
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => play('xp')}
+                  className="px-8 py-4 min-h-12 bg-white text-zinc-900 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 border border-zinc-200"
+                >
+                  <MessageCircle size={18} aria-hidden="true" /> Support WhatsApp
+                </a>
+              </motion.div>
             </div>
           </div>
         </motion.div>

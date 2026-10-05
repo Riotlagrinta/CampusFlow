@@ -3,67 +3,76 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { motion, useInView } from 'framer-motion';
-import { Trophy, Target, Award, Flame, Code, BookOpen, Globe, Database, Flag, Loader2, Camera, Brain, Bell } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Trophy, Target, Flame, BookOpen, Loader2, Camera, Brain } from 'lucide-react';
+import { cn, fadeUp } from '@/lib/utils';
 import { useSound } from '@/hooks/useSound';
 import { TiltCard } from '@/components/TiltCard';
+import { isPaymentsEnabled } from '@/lib/payments';
 import { useRef } from 'react';
 
 type UserData = {
   firstName: string; lastName: string; bio: string | null; image: string | null;
-  xp: number; level: number; streak: number; rank: number; aiBonusRequests: number;
+  xp: number; level: number; streak: number; rank: number | null; aiBonusRequests: number;
   referralCode: string; averageScore: number; quizAttemptsCount: number;
   badges: { badge: { id: string; name: string; icon: string; slug: string; description: string } }[];
 };
 interface LeaderboardUser { id: string; firstName: string; lastName: string; xp: number; }
 interface Transaction { id: string; packName: string; amount: number; createdAt: string; status: string; }
 
-const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay, type: 'spring' as const, stiffness: 80 } });
-
 export default function ProfilePage() {
   const router = useRouter();
+  const { status } = useSession();
   const { play } = useSound();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
 
   const statsRef = useRef(null);
   const statsInView = useInView(statsRef, { once: true });
 
   const fetchProfileData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const [lbRes, txRes, statsRes] = await Promise.all([
         fetch('/api/leaderboard'),
-        fetch('/api/user/transactions'),
+        // Historique des achats : inutile (et masqué) tant que les paiements sont désactivés.
+        isPaymentsEnabled() ? fetch('/api/user/transactions') : Promise.resolve(null),
         fetch('/api/user/stats'),
       ]);
-      const [lbData, txData, data] = await Promise.all([lbRes.json(), txRes.json(), statsRes.json()]);
-      if (!lbData.error) setLeaderboard(lbData);
-      if (!txData.error) setTransactions(txData);
-      if (!data.error) setUserData({
+
+      // Le profil est indispensable ; classement et achats sont secondaires.
+      if (!statsRes.ok) throw new Error(`stats ${statsRes.status}`);
+      const data = await statsRes.json();
+      setUserData({
         firstName: data.firstName, lastName: data.lastName, bio: data.bio, image: data.image,
         xp: data.xp, level: data.level, streak: data.streak, rank: data.rank,
         aiBonusRequests: data.aiBonusRequests || 0, referralCode: data.referralCode,
         averageScore: data.averageScore, quizAttemptsCount: data.quizAttemptsCount, badges: data.badges
       });
+
+      const lbData = lbRes.ok ? await lbRes.json().catch(() => null) : null;
+      setLeaderboard(Array.isArray(lbData) ? lbData : []);
+      const txData = txRes?.ok ? await txRes.json().catch(() => null) : null;
+      setTransactions(Array.isArray(txData) ? txData : []);
     } catch (error) {
       console.error('Erreur chargement profil:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Garde d'accès : la session NextAuth fait foi (plus de localStorage.user).
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) { router.push('/login'); return; }
-    const user = JSON.parse(userStr);
-    if (!user.email) { router.push('/login'); return; }
-    fetchProfileData();
-  }, [router, fetchProfileData]);
+    if (status === 'unauthenticated') { router.push('/login'); return; }
+    if (status === 'authenticated') fetchProfileData();
+  }, [status, router, fetchProfileData]);
 
   const copyReferral = () => {
     if (!userData?.referralCode) return;
@@ -72,21 +81,21 @@ export default function ProfilePage() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handlePushRegistration = async () => {
-    setPushLoading(true);
-    try {
-      const token = "WEB-" + Math.random().toString(36).substring(2, 11);
-      const res = await fetch('/api/user/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pushToken: token }) });
-      if (res.ok) { alert("Notifications activées ! 🔔"); play('xp'); }
-    } catch (error) { console.error(error); }
-    finally { setPushLoading(false); }
-  };
-
-  if (loading) return (
+  if (loading || status === 'loading') return (
     <div className="flex justify-center py-20">
       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
         <Loader2 className="text-blue-600" size={40} />
       </motion.div>
+    </div>
+  );
+
+  if (loadError || !userData) return (
+    <div className="flex flex-col items-center gap-4 py-20 text-center">
+      <p className="text-sm text-zinc-500">Impossible de charger votre profil.</p>
+      <button type="button" onClick={fetchProfileData}
+        className="px-4 py-2 bg-zinc-900 dark:bg-blue-600 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all">
+        Réessayer
+      </button>
     </div>
   );
 
@@ -145,10 +154,6 @@ export default function ProfilePage() {
                 className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
                 <Flame size={10} /> {userData?.streak || 0} Jours
               </motion.button>
-              <motion.button whileHover={{ scale: 1.05 }} onClick={handlePushRegistration} disabled={pushLoading}
-                className="px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:bg-orange-500/20 transition-all disabled:opacity-50">
-                {pushLoading ? <Loader2 size={10} className="animate-spin" /> : <Bell size={10} />} Notifications
-              </motion.button>
             </div>
           </div>
 
@@ -177,7 +182,7 @@ export default function ProfilePage() {
               {[
                 { label: 'Quizz', value: userData?.quizAttemptsCount || 0, icon: BookOpen },
                 { label: 'Score Moyen', value: `${userData?.averageScore || 0}%`, icon: Target },
-                { label: 'Rang', value: `#${userData?.rank || '-'}`, icon: Trophy },
+                { label: 'Rang', value: userData?.rank != null ? `#${userData.rank}` : '–', icon: Trophy },
               ].map((stat, i) => (
                 <motion.div
                   key={i}
@@ -199,7 +204,8 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          {/* Transactions */}
+          {/* Transactions : section masquée tant que les paiements sont désactivés (freemium). */}
+          {isPaymentsEnabled() && (
           <motion.section {...fadeUp(0.3)} className="space-y-4">
             <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] ml-2">Historique des achats</h2>
             <div className="card-pro overflow-hidden">
@@ -233,6 +239,7 @@ export default function ProfilePage() {
               </div>
             </div>
           </motion.section>
+          )}
         </div>
 
         {/* Leaderboard */}

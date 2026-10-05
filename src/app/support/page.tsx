@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  LifeBuoy, MessageCircle, Send, AlertTriangle, Lightbulb,
-  HelpCircle, Loader2, CheckCircle2, ArrowRight
+  MessageCircle, Send, AlertTriangle, Lightbulb,
+  HelpCircle, Loader2, CheckCircle2
 } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 import { TiltCard } from '@/components/TiltCard';
+import { fadeUp } from '@/lib/utils';
 
-const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay } });
+// Numéro WhatsApp du support : configurable via NEXT_PUBLIC_ADMIN_WHATSAPP (format international, sans « + »).
+const SUPPORT_WHATSAPP = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || '22871796050';
 
 export default function SupportPage() {
   const { play } = useSound();
@@ -17,20 +19,28 @@ export default function SupportPage() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/support/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, content })
       });
-      if (res.ok) { setSuccess(true); play('success'); setContent(''); }
+      if (res.ok) {
+        setSuccess(true); play('success'); setContent('');
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(typeof data?.error === 'string' ? data.error : "L'envoi a échoué. Réessayez dans un instant.");
+      }
     } catch (err) {
       console.error(err);
+      setError('Impossible de contacter le serveur. Vérifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -38,7 +48,7 @@ export default function SupportPage() {
 
   const openWhatsApp = () => {
     const message = "Bonjour ! J'ai un problème avec la plateforme DefiTech Hub.";
-    window.open(`https://wa.me/22871796050?text=${encodeURIComponent(message)}`, '_blank');
+    window.open(`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
   if (success) {
@@ -124,8 +134,8 @@ export default function SupportPage() {
             <form onSubmit={handleSubmit} className="space-y-8">
 
               <div className="space-y-4">
-                <label className="text-xs font-black uppercase text-zinc-400 tracking-widest ml-1">Type de demande</label>
-                <div className="grid grid-cols-3 gap-3">
+                <p id="support-type-label" className="text-xs font-black uppercase text-zinc-400 tracking-widest ml-1">Type de demande</p>
+                <div role="group" aria-labelledby="support-type-label" className="grid grid-cols-3 gap-3">
                   {[
                     { id: 'BUG', label: 'Bug', icon: AlertTriangle, color: 'text-red-500' },
                     { id: 'FEATURE', label: 'Idée', icon: Lightbulb, color: 'text-amber-500' },
@@ -136,6 +146,7 @@ export default function SupportPage() {
                       type="button"
                       whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                       onClick={() => setType(item.id)}
+                      aria-pressed={type === item.id}
                       className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${type === item.id ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-zinc-50 dark:border-zinc-800'}`}
                     >
                       <item.icon size={20} className={item.color} />
@@ -146,15 +157,23 @@ export default function SupportPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase text-zinc-400 tracking-widest ml-1">Description détaillée</label>
+                <label htmlFor="support-content" className="text-xs font-black uppercase text-zinc-400 tracking-widest ml-1">Description détaillée</label>
                 <textarea
+                  id="support-content"
                   required
+                  maxLength={2000}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Décrivez votre problème ou votre idée ici..."
                   className="w-full bg-zinc-50 dark:bg-black border border-zinc-100 dark:border-zinc-800 rounded-2xl p-6 text-sm min-h-[200px] outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
                 />
               </div>
+
+              {error && (
+                <p role="alert" className="rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300">
+                  {error}
+                </p>
+              )}
 
               <motion.button
                 type="submit"

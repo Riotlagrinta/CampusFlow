@@ -1,18 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Calendar, 
-  Clock, 
-  FileText, 
-  CheckCircle2, 
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Calendar,
+  Clock,
+  FileText,
+  CheckCircle2,
   AlertCircle,
   Loader2,
-  ChevronRight,
   BookOpen
 } from 'lucide-react';
-import { useSound } from '@/hooks/useSound';
+import { getCurrentSemester } from '@/lib/semester';
 
 type Assignment = {
   id: string;
@@ -20,30 +19,74 @@ type Assignment = {
   content: string;
   dueDate: string;
   semester: number;
-  subject?: { name: string, code: string | null };
+  subject?: { name: string, code: string | null } | null;
 };
+
+async function readApiError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    if (data && typeof data.error === 'string') return data.error;
+  } catch {
+    // corps non JSON : on retombe sur le statut
+  }
+  return `Erreur ${res.status}`;
+}
 
 export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentSemester, setCurrentSemester] = useState(2);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentSemester, setCurrentSemester] = useState<number>(() => getCurrentSemester());
+
+  // Évite qu'une réponse tardive d'un ancien semestre écrase la liste affichée
+  const latestRequest = useRef(0);
+
+  const fetchAssignments = useCallback(async (cursor?: string) => {
+    const requestId = ++latestRequest.current;
+    if (cursor) setLoadingMore(true);
+    else setLoading(true);
+
+    try {
+      const params = new URLSearchParams({ semester: String(currentSemester) });
+      if (cursor) params.set('cursor', cursor);
+
+      const res = await fetch(`/api/assignments?${params}`, { cache: 'no-store' });
+      if (requestId !== latestRequest.current) return;
+
+      if (!res.ok) {
+        setError(await readApiError(res));
+        if (!cursor) {
+          setAssignments([]);
+          setNextCursor(null);
+        }
+        return;
+      }
+
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) {
+        setError('Réponse inattendue du serveur.');
+        return;
+      }
+
+      setError(null);
+      setAssignments(prev => (cursor ? [...prev, ...(data as Assignment[])] : (data as Assignment[])));
+      setNextCursor(res.headers.get('X-Next-Cursor'));
+    } catch (err) {
+      console.error(err);
+      if (requestId === latestRequest.current) setError('Impossible de contacter le serveur.');
+    } finally {
+      if (requestId === latestRequest.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
+  }, [currentSemester]);
 
   useEffect(() => {
     fetchAssignments();
-  }, [currentSemester]);
-
-  const fetchAssignments = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/assignments?semester=${currentSemester}`);
-      const data = await res.json();
-      setAssignments(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchAssignments]);
 
   const getRemainingDays = (date: string) => {
     const diff = new Date(date).getTime() - new Date().getTime();
@@ -52,7 +95,7 @@ export default function AssignmentsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-20 px-4 pt-10">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
         <div className="space-y-1">
@@ -63,13 +106,26 @@ export default function AssignmentsPage() {
         </div>
 
         <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <button onClick={() => setCurrentSemester(1)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm' : 'text-zinc-500'}`}>S1</button>
-            <button onClick={() => setCurrentSemester(2)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm' : 'text-zinc-500'}`}>S2</button>
+            <button type="button" aria-pressed={currentSemester === 1} onClick={() => setCurrentSemester(1)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 1 ? 'bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm' : 'text-zinc-500'}`}>S1</button>
+            <button type="button" aria-pressed={currentSemester === 2} onClick={() => setCurrentSemester(2)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentSemester === 2 ? 'bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm' : 'text-zinc-500'}`}>S2</button>
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-emerald-600" /></div>
+      ) : error ? (
+        <div role="alert" className="py-20 text-center border-2 border-dashed border-red-200 dark:border-red-900/40 rounded-[3rem] space-y-4">
+          <AlertCircle size={40} className="mx-auto text-red-500/60" />
+          <p className="text-zinc-500 font-medium">Impossible de charger les devoirs.</p>
+          <p className="text-sm text-zinc-400">{error}</p>
+          <button
+            type="button"
+            onClick={() => fetchAssignments()}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold"
+          >
+            Réessayer
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {assignments.map((item) => {
@@ -78,7 +134,7 @@ export default function AssignmentsPage() {
             const isLate = daysLeft < 0;
 
             return (
-              <motion.div 
+              <motion.div
                 key={item.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -102,11 +158,8 @@ export default function AssignmentsPage() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-zinc-800">
                    <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
-                      <Calendar size={12} /> Échéance : {new Date(item.dueDate).toLocaleDateString()}
+                      <Calendar size={12} /> Échéance : {new Date(item.dueDate).toLocaleDateString('fr-FR')}
                    </div>
-                   <button className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl hover:bg-zinc-200 transition-all">
-                      <ChevronRight size={18} />
-                   </button>
                 </div>
               </motion.div>
             );
@@ -116,6 +169,20 @@ export default function AssignmentsPage() {
             <div className="col-span-full py-32 text-center border-2 border-dashed border-zinc-100 dark:border-zinc-900 rounded-[3rem]">
                <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500/20" />
                <p className="text-zinc-400 font-medium italic">Aucun devoir prévu pour ce semestre.<br/>Profitez-en pour réviser !</p>
+            </div>
+          )}
+
+          {nextCursor && (
+            <div className="col-span-full flex justify-center">
+              <button
+                type="button"
+                disabled={loadingMore}
+                onClick={() => fetchAssignments(nextCursor)}
+                className="px-6 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl text-sm font-bold border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {loadingMore && <Loader2 size={16} className="animate-spin" />}
+                {loadingMore ? 'Chargement...' : 'Charger plus'}
+              </button>
             </div>
           )}
         </div>

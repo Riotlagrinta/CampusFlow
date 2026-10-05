@@ -1,15 +1,18 @@
 'use client';
 
+import { useCallback } from 'react';
+
 const SOUNDS = {
-  xp: '', 
-  success: '', 
-  send: '', 
+  xp: '',
+  success: '',
+  send: '',
 };
 
 export function useSound() {
-  const play = (soundName: keyof typeof SOUNDS) => {
+  // Référence stable : les composants peuvent la mettre en dépendance d'un effet sans le relancer.
+  const play = useCallback((soundName: keyof typeof SOUNDS) => {
     if (typeof window === 'undefined' || !window.Audio) return;
-    
+
     const soundPath = SOUNDS[soundName];
     if (!soundPath) return;
 
@@ -17,7 +20,7 @@ export function useSound() {
       const audio = new Audio(soundPath);
       audio.volume = 0.4;
       const playPromise = audio.play();
-      
+
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.warn("Audio playback prevented or failed:", error);
@@ -26,7 +29,7 @@ export function useSound() {
     } catch (error) {
       console.warn("Audio initialization failed:", error);
     }
-  };
+  }, []);
 
   return { play };
 }

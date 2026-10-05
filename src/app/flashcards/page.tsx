@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Brain, RotateCw, CheckCircle2, ArrowLeft, ArrowRight, Loader2, Trash2, Sparkles, Layers } from 'lucide-react';
+import { Brain, ArrowLeft, ArrowRight, Loader2, Trash2, Sparkles, Layers } from 'lucide-react';
 import { useSound } from '@/hooks/useSound';
 import { TiltCard } from '@/components/TiltCard';
+import { fadeUp } from '@/lib/utils';
 
 type Flashcard = { id: string; question: string; answer: string; };
 type FlashcardSet = { id: string; title: string; cards: Flashcard[]; _count?: { cards: number }; };
+type QuotaInfo = { used: number; limit: number; bonus: number; remaining: number };
 
-const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { delay, type: 'spring' as const, stiffness: 80 } });
+const MAX_TOPIC_CHARS = 500;
 
 export default function FlashcardsPage() {
   const { play } = useSound();
@@ -20,46 +22,89 @@ export default function FlashcardsPage() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [topic, setTopic] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
 
-  useEffect(() => { fetchSets(); }, []);
+  const fetchQuota = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/ai-quota');
+      if (res.ok) setQuota(await res.json());
+    } catch { /* l'affichage du quota est optionnel */ }
+  }, []);
 
-  const fetchSets = async () => {
+  const fetchSets = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/flashcards');
-      setSets(await res.json());
-    } catch (err) { console.error(err); }
+      const data = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(data)) {
+        setSets(data);
+      } else {
+        setError((data && data.error) || 'Impossible de charger vos jeux de cartes.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Erreur de connexion. Impossible de charger vos jeux de cartes.');
+    }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSets();
+    fetchQuota();
+  }, [fetchSets, fetchQuota]);
 
   const generateWithIA = async () => {
-    if (!topic.trim()) return;
+    const subject = topic.trim();
+    if (!subject || isGenerating) return;
     setIsGenerating(true);
+    setError(null);
     try {
       const res = await fetch('/api/ai/generate-flashcards', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: topic })
+        body: JSON.stringify({ content: subject })
       });
-      const data = await res.json();
-      if (data.cards) {
-        const saveRes = await fetch('/api/flashcards', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: topic, cards: data.cards })
-        });
-        const newSet = await saveRes.json();
-        setSets([newSet, ...sets]);
-        setTopic(''); play('success');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(data.cards)) {
+        setError(data.error || 'La génération a échoué. Réessayez.');
+        return;
       }
-    } catch (err) { console.error(err); }
-    finally { setIsGenerating(false); }
+
+      const saveRes = await fetch('/api/flashcards', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: subject.slice(0, 120), cards: data.cards })
+      });
+      const newSet = await saveRes.json().catch(() => null);
+      if (!saveRes.ok || !newSet?.id) {
+        setError((newSet && newSet.error) || "Les cartes ont été générées mais n'ont pas pu être enregistrées.");
+        return;
+      }
+
+      setSets(prev => [newSet, ...prev]);
+      setTopic(''); play('success');
+    } catch (err) {
+      console.error(err);
+      setError('Erreur de connexion. Réessayez.');
+    }
+    finally {
+      setIsGenerating(false);
+      fetchQuota();
+    }
   };
 
   const deleteSet = async (id: string) => {
     if (!confirm('Supprimer ce jeu de cartes ?')) return;
     try {
-      await fetch(`/api/flashcards/${id}`, { method: 'DELETE' });
-      setSets(sets.filter(s => s.id !== id));
-    } catch {}
+      const res = await fetch(`/api/flashcards/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSets(prev => prev.filter(s => s.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Suppression impossible.');
+      }
+    } catch {
+      setError('Erreur de connexion. Suppression impossible.');
+    }
   };
 
   if (activeSet) {
@@ -179,12 +224,15 @@ export default function FlashcardsPage() {
             <input
               type="text"
               placeholder="Ex: Les bases de Python, La loi d'Ohm..."
+              aria-label="Sujet des flashcards"
+              maxLength={MAX_TOPIC_CHARS}
               className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
               value={topic}
               onChange={e => setTopic(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && generateWithIA()}
+              onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && generateWithIA()}
             />
             <motion.button
+              type="button"
               whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               onClick={generateWithIA}
               disabled={isGenerating || !topic.trim()}
@@ -194,8 +242,25 @@ export default function FlashcardsPage() {
               Générer par IA
             </motion.button>
           </div>
+          {quota && (
+            <p className="text-[11px] text-zinc-400 font-medium">
+              Chaque génération utilise 1 requête IA ·{' '}
+              <span className={quota.remaining > 0 ? 'text-zinc-300' : 'text-red-400 font-bold'}>
+                {quota.remaining} restante{quota.remaining > 1 ? 's' : ''} aujourd&apos;hui
+              </span>
+            </p>
+          )}
         </div>
       </motion.div>
+
+      {error && (
+        <div role="alert" className="flex items-start justify-between gap-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 rounded-2xl px-5 py-4 text-sm font-medium">
+          <span>{error}</span>
+          <button type="button" aria-label="Fermer le message d'erreur" onClick={() => setError(null)} className="shrink-0 font-black text-xs uppercase tracking-widest hover:underline">
+            Fermer
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -218,6 +283,8 @@ export default function FlashcardsPage() {
                       <Brain size={24} />
                     </motion.div>
                     <motion.button whileHover={{ scale: 1.2 }}
+                      type="button"
+                      aria-label={`Supprimer le jeu ${set.title}`}
                       onClick={(e) => { e.stopPropagation(); deleteSet(set.id); }}
                       className="p-2 text-zinc-300 hover:text-red-500 transition-colors">
                       <Trash2 size={18} />

@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sphere, MeshDistortMaterial, Float, Stars, Torus } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -17,7 +17,7 @@ function FloatingOrb() {
   return (
     <Float speed={1.5} rotationIntensity={0.4} floatIntensity={0.8}>
       <mesh ref={meshRef}>
-        <Sphere args={[1.4, 128, 128]}>
+        <Sphere args={[1.4, 64, 64]}>
           <MeshDistortMaterial
             color="#2563eb"
             attach="material"
@@ -93,25 +93,91 @@ function ParticleField() {
   );
 }
 
-export default function Scene3D({ className }: { className?: string }) {
-  return (
-    <div className={className}>
-      <Canvas
-        camera={{ position: [0, 0, 5.5], fov: 50 }}
-        gl={{ antialias: true, alpha: true }}
-        dpr={[1, 2]}
-      >
-        <ambientLight intensity={0.4} />
-        <pointLight position={[6, 6, 6]} intensity={2} color="#60a5fa" />
-        <pointLight position={[-6, -6, -6]} intensity={1} color="#818cf8" />
-        <spotLight position={[0, 8, 0]} intensity={1.5} color="#ffffff" />
+// Le navigateur peut reprendre le contexte WebGL (onglet en arrière-plan, mémoire GPU saturée) :
+// on bascule alors sur le visuel de secours plutôt que de laisser un canvas figé.
+function ContextGuard({ onLost }: { onLost: () => void }) {
+  const gl = useThree((state) => state.gl);
 
-        <FloatingOrb />
-        <OrbitRing radius={2.4} speed={0.5} color="#3b82f6" />
-        <OrbitRing radius={3.2} speed={-0.3} color="#818cf8" />
-        <ParticleField />
-        <Stars radius={30} depth={50} count={800} factor={3} saturation={0.5} fade speed={0.5} />
-      </Canvas>
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const handleLost = (event: Event) => {
+      event.preventDefault();
+      onLost();
+    };
+    canvas.addEventListener('webglcontextlost', handleLost);
+    return () => canvas.removeEventListener('webglcontextlost', handleLost);
+  }, [gl, onLost]);
+
+  return null;
+}
+
+// Capture l'échec de création du contexte WebGL (appareil sans WebGL, GPU bloqué…).
+class WebGLBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.warn('Scène 3D indisponible, affichage du visuel de secours.', error);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function SceneFallback({ className }: { className?: string }) {
+  return (
+    <div className={className} aria-hidden="true">
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="h-48 w-48 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 opacity-80 blur-sm md:h-72 md:w-72" />
+      </div>
+    </div>
+  );
+}
+
+export default function Scene3D({ className }: { className?: string }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(true);
+  const [contextLost, setContextLost] = useState(false);
+  const handleLost = useCallback(() => setContextLost(true), []);
+
+  // Pas de rendu tant que la scène est hors écran : économise le GPU et la batterie.
+  useEffect(() => {
+    const node = wrapperRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  if (contextLost) return <SceneFallback className={className} />;
+
+  return (
+    <div ref={wrapperRef} className={className} aria-hidden="true">
+      <WebGLBoundary fallback={<SceneFallback className="h-full w-full" />}>
+        {/* Le démontage du Canvas libère géométries, matériaux et contexte WebGL (dispose automatique de R3F). */}
+        <Canvas
+          camera={{ position: [0, 0, 5.5], fov: 50 }}
+          gl={{ antialias: true, alpha: true }}
+          dpr={[1, 1.75]}
+          frameloop={inView ? 'always' : 'never'}
+        >
+          <ContextGuard onLost={handleLost} />
+          <ambientLight intensity={0.4} />
+          <pointLight position={[6, 6, 6]} intensity={2} color="#60a5fa" />
+          <pointLight position={[-6, -6, -6]} intensity={1} color="#818cf8" />
+          <spotLight position={[0, 8, 0]} intensity={1.5} color="#ffffff" />
+
+          <FloatingOrb />
+          <OrbitRing radius={2.4} speed={0.5} color="#3b82f6" />
+          <OrbitRing radius={3.2} speed={-0.3} color="#818cf8" />
+          <ParticleField />
+          <Stars radius={30} depth={50} count={800} factor={3} saturation={0.5} fade speed={0.5} />
+        </Canvas>
+      </WebGLBoundary>
     </div>
   );
 }

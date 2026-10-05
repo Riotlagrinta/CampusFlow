@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Lock, FileText, Scale, Eye, Globe, ArrowLeft, CreditCard } from 'lucide-react';
+import { ShieldCheck, Lock, FileText, Scale, Globe, ArrowLeft, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LegalPage() {
@@ -33,9 +33,9 @@ export default function LegalPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
           >
-            <div className="flex items-center gap-3 text-blue-600 font-black text-xs uppercase tracking-[0.2em]">
+            <h2 className="flex items-center gap-3 text-blue-600 font-black text-xs uppercase tracking-[0.2em]">
               <Globe size={18} /> Éditeur du service
-            </div>
+            </h2>
             <div className="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
               <p>
                 Le service <span className="text-zinc-900 dark:text-white font-bold uppercase">DefiTech Student Hub</span> est édité par l&apos;agence digitale <span className="text-zinc-900 dark:text-white font-bold">Kelvix Digital Solutions</span>.
@@ -58,9 +58,9 @@ export default function LegalPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
           >
-            <div className="flex items-center gap-3 text-emerald-600 font-black text-xs uppercase tracking-[0.2em]">
+            <h2 className="flex items-center gap-3 text-emerald-600 font-black text-xs uppercase tracking-[0.2em]">
               <Lock size={18} /> Protection des Données
-            </div>
+            </h2>
             <div className="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
               <p>
                 Nous accordons une importance capitale à la confidentialité de vos données académiques. Conformément aux législations sur la protection des données :
@@ -78,9 +78,9 @@ export default function LegalPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
           >
-            <div className="flex items-center gap-3 text-amber-600 font-black text-xs uppercase tracking-[0.2em]">
+            <h2 className="flex items-center gap-3 text-amber-600 font-black text-xs uppercase tracking-[0.2em]">
               <Scale size={18} /> Propriété Intellectuelle
-            </div>
+            </h2>
             <div className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
               <p>
                 L&apos;intégralité du code source, des interfaces graphiques, des logos et des algorithmes d&apos;Intelligence Artificielle présents sur cette plateforme sont la propriété exclusive de <span className="font-bold text-zinc-900 dark:text-white">Kelvix</span>.
@@ -96,9 +96,9 @@ export default function LegalPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
           >
-            <div className="flex items-center gap-3 text-purple-600 font-black text-xs uppercase tracking-[0.2em]">
+            <h2 className="flex items-center gap-3 text-purple-600 font-black text-xs uppercase tracking-[0.2em]">
               <FileText size={18} /> Intelligence Artificielle
-            </div>
+            </h2>
             <div className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
               <p>
                 L&apos;assistant IA est un outil d&apos;accompagnement pédagogique. Kelvix ne peut être tenu responsable des erreurs factuelles produites par les modèles de langage, bien que nous travaillions à maximiser leur précision.
@@ -111,9 +111,9 @@ export default function LegalPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
             className="bg-zinc-900 dark:bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl space-y-6"
           >
-            <div className="flex items-center gap-3 font-black text-xs uppercase tracking-[0.2em]">
+            <h2 className="flex items-center gap-3 font-black text-xs uppercase tracking-[0.2em]">
               <CreditCard size={18} /> Conditions de Vente (CGV)
-            </div>
+            </h2>
             <div className="grid md:grid-cols-2 gap-8 text-sm leading-relaxed opacity-90">
               <div className="space-y-4">
                 <p><span className="font-bold">Livraison</span> : Le crédit des jetons IA est immédiat après validation du paiement mobile (T-Money/Flooz).</p>

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Video, Headphones, Download, Eye, Trash2, File } from 'lucide-react';
 
-type Resource = {
+export type Resource = {
     id: string;
     title: string;
     type: string;
@@ -11,9 +11,10 @@ type Resource = {
     subjectName: string | null;
     fieldId: string | null;
     levelId: string | null;
+    semester: number;
     size: string | null;
     createdAt: string;
-    author: { firstName: string; lastName: string };
+    author: { firstName: string | null; lastName: string | null } | null;
     parentId: string | null;
 };
 
@@ -21,8 +22,7 @@ interface ResourceCardProps {
     res: Resource;
     isAdmin: boolean;
     setPreviewFile: (res: Resource) => void;
-    currentFolder: any;
-    fetchResources: (parentId: string | null) => void;
+    onDelete: (res: Resource) => void;
 }
 
 const getIcon = (type: string) => {
@@ -43,7 +43,17 @@ const getColorClass = (type: string) => {
     }
 };
 
-export const ResourceCard = ({ res, isAdmin, setPreviewFile, currentFolder, fetchResources }: ResourceCardProps) => {
+// « OTHER » n'est plus un choix de l'interface : il désigne les documents Office et les images.
+const getTypeLabel = (type: string) => {
+    switch (type) {
+        case 'PDF': return 'PDF';
+        case 'VIDEO': return 'Vidéo';
+        case 'AUDIO': return 'Audio';
+        default: return 'Document';
+    }
+};
+
+export const ResourceCard = ({ res, isAdmin, setPreviewFile, onDelete }: ResourceCardProps) => {
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
@@ -55,13 +65,13 @@ export const ResourceCard = ({ res, isAdmin, setPreviewFile, currentFolder, fetc
                 </div>
                 {isAdmin && (
                     <button
+                        type="button"
+                        aria-label={`Supprimer ${res.title}`}
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm('Supprimer ce fichier ?')) {
-                                fetch(`/api/resources/${res.id}`, { method: 'DELETE' }).then(() => fetchResources(currentFolder?.id || null));
-                            }
+                            onDelete(res);
                         }}
-                        className="p-2 text-zinc-400 hover:text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+                        className="p-2 text-zinc-400 hover:text-red-500 rounded-xl md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-all"
                     >
                         <Trash2 size={18} />
                     </button>
@@ -69,12 +79,13 @@ export const ResourceCard = ({ res, isAdmin, setPreviewFile, currentFolder, fetc
             </div>
             <h3 className="font-bold text-zinc-900 dark:text-zinc-100 line-clamp-2 min-h-[48px]">{res.title}</h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 font-semibold flex items-center gap-2">
-                <span className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-md">{res.type}</span>
+                <span className="bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded-md">{getTypeLabel(res.type)}</span>
                 {res.size && <span>{res.size}</span>}
             </p>
 
             <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                 <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); setPreviewFile(res); }}
                     className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-zinc-600 dark:text-zinc-300 hover:text-blue-600 transition-colors bg-zinc-50 dark:bg-zinc-800 px-3 py-2 rounded-xl"
                 >
@@ -83,6 +94,7 @@ export const ResourceCard = ({ res, isAdmin, setPreviewFile, currentFolder, fetc
                 <a
                     href={res.url}
                     target="_blank"
+                    rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
                     className="text-xs font-black uppercase tracking-tighter flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl shadow-lg shadow-blue-500/20 transition-all"
                 >

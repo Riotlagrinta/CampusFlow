@@ -38,6 +38,23 @@
   --accent: #3b82f6;
 }
 
+/* Largeur de la barre latérale : 0 sur mobile (tiroir), 260 px étendue / 72 px réduite sur desktop.
+   Définie ici (et non en JS) pour que le premier rendu serveur ait déjà la bonne marge.
+   Sidebar.tsx pilote l'état réduit via l'attribut data-sidebar sur <html>. */
+:root {
+  --sidebar-width: 0px;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+
+  :root[data-sidebar="collapsed"] {
+    --sidebar-width: 72px;
+  }
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -75,4 +92,56 @@ body {
 
 .glass-card:hover {
   @apply bg-white/60 dark:bg-zinc-950/60 border-zinc-200 dark:border-zinc-700 scale-[1.01];
+}
+
+/* Utilitaires référencés par les composants (Sidebar, assistant IA) mais jusqu'ici non définis */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Accessibilité : anneau de focus visible au clavier sur les liens et boutons.
+   Les champs de formulaire gardent leur propre style de focus. */
+:where(a, button, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Tactile : Tailwind v4 n'applique `hover:` / `group-hover:` que sur les appareils à survol.
+   Les boutons d'action (modifier, supprimer, copier) masqués par `opacity-0 group-hover:opacity-100`
+   resteraient donc invisibles sur mobile : on les affiche en permanence sur ces appareils,
+   et au focus clavier sur les autres. Les surcouches purement décoratives restent masquées. */
+@media (hover: none), (pointer: coarse) {
+  button[class*="group-hover:opacity-100"],
+  a[class*="group-hover:opacity-100"],
+  [class*="group-hover:opacity-100"]:has(button, a[href], input, label) {
+    opacity: 1;
+  }
+}
+
+.group:focus-within button[class*="group-hover:opacity-100"],
+.group:focus-within a[class*="group-hover:opacity-100"],
+.group:focus-within [class*="group-hover:opacity-100"]:has(button, a[href], input, label) {
+  opacity: 1;
+}
+
+/* Visiteurs qui demandent moins de mouvement : on neutralise animations et transitions CSS.
+   (framer-motion est réglé séparément par <MotionConfig reducedMotion="user"> dans theme-provider.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

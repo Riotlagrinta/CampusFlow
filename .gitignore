@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -41,3 +42,14 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# service worker généré par next-pwa (workbox) : fichiers de build
+public/workbox-*.js
+public/workbox-*.js.map
+
+# bases locales SQLite, fichiers uploadés en local, données d'import et exports
+*.db
+*.db-journal
+/public/uploads/
+/bulk_import/
+/User.json

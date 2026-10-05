@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
@@ -12,1331 +12,596 @@ datasource db {
 }
 
 model User {
+  id String @id @default(uuid())
 
-  id              String         @id @default(uuid())
+  email     String  @unique
+  phone     String? @unique
+  firstName String?
 
-  email       String   @unique
-  phone       String?  @unique
-  firstName   String?
+  lastName String?
 
-  lastName        String?
+  password String
 
-  password        String
+  role String @default("STUDENT")
 
-  role            String         @default("STUDENT")
+  bio String? @db.Text
 
-  bio             String?        @db.Text
+  image String?
 
-  image           String?        
+  xp Int @default(0)
 
-  xp              Int            @default(0)
+  level Int @default(1)
 
-  level           Int            @default(1)
+  streak Int @default(0)
 
-  streak          Int            @default(0)
+  lastActive DateTime @default(now())
 
-  lastActive      DateTime       @default(now())
+  aiBonusRequests Int @default(0)
 
-  aiBonusRequests Int            @default(0) 
+  pushToken String?
 
-  pushToken       String?        
-
-  isSubscribed    Boolean        @default(false)
+  isSubscribed          Boolean   @default(false)
   subscriptionExpiresAt DateTime?
 
-  referralCode    String?        @unique
+  // Protection brute-force OTP / reset, plafond pub-récompense, série quotidienne
+  otpAttempts    Int       @default(0)
+  resetAttempts  Int       @default(0)
+  lastAdRewardAt DateTime?
+  adRewardDay    String?
+  adRewardCount  Int       @default(0)
+  lastStreakAt   DateTime?
 
-  referredById    String?
+  // Les sessions émises avant cette date sont refusées (révocation après changement de mot de passe).
+  passwordChangedAt DateTime?
 
-  referredBy      User?          @relation("UserReferrals", fields: [referredById], references: [id])
+  referralCode String? @unique
 
-  referrals       User[]         @relation("UserReferrals")
+  referredById String?
 
-  
+  referredBy User? @relation("UserReferrals", fields: [referredById], references: [id])
 
-    // Validation OTP et Récupération
+  referrals User[] @relation("UserReferrals")
 
-  
+  // Validation OTP et Récupération
 
-    isActive        Boolean        @default(false)
+  isActive Boolean @default(false)
 
-  
-
-    otpCode         String?
+  otpCode        String?
   otpCodeExpires DateTime?
 
-  
+  resetCode String?
 
-    resetCode       String?
-
-  
-
-    resetCodeExpires DateTime?
-
-  
-
-  
-
-  
+  resetCodeExpires DateTime?
 
   // Nouveaux liens de filière
 
-  fieldId         String?
+  fieldId String?
 
-  field           Field?         @relation(fields: [fieldId], references: [id])
+  field Field? @relation(fields: [fieldId], references: [id])
 
   academicLevelId String?
 
-  academicLevel   Level?         @relation(fields: [academicLevelId], references: [id])
+  academicLevel Level? @relation(fields: [academicLevelId], references: [id])
 
-
-
-  dailyAIUsages   DailyAIUsage[]
+  dailyAIUsages DailyAIUsage[]
 
   personalSchedules PersonalSchedule[]
 
-  badges          UserBadge[]
+  badges UserBadge[]
 
-  questions       Question[]
+  questions Question[]
 
-  answers         Answer[]
+  answers Answer[]
 
-        resources       Resource[]
+  resources Resource[]
 
-        quizAttempts    QuizAttempt[]
+  quizAttempts QuizAttempt[]
 
-        bookmarks       Bookmark[]
+  bookmarks Bookmark[]
 
-        transactions    Transaction[]
+  transactions Transaction[]
 
-        flashcardSets   FlashcardSet[]
+  flashcardSets FlashcardSet[]
 
-        bugReports      BugReport[]
+  bugReports BugReport[]
 
-      }
+  @@index([fieldId, academicLevelId])
+  @@index([referredById])
+  @@index([xp])
+}
 
-  
+model BugReport {
+  id String @id @default(uuid())
 
-  model BugReport {
+  userId String
 
-    id          String   @id @default(uuid())
+  user User @relation(fields: [userId], references: [id])
 
-    userId      String
+  type String // "BUG", "FEATURE", "OTHER"
 
-    user        User     @relation(fields: [userId], references: [id])
+  content String @db.Text
 
-    type        String   // "BUG", "FEATURE", "OTHER"
+  status String @default("OPEN") // "OPEN", "IN_PROGRESS", "CLOSED"
 
-    content     String   @db.Text
+  createdAt DateTime @default(now())
 
-    status      String   @default("OPEN") // "OPEN", "IN_PROGRESS", "CLOSED"
+  @@index([userId])
+}
 
-    createdAt   DateTime @default(now())
+model FlashcardSet {
+  id String @id @default(uuid())
 
-  }
+  title String
 
-  
+  description String?
 
-  model FlashcardSet {
+  userId String
 
-    id          String      @id @default(uuid())
+  user User @relation(fields: [userId], references: [id])
 
-    title       String
+  subjectId String?
 
-    description String?
+  subject Subject? @relation(fields: [subjectId], references: [id])
 
-    userId      String
+  cards Flashcard[]
 
-    user        User        @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 
-    subjectId   String?
+  updatedAt DateTime @updatedAt
 
-    subject     Subject?    @relation(fields: [subjectId], references: [id])
+  @@index([userId])
+  @@index([subjectId])
+}
 
-    cards       Flashcard[]
+model Flashcard {
+  id String @id @default(uuid())
 
-    createdAt   DateTime    @default(now())
+  question String @db.Text
 
-    updatedAt   DateTime    @updatedAt
+  answer String @db.Text
 
-  }
+  setId String
 
-  
+  set FlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
 
-  model Flashcard {
+  mastered Boolean @default(false) // Pour savoir si l'étudiant a mémorisé la carte
 
-    id          String       @id @default(uuid())
+  createdAt DateTime @default(now())
 
-    question    String       @db.Text
+  @@index([setId])
+}
 
-    answer      String       @db.Text
+model Bookmark {
+  userId String
 
-    setId       String
+  user User @relation(fields: [userId], references: [id])
 
-    set         FlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  resourceId String
 
-    mastered    Boolean      @default(false) // Pour savoir si l'étudiant a mémorisé la carte
+  resource Resource @relation(fields: [resourceId], references: [id])
 
-    createdAt   DateTime     @default(now())
+  createdAt DateTime @default(now())
 
-  }
+  @@id([userId, resourceId])
+  @@index([resourceId])
+}
 
-  
+model Field {
+  id String @id @default(uuid())
 
-  model Bookmark {
+  name String @unique // ex: Génie Logiciel
 
-    userId     String
+  code String @unique // ex: GL
 
-    user       User     @relation(fields: [userId], references: [id])
+  description String?
 
-    resourceId String
+  users User[]
 
-    resource   Resource @relation(fields: [resourceId], references: [id])
+  resources Resource[]
 
-    createdAt  DateTime @default(now())
+  questions Question[]
 
-  
+  subjects Subject[]
 
-    @@id([userId, resourceId])
+  assignments Assignment[]
 
-  }
+  schedules PersonalSchedule[]
 
-  
+  createdAt DateTime @default(now())
+}
 
-  model Field {
+model Level {
+  id String @id @default(uuid())
 
-  
+  name String // ex: Licence 1, BTS 2
 
-    id          String      @id @default(uuid())
+  users User[]
 
-  
+  resources Resource[]
 
-    name        String      @unique // ex: Génie Logiciel
+  questions Question[]
 
-  
+  subjects Subject[]
 
-    code        String      @unique // ex: GL
+  assignments Assignment[]
 
-  
+  schedules PersonalSchedule[]
+}
 
-    description String?
+model Subject {
+  id String @id @default(uuid())
 
-  
+  name String // ex: Algorithmique, Mathématiques
 
-    users       User[]
+  code String? // ex: ALGO, MATH
 
-  
+  fieldId String
 
-    resources   Resource[]
+  field Field @relation(fields: [fieldId], references: [id])
 
-  
+  levelId String
 
-    questions   Question[]
+  level Level @relation(fields: [levelId], references: [id])
 
-  
+  semester Int @default(1) // 1 pour S1, 2 pour S2, etc.
 
-        subjects    Subject[]
-    
-        assignments Assignment[]
-    
-        schedules   PersonalSchedule[]
-    
-        createdAt   DateTime    @default(now())
-    
-      }
-    
-      
-    
-      
-    
-      
-    
-      model Level {
-    
-      
-    
-        id          String      @id @default(uuid())
-    
-      
-    
-        name        String      // ex: Licence 1, BTS 2
-    
-      
-    
-        users       User[]
-    
-      
-    
-        resources   Resource[]
-    
-      
-    
-        questions   Question[]
-    
-      
-    
-        subjects    Subject[]
-    
-        assignments Assignment[]
-    
-        schedules   PersonalSchedule[]
-
-  
-
-  }
-
-  
+  resources Resource[]
 
-  
+  quizzes Quiz[]
 
-  
+  flashcardSets FlashcardSet[]
 
-  model Subject {
+  assignments Assignment[]
 
-  
+  schedules PersonalSchedule[]
 
-    id          String      @id @default(uuid())
+  createdAt DateTime @default(now())
 
-  
+  @@index([fieldId, levelId, semester])
+}
 
-    name        String      // ex: Algorithmique, Mathématiques
+model Assignment {
+  id String @id @default(uuid())
 
-  
+  title String
 
-    code        String?     // ex: ALGO, MATH
+  content String @db.Text
 
-  
+  dueDate DateTime
 
-    fieldId     String
+  subjectId String?
 
-  
+  subject Subject? @relation(fields: [subjectId], references: [id])
 
-    field       Field       @relation(fields: [fieldId], references: [id])
+  fieldId String?
 
-  
+  field Field? @relation(fields: [fieldId], references: [id])
 
-    levelId     String
+  levelId String?
 
-  
+  level Level? @relation(fields: [levelId], references: [id])
 
-      level       Level       @relation(fields: [levelId], references: [id])
-    
-      semester    Int         @default(1) // 1 pour S1, 2 pour S2, etc.
-    
-      resources   Resource[]
+  semester Int @default(1)
 
-  
+  createdAt DateTime @default(now())
 
-      quizzes     Quiz[]
-    
-        flashcardSets FlashcardSet[]
-      
-        assignments   Assignment[]
-      
-        schedules   PersonalSchedule[]
-      
-        createdAt   DateTime    @default(now())
-      
-      }
-      
-        
-      
-        model Assignment {
-      
-          id          String      @id @default(uuid())
-      
-          title       String
-      
-          content     String      @db.Text
-      
-          dueDate     DateTime
-      
-          subjectId   String?
-      
-          subject     Subject?    @relation(fields: [subjectId], references: [id])
-      
-          fieldId     String?
-      
-          field       Field?      @relation(fields: [fieldId], references: [id])
-      
-          levelId     String?
-      
-          level       Level?      @relation(fields: [levelId], references: [id])
-      
-          semester    Int         @default(1)
-      
-          createdAt   DateTime    @default(now())
-      
-          updatedAt   DateTime    @updatedAt
-      
-        }
-      
-        
-      
-        model Badge {
+  updatedAt DateTime @updatedAt
 
-  
+  @@index([fieldId, levelId, semester])
+  @@index([subjectId])
+}
 
-    id          String      @id @default(uuid())
+model Badge {
+  id String @id @default(uuid())
 
-  
+  slug String @unique
 
-    slug        String      @unique
+  name String
 
-  
+  description String
 
-    name        String
+  icon String
 
-  
+  xpCost Int @default(0)
 
-    description String
+  users UserBadge[]
+}
 
-  
+model UserBadge {
+  userId String
 
-    icon        String
+  badgeId String
 
-  
+  obtainedAt DateTime @default(now())
 
-    xpCost      Int         @default(0)
+  user User @relation(fields: [userId], references: [id])
 
-  
+  badge Badge @relation(fields: [badgeId], references: [id])
 
-    users       UserBadge[]
+  @@id([userId, badgeId])
+  @@index([badgeId])
+}
 
-  
+model Quiz {
+  id String @id @default(uuid())
 
-  }
+  title String
 
-  
+  description String?
 
-  
+  subjectName String? // Garder pour compatibilité ou supprimer après migration
 
-  
+  subjectId String?
 
-  model UserBadge {
+  subject Subject? @relation(fields: [subjectId], references: [id])
 
-  
+  questions QuizQuestion[]
 
-    userId      String
+  attempts QuizAttempt[]
 
-  
+  xpReward Int @default(100)
 
-    badgeId     String
+  resourceId String? // Lien vers le PDF d'origine
 
-  
+  resource Resource? @relation(fields: [resourceId], references: [id])
 
-    obtainedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  
+  @@index([subjectId])
+  @@index([resourceId])
+}
 
-    user        User     @relation(fields: [userId], references: [id])
+model QuizQuestion {
+  id String @id @default(uuid())
 
-  
+  question String
 
-    badge       Badge    @relation(fields: [badgeId], references: [id])
+  options String // JSON stringified array of options
 
-  
+  answer Int // Index de la bonne réponse
 
-  
+  quizId String
 
-  
+  quiz Quiz @relation(fields: [quizId], references: [id])
 
-    @@id([userId, badgeId])
+  @@index([quizId])
+}
 
-  
+model QuizAttempt {
+  id String @id @default(uuid())
 
-  }
+  userId String
 
-  
+  user User @relation(fields: [userId], references: [id])
 
-  
+  quizId String
 
-  
+  quiz Quiz @relation(fields: [quizId], references: [id])
 
-  model Quiz {
+  score Int // Score en %
 
-  
+  xpGained Int
 
-    id          String         @id @default(uuid())
+  createdAt DateTime @default(now())
 
-  
+  @@index([userId, quizId])
+  @@index([quizId])
+}
 
-    title       String
+model DailyAIUsage {
+  id String @id @default(uuid())
 
-  
+  userId String
 
-    description String?
+  user User @relation(fields: [userId], references: [id])
 
-  
+  date DateTime @default(now())
 
-    subjectName String?        // Garder pour compatibilité ou supprimer après migration
+  requestCount Int @default(0)
 
-  
+  quizRequestCount Int @default(0)
 
-    subjectId   String?
+  tokensUsed Int @default(0)
 
-  
+  @@unique([userId, date])
+}
 
-    subject     Subject?       @relation(fields: [subjectId], references: [id])
+model Question {
+  id String @id @default(uuid())
 
-  
+  title String
 
-    questions   QuizQuestion[]
+  content String
 
-  
+  authorId String
 
-    attempts    QuizAttempt[]
+  author User @relation(fields: [authorId], references: [id])
 
-  
+  // Isolation par filière
 
-    xpReward    Int            @default(100)
+  fieldId String?
 
-  
+  field Field? @relation(fields: [fieldId], references: [id])
 
-      resourceId  String?        // Lien vers le PDF d'origine
+  levelId String?
 
-  
+  level Level? @relation(fields: [levelId], references: [id])
 
-      resource    Resource?      @relation(fields: [resourceId], references: [id])
+  semester Int @default(1)
 
-  
+  createdAt DateTime @default(now())
 
-      createdAt   DateTime       @default(now())
+  answers Answer[]
 
-  
+  tags String?
 
-    }
+  @@index([fieldId, createdAt])
+  @@index([authorId])
+}
 
-  
+model Answer {
+  id String @id @default(uuid())
 
-  
+  content String
 
-  
+  questionId String
 
-  model QuizQuestion {
+  question Question @relation(fields: [questionId], references: [id])
 
-  
+  authorId String
 
-    id        String   @id @default(uuid())
+  author User @relation(fields: [authorId], references: [id])
 
-  
+  createdAt DateTime @default(now())
 
-    question  String
+  isAccepted Boolean @default(false)
 
-  
+  @@index([questionId])
+  @@index([authorId])
+}
 
-    options   String   // JSON stringified array of options
+model Resource {
+  id String @id @default(uuid())
 
-  
+  title String
 
-    answer    Int      // Index de la bonne réponse
+  description String?
 
-  
+  type String // "PDF", "VIDEO", "AUDIO", "OTHER"
 
-    quizId    String
+  url String
 
-  
+  subjectName String? // Garder subjectName pour l'instant
 
-    quiz      Quiz     @relation(fields: [quizId], references: [id])
+  subjectId String?
 
-  
+  subject Subject? @relation(fields: [subjectId], references: [id])
 
-  }
+  authorId String
 
-  
+  author User @relation(fields: [authorId], references: [id])
 
-  
+  // Isolation par filière
 
-  
+  fieldId String?
 
-  model QuizAttempt {
+  field Field? @relation(fields: [fieldId], references: [id])
 
-  
+  levelId String?
 
-    id        String   @id @default(uuid())
+  level Level? @relation(fields: [levelId], references: [id])
 
-  
+  semester Int @default(1)
 
-    userId    String
+  createdAt DateTime @default(now())
 
-  
+  size String?
 
-    user      User     @relation(fields: [userId], references: [id])
+  // Gestion des dossiers
 
-  
+  parentId String?
 
-    quizId    String
+  parent Resource? @relation("FolderContents", fields: [parentId], references: [id], onDelete: Cascade)
 
-  
+  children Resource[] @relation("FolderContents")
 
-    quiz      Quiz     @relation(fields: [quizId], references: [id])
+  quizzes Quiz[]
 
-  
+  bookmarks Bookmark[]
 
-    score     Int      // Score en %
+  @@index([fieldId, levelId, semester, parentId])
+  @@index([parentId])
+  @@index([authorId])
+  @@index([subjectId])
+}
 
-  
+model PersonalSchedule {
+  id String @id @default(uuid())
 
-    xpGained  Int
+  userId String?
 
-  
+  user User? @relation(fields: [userId], references: [id])
 
-    createdAt DateTime @default(now())
+  day String
 
-  
+  time String
 
-  }
+  subjectName String? // Rendu optionnel pour la migration
 
-  
+  subjectId String?
 
-  
+  subject Subject? @relation(fields: [subjectId], references: [id])
 
-  
+  credits String?
 
-  model DailyAIUsage {
+  teacher String?
 
-  
+  type String?
 
-    id           String   @id @default(uuid())
+  isAcademic Boolean @default(false)
 
-  
+  // Lien filière pour les cours académiques
 
-    userId       String
+  fieldId String?
 
-  
+  field Field? @relation(fields: [fieldId], references: [id])
 
-    user         User     @relation(fields: [userId], references: [id])
+  levelId String?
 
-  
+  level Level? @relation(fields: [levelId], references: [id])
 
-    date         DateTime @default(now()) 
+  semester Int @default(1)
 
-  
+  createdAt DateTime @default(now())
 
-    requestCount Int      @default(0)
+  updatedAt DateTime @updatedAt
 
-  
+  @@index([userId])
+  @@index([fieldId, levelId, semester, isAcademic])
+}
 
-    quizRequestCount Int  @default(0)
+model SearchCache {
+  id String @id @default(uuid())
 
-  
+  query String @unique
 
-    tokensUsed   Int      @default(0)
+  result String @db.Text
 
-  
+  createdAt DateTime @default(now())
+}
 
-  
+model Transaction {
+  id String @id @default(uuid())
 
-  
+  userId String
 
-    @@unique([userId, date]) 
+  user User @relation(fields: [userId], references: [id])
 
-  
+  amount Int // Prix en FCFA
 
-  }
+  tokens Int // Nombre de jetons achetés
 
-  
+  packName String
 
-  
+  status String @default("PENDING") // PENDING, COMPLETED, FAILED
 
-  
+  type String @default("TOPUP") // TOPUP, SUBSCRIPTION
 
-  model Question {
+  reference String? @unique // ID de transaction FedaPay
 
-  
+  createdAt DateTime @default(now())
 
-    id        String   @id @default(uuid())
+  updatedAt DateTime @updatedAt
 
-  
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
 
-    title     String
+// Compteurs de rate limiting persistants (les Map en mémoire sont inefficaces en serverless)
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
 
-  
-
-    content   String
-
-  
-
-    authorId  String
-
-  
-
-    author    User     @relation(fields: [authorId], references: [id])
-
-  
-
-    
-
-  
-
-    // Isolation par filière
-
-  
-
-    fieldId   String?
-
-  
-
-    field     Field?   @relation(fields: [fieldId], references: [id])
-
-  
-
-    levelId   String?
-
-  
-
-      level       Level?   @relation(fields: [levelId], references: [id])
-    
-      semester    Int      @default(1)
-    
-      createdAt   DateTime @default(now())
-
-  
-
-    answers   Answer[]
-
-  
-
-    tags      String?
-
-  
-
-  }
-
-  
-
-  
-
-  
-
-  model Answer {
-
-  
-
-    id         String   @id @default(uuid())
-
-  
-
-    content    String
-
-  
-
-    questionId String
-
-  
-
-    question   Question @relation(fields: [questionId], references: [id])
-
-  
-
-    authorId   String
-
-  
-
-    author     User     @relation(fields: [authorId], references: [id])
-
-  
-
-    createdAt  DateTime @default(now())
-
-  
-
-    isAccepted Boolean  @default(false)
-
-  
-
-  }
-
-  
-
-  
-
-  
-
-  model Resource {
-
-  
-
-    id          String   @id @default(uuid())
-
-  
-
-    title       String
-
-  
-
-    description String?
-
-  
-
-    type        String   // "PDF", "VIDEO", "AUDIO", "OTHER"
-
-  
-
-    url         String
-
-  
-
-    subjectName String?  // Garder subjectName pour l'instant
-
-  
-
-    subjectId   String?
-
-  
-
-    subject     Subject? @relation(fields: [subjectId], references: [id])
-
-  
-
-    authorId    String
-
-  
-
-    author      User     @relation(fields: [authorId], references: [id])
-
-  
-
-    
-
-  
-
-    // Isolation par filière
-
-  
-
-    fieldId     String?
-
-  
-
-    field       Field?   @relation(fields: [fieldId], references: [id])
-
-  
-
-      levelId     String?
-    
-      level       Level?    @relation(fields: [levelId], references: [id])
-    
-      semester    Int       @default(1)
-    
-      createdAt   DateTime  @default(now())
-
-  
-
-  
-
-  
-
-          size        String?
-
-  
-
-  
-
-  
-
-      
-
-  
-
-  
-
-  
-
-          // Gestion des dossiers
-
-  
-
-  
-
-  
-
-          parentId    String?
-
-  
-
-  
-
-  
-
-          parent      Resource? @relation("FolderContents", fields: [parentId], references: [id], onDelete: Cascade)
-
-  
-
-  
-
-  
-
-          children    Resource[] @relation("FolderContents")
-
-  
-
-  
-
-  
-
-      
-
-  
-
-  
-
-  
-
-          quizzes     Quiz[]
-
-  
-
-  
-
-  
-
-      bookmarks   Bookmark[]
-
-  
-
-  
-
-  
-
-    }
-
-  
-
-  
-
-  
-
-  model PersonalSchedule {
-
-  
-
-  
-
-  
-
-    id          String    @id @default(uuid())
-
-  
-
-  
-
-  
-
-    userId      String?
-
-  
-
-  
-
-  
-
-    user        User?     @relation(fields: [userId], references: [id])
-
-  
-
-  
-
-  
-
-    day         String
-
-  
-
-  
-
-  
-
-    time        String
-
-  
-
-  
-
-  
-
-    subjectName String?   // Rendu optionnel pour la migration
-
-  
-
-  
-
-  
-
-    subjectId   String?
-
-  
-
-  
-
-  
-
-    subject     Subject?  @relation(fields: [subjectId], references: [id])
-
-  
-
-    credits     String?
-
-  
-
-    teacher     String?
-
-  
-
-    type        String?
-
-  
-
-    isAcademic  Boolean   @default(false)
-
-  
-
-  
-
-  
-
-    // Lien filière pour les cours académiques
-
-  
-
-    fieldId     String?
-
-  
-
-    field       Field?    @relation(fields: [fieldId], references: [id])
-
-  
-
-    levelId     String?
-
-  
-
-    level       Level?    @relation(fields: [levelId], references: [id])
-
-    semester    Int       @default(1)
-
-      createdAt   DateTime  @default(now())
-
-  
-
-  
-
-  
-
-      updatedAt   DateTime  @updatedAt
-
-  
-
-  
-
-  
-
-    }
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    model SearchCache {
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      id        String   @id @default(uuid())
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      query     String   @unique
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      result    String   @db.Text
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      createdAt DateTime @default(now())
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    }
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    model Transaction {
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      id          String   @id @default(uuid())
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      userId      String
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      user        User     @relation(fields: [userId], references: [id])
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      amount      Int      // Prix en FCFA
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      tokens      Int      // Nombre de jetons achetés
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      packName    String
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
-
-      type        String   @default("TOPUP")   // TOPUP, SUBSCRIPTION
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      reference   String?  @unique // ID de transaction FedaPay
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      createdAt   DateTime @default(now())
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-      updatedAt   DateTime @updatedAt
-
-  
-
-  
-
-  
-
-    
-
-  
-
-  
-
-  
-
-    }
-
-
+  @@index([resetAt])
+}

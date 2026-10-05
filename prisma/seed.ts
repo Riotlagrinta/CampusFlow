@@ -1,38 +1,113 @@
+/**
+ * Données de démonstration pour un environnement de DÉVELOPPEMENT (`npm run db:seed`).
+ *
+ * - Refusé si NODE_ENV ou VERCEL_ENV vaut "production".
+ * - Aucun mot de passe ni adresse réelle dans le code : les comptes de démo sont créés
+ *   uniquement si SEED_*_EMAIL et SEED_*_PASSWORD (12 caractères minimum) sont définis ;
+ *   les mots de passe sont hachés en bcrypt (coût 12), comme à l'inscription.
+ * - Idempotent : un compte ou un quiz existant n'est jamais modifié.
+ */
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
+import { describeDatabaseTarget, isProductionEnvironment } from '../scripts/lib/safety';
+
+const BCRYPT_COST = 12;
+const MIN_PASSWORD_LENGTH = 12;
 
 const prisma = new PrismaClient();
 
+type DemoAccount = {
+  label: string;
+  emailVar: string;
+  passwordVar: string;
+  data: {
+    firstName: string;
+    lastName: string;
+    role: 'STUDENT' | 'ADMIN';
+    xp: number;
+    level: number;
+    streak: number;
+  };
+};
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  {
+    label: 'étudiant de démo',
+    emailVar: 'SEED_STUDENT_EMAIL',
+    passwordVar: 'SEED_STUDENT_PASSWORD',
+    data: { firstName: 'Étudiant', lastName: 'Demo', role: 'STUDENT', xp: 2450, level: 12, streak: 7 },
+  },
+  {
+    label: 'administrateur de démo',
+    emailVar: 'SEED_ADMIN_EMAIL',
+    passwordVar: 'SEED_ADMIN_PASSWORD',
+    data: { firstName: 'Admin', lastName: 'DefiTech', role: 'ADMIN', xp: 5000, level: 25, streak: 30 },
+  },
+];
+
+async function seedDemoAccount(account: DemoAccount) {
+  const email = process.env[account.emailVar]?.trim().toLowerCase();
+  const password = process.env[account.passwordVar];
+
+  if (!email || !password) {
+    console.log(`Compte ${account.label} ignoré : ${account.emailVar} / ${account.passwordVar} non définis.`);
+    return;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    console.error(`Compte ${account.label} ignoré : ${account.passwordVar} doit faire ${MIN_PASSWORD_LENGTH} caractères minimum.`);
+    return;
+  }
+
+  await prisma.user.upsert({
+    where: { email },
+    update: {}, // jamais de modification d'un compte existant (ni mot de passe, ni rôle)
+    create: {
+      email,
+      password: await bcrypt.hash(password, BCRYPT_COST),
+      isActive: true,
+      ...account.data,
+    },
+  });
+  console.log(`Compte ${account.label} prêt.`);
+}
+
 async function main() {
+  if (isProductionEnvironment()) {
+    console.error('Seed refusé : NODE_ENV/VERCEL_ENV vaut "production". Ce script est réservé au développement.');
+    process.exit(1);
+  }
+  console.log(`Seed de la base : ${describeDatabaseTarget()}`);
+
   // Badges par défaut
   const badges = [
     {
       slug: 'algo-master',
       name: 'Algorithm Master',
-      description: 'A résolu 10 problèmes d\'algorithmique complexes.',
+      description: "A résolu 10 problèmes d'algorithmique complexes.",
       icon: 'Code',
-      xpCost: 500
+      xpCost: 500,
     },
     {
       slug: 'web-architect',
       name: 'Web Architect',
       description: 'A construit une application Full-Stack complète.',
       icon: 'Globe',
-      xpCost: 1000
+      xpCost: 1000,
     },
     {
       slug: 'database-pro',
       name: 'Database Pro',
       description: 'Maîtrise SQL et les modélisations complexes.',
       icon: 'Database',
-      xpCost: 750
+      xpCost: 750,
     },
     {
       slug: 'first-step',
       name: 'Premiers Pas',
       description: 'A créé son compte et configuré son profil.',
       icon: 'Flag',
-      xpCost: 50
-    }
+      xpCost: 50,
+    },
   ];
 
   for (const badge of badges) {
@@ -43,53 +118,13 @@ async function main() {
     });
   }
 
-  // Initialiser l'utilisateur démo avec le nouveau format de nom
-    const user = await prisma.user.upsert({ 
-      where: { email: 'etudiant@defitech.tg' },
-      update: {
-          xp: 2450,
-          level: 12,
-          streak: 7,
-          firstName: 'Étudiant',
-          lastName: 'Demo',
-          role: 'STUDENT'
-      },
-      create: {
-          email: 'etudiant@defitech.tg',
-          firstName: 'Étudiant',
-          lastName: 'Demo',
-          password: 'hash_placeholder',
-          isActive: true,
-          xp: 2450,
-          level: 12,
-          streak: 7,
-          role: 'STUDENT'
-      }
-    });
-  
-    const adminUser = await prisma.user.upsert({
-      where: { email: 'djkeda82@gmail.com' },
-      update: {
-          firstName: 'Admin',
-          lastName: 'DefiTech',
-          role: 'ADMIN'
-      },
-      create: {
-          email: 'djkeda82@gmail.com',
-          firstName: 'Admin',
-          lastName: 'DefiTech',
-          password: 'password', // Mot de passe simple pour l'admin
-          isActive: true,
-          xp: 5000,
-          level: 25,
-          streak: 30,
-          role: 'ADMIN'
-      }
-    });
-  console.log('Utilisateur démo et Badges initialisés.');
+  for (const account of DEMO_ACCOUNTS) {
+    await seedDemoAccount(account);
+  }
+  console.log('Badges initialisés.');
 
-  // --- QUIZZ ---
-  const quizJava = await prisma.quiz.upsert({
+  // --- QUIZ ---
+  await prisma.quiz.upsert({
     where: { id: 'quiz-java-1' },
     update: {},
     create: {
@@ -101,21 +136,21 @@ async function main() {
       questions: {
         create: [
           {
-            question: 'Quelle est la méthode principale de départ d\'un programme Java ?',
+            question: "Quelle est la méthode principale de départ d'un programme Java ?",
             options: JSON.stringify(['start()', 'init()', 'main()', 'run()']),
-            answer: 2
+            answer: 2,
           },
           {
             question: 'Java est un langage...',
             options: JSON.stringify(['Compilé', 'Interprété', 'Les deux (Bytecode)', 'Aucun']),
-            answer: 2
-          }
-        ]
-      }
-    }
+            answer: 2,
+          },
+        ],
+      },
+    },
   });
 
-  const quizAlgo = await prisma.quiz.upsert({
+  await prisma.quiz.upsert({
     where: { id: 'quiz-algo-1' },
     update: {},
     create: {
@@ -127,16 +162,16 @@ async function main() {
       questions: {
         create: [
           {
-            question: 'Quelle est la complexité d\'une recherche binaire ?',
+            question: "Quelle est la complexité d'une recherche binaire ?",
             options: JSON.stringify(['O(n)', 'O(log n)', 'O(n²)', 'O(1)']),
-            answer: 1
-          }
-        ]
-      }
-    }
+            answer: 1,
+          },
+        ],
+      },
+    },
   });
 
-  console.log('Quizz initialisés.');
+  console.log('Quiz initialisés.');
 }
 
 main()
@@ -144,7 +179,7 @@ main()
     await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error(e);
+    console.error(e instanceof Error ? e.message : e);
     await prisma.$disconnect();
     process.exit(1);
   });

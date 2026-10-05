@@ -1,26 +1,24 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { LayoutGrid, Search } from 'lucide-react-native';
+import { LayoutGrid, User } from 'lucide-react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppColors } from '@/hooks/use-app-colors';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colors = useAppColors();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#0066cc',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
           borderTopWidth: 0,
           elevation: 0,
-          height: 60,
-          paddingBottom: 10,
-        }
+        },
       }}>
       <Tabs.Screen
         name="index"
@@ -30,10 +28,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="profile"
         options={{
-          title: 'Explorer',
-          tabBarIcon: ({ color }) => <Search size={24} color={color} />,
+          title: 'Profil',
+          tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
     </Tabs>

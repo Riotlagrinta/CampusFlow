@@ -1,8 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Platform, KeyboardAvoidingView, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  KeyboardAvoidingView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { router } from 'expo-router';
-import { Mail, Lock, ArrowLeft, Smartphone } from 'lucide-react-native';
+import { Mail, Lock, ArrowLeft, Smartphone, User, Users } from 'lucide-react-native';
 import api from '../../src/services/api';
+import { getErrorMessage, getErrorStatus, logError } from '../../src/services/errors';
+import { setPendingRegistration, type RegistrationPayload } from '../../src/services/pendingRegistration';
+import { MIN_PASSWORD_LENGTH, validatePassword } from '../../src/utils/format';
+import { goBackOrHome } from '@/components/screen-header';
+import { Screen } from '@/components/screen';
+import { FormField } from '@/components/form-field';
+import { useAppColors } from '@/hooks/use-app-colors';
 
 interface AcademicOption {
   id: string;
@@ -10,195 +26,329 @@ interface AcademicOption {
   code?: string;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^\+?\d{8,15}$/;
+
 export default function Register() {
+  const colors = useAppColors();
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     password: '',
+    confirmPassword: '',
+    referralCode: '',
     fieldId: '',
     academicLevelId: '',
   });
 
-  const [options, setOptions] = useState<{ fields: AcademicOption[], levels: AcademicOption[] }>({ fields: [], levels: [] });
+  const [options, setOptions] = useState<{ fields: AcademicOption[]; levels: AcademicOption[] }>({
+    fields: [],
+    levels: [],
+  });
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Charger les filières et niveaux depuis le serveur
-    api.get('/academic/options')
-      .then(res => {
-        setOptions(res.data);
-      })
-      .catch(err => {
-        console.error("Erreur options:", err);
+  const update = (patch: Partial<typeof formData>) => setFormData((prev) => ({ ...prev, ...patch }));
+
+  // Filières et niveaux depuis le serveur (route publique).
+  const loadOptions = useCallback(async () => {
+    setOptionsLoading(true);
+    setOptionsError(null);
+    try {
+      const res = await api.get('/academic/options');
+      const body: unknown = res.data;
+      const fields = body && typeof body === 'object' ? (body as { fields?: unknown }).fields : null;
+      const levels = body && typeof body === 'object' ? (body as { levels?: unknown }).levels : null;
+      setOptions({
+        fields: Array.isArray(fields) ? (fields as AcademicOption[]) : [],
+        levels: Array.isArray(levels) ? (levels as AcademicOption[]) : [],
       });
+    } catch (error) {
+      logError('options académiques', error);
+      setOptionsError(getErrorMessage(error, 'Impossible de charger les filières et niveaux.'));
+    } finally {
+      setOptionsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void loadOptions();
+  }, [loadOptions]);
+
+  const validate = (): string | null => {
+    if (!formData.firstName.trim()) return 'Veuillez saisir votre prénom.';
+    if (!formData.lastName.trim()) return 'Veuillez saisir votre nom.';
+    if (!EMAIL_PATTERN.test(formData.email.trim())) return 'Adresse e-mail invalide.';
+    if (!PHONE_PATTERN.test(formData.phone.replace(/[\s.-]/g, ''))) {
+      return 'Numéro de téléphone invalide (8 à 15 chiffres, indicatif inclus, ex. 22890000000).';
+    }
+    if (!formData.fieldId) return 'Veuillez choisir votre filière.';
+    if (!formData.academicLevelId) return 'Veuillez choisir votre niveau.';
+    const passwordProblem = validatePassword(formData.password);
+    if (passwordProblem) return passwordProblem;
+    if (formData.password !== formData.confirmPassword) return 'Les mots de passe ne correspondent pas.';
+    return null;
+  };
+
   const handleRegister = async () => {
-    if (!formData.email || !formData.phone || !formData.password || !formData.fieldId || !formData.academicLevelId) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires.');
+    const problem = validate();
+    if (problem) {
+      Alert.alert('Erreur', problem);
       return;
     }
 
     setLoading(true);
     try {
-      // Transformation technique pour l'API qui attend levelId
-      const apiData = {
-        ...formData,
-        levelId: formData.academicLevelId
+      const referralCode = formData.referralCode.trim();
+
+      // L'API attend `levelId` pour le niveau académique.
+      const payload: RegistrationPayload = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.replace(/[\s.-]/g, ''),
+        password: formData.password,
+        fieldId: formData.fieldId,
+        levelId: formData.academicLevelId,
+        ...(referralCode ? { referralCode } : {}),
       };
-      
-      const res = await api.post('/auth/register', apiData);
-      if (res.data.success) {
-        Alert.alert('Succès', 'Votre compte a été créé. Un code de validation vous a été envoyé sur WhatsApp.');
-        router.push('/auth/login');
-      } else {
-        Alert.alert('Erreur', res.data.error || "Une erreur est survenue.");
+      const res = await api.post('/auth/register', payload);
+
+      if (res.data?.success === false) {
+        const reason: unknown = res.data?.error;
+        Alert.alert('Erreur', typeof reason === 'string' && reason ? reason : 'Une erreur est survenue.');
+        return;
       }
-    } catch (error: unknown) {
-      let msg = "Impossible de contacter le serveur.";
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { data?: { error?: string } } };
-        msg = axiosError.response?.data?.error || msg;
-      }
-      Alert.alert('Erreur d&apos;inscription', msg);
+
+      // Le compte reste inactif tant que le code reçu n'est pas saisi. L'inscription est gardée
+      // en mémoire pour pouvoir renvoyer le code (même requête = nouveau code).
+      setPendingRegistration(payload);
+      const serverMessage: unknown = res.data?.message;
+      router.replace({
+        pathname: '/auth/verify-otp',
+        params: {
+          identifier: payload.email,
+          ...(typeof serverMessage === 'string' && serverMessage ? { notice: serverMessage } : {}),
+        },
+      });
+    } catch (error) {
+      logError('inscription', error);
+      const message = getErrorMessage(error, 'Impossible de créer le compte.');
+      // 502 : le code n'a pas pu être envoyé (e-mail indisponible) ; le même envoi peut être retenté.
+      Alert.alert(
+        "Erreur d'inscription",
+        getErrorStatus(error) === 502
+          ? `${message}\n\nVous pouvez réessayer avec les mêmes informations pour recevoir un nouveau code.`
+          : message
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 p-6"
+    <Screen className="bg-white dark:bg-slate-950">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity onPress={() => router.back()} className="mb-6">
-            <ArrowLeft size={24} color="#0f172a" />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableOpacity
+            onPress={goBackOrHome}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            className="mb-6 self-start"
+          >
+            <ArrowLeft size={24} color={colors.text} />
           </TouchableOpacity>
 
-          <Text className="text-3xl font-bold text-slate-900 mb-2">Inscription</Text>
-          <Text className="text-slate-500 mb-8">Rejoignez la communauté DefiTech.</Text>
+          <Text className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Inscription</Text>
+          <Text className="text-slate-500 dark:text-slate-400 mb-8">Rejoignez la communauté DefiTech.</Text>
 
-          <View className="space-y-4 mb-6">
-            <View className="flex-row justify-between">
-                <View className="w-[48%]">
-                    <Text className="text-slate-700 font-medium mb-2">Prénom</Text>
-                    <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                        <TextInput 
-                        placeholder="Jean"
-                        value={formData.firstName}
-                        onChangeText={(text) => setFormData({...formData, firstName: text})}
-                        className="flex-1 text-slate-900"
-                        />
-                    </View>
-                </View>
-                <View className="w-[48%]">
-                    <Text className="text-slate-700 font-medium mb-2">Nom</Text>
-                    <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                        <TextInput 
-                        placeholder="Dupont"
-                        value={formData.lastName}
-                        onChangeText={(text) => setFormData({...formData, lastName: text})}
-                        className="flex-1 text-slate-900"
-                        />
-                    </View>
-                </View>
-            </View>
+          <FormField
+            label="Prénom"
+            icon={User}
+            placeholder="Jean"
+            value={formData.firstName}
+            onChangeText={(text) => update({ firstName: text })}
+            autoCapitalize="words"
+            autoComplete="given-name"
+            maxLength={50}
+          />
+          <FormField
+            label="Nom"
+            icon={Users}
+            placeholder="Dupont"
+            value={formData.lastName}
+            onChangeText={(text) => update({ lastName: text })}
+            autoCapitalize="words"
+            autoComplete="family-name"
+            maxLength={50}
+          />
+          <FormField
+            label="Email institutionnel"
+            icon={Mail}
+            placeholder="jean.dupont@defitech.tg"
+            value={formData.email}
+            onChangeText={(text) => update({ email: text })}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            hint="Le code de validation sera envoyé à cette adresse : utilisez une adresse que vous consultez."
+          />
+          <FormField
+            label="Numéro de téléphone (avec indicatif pays)"
+            icon={Smartphone}
+            placeholder="22890000000"
+            value={formData.phone}
+            onChangeText={(text) => update({ phone: text })}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            hint="Ce numéro sert d'identifiant de connexion et doit être unique."
+          />
 
-            <View>
-              <Text className="text-slate-700 font-medium mb-2">Email Institutionnel</Text>
-              <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                <Mail size={20} color="#64748b" />
-                <TextInput 
-                  placeholder="jean.dupont@defitech.tg"
-                  value={formData.email}
-                  onChangeText={(text) => setFormData({...formData, email: text})}
-                  className="flex-1 ml-3 text-slate-900"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+          {/* Filière */}
+          <View className="mb-4">
+            <Text className="text-slate-700 dark:text-slate-300 font-medium mb-2">Filière</Text>
+            {optionsLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : optionsError ? (
+              <View>
+                <Text className="text-red-600 dark:text-red-400 text-sm mb-2">{optionsError}</Text>
+                <TouchableOpacity
+                  onPress={loadOptions}
+                  accessibilityRole="button"
+                  className="self-start px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800"
+                >
+                  <Text className="font-bold text-slate-700 dark:text-slate-200">Réessayer</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-
-            <View>
-              <Text className="text-slate-700 font-medium mb-2">Numéro WhatsApp</Text>
-              <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                <Smartphone size={20} color="#64748b" />
-                <TextInput 
-                  placeholder="22890000000"
-                  value={formData.phone}
-                  onChangeText={(text) => setFormData({...formData, phone: text})}
-                  className="flex-1 ml-3 text-slate-900"
-                  keyboardType="phone-pad"
-                />
-              </View>
-              <Text className="text-[10px] text-slate-400 mt-1 ml-1">Le code de validation sera envoyé sur ce numéro.</Text>
-            </View>
-
-            <View>
-              <Text className="text-slate-700 font-medium mb-2">Filière</Text>
+            ) : (
               <View className="flex-row flex-wrap gap-2">
-                {options.fields.map(f => (
-                    <TouchableOpacity 
-                        key={f.id}
-                        onPress={() => setFormData({...formData, fieldId: f.id})}
-                        className={`px-3 py-2 rounded-lg border ${formData.fieldId === f.id ? 'bg-blue-600 border-blue-600' : 'bg-slate-50 border-slate-200'}`}
+                {options.fields.map((f) => {
+                  const selected = formData.fieldId === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      onPress={() => update({ fieldId: f.id })}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={f.name}
+                      className={`px-3 py-2 rounded-lg border ${
+                        selected
+                          ? 'bg-blue-600 border-blue-600'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      }`}
                     >
-                        <Text className={`text-xs font-bold ${formData.fieldId === f.id ? 'text-white' : 'text-slate-600'}`}>{f.code}</Text>
+                      <Text
+                        className={`text-xs font-bold ${
+                          selected ? 'text-white' : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {f.code || f.name}
+                      </Text>
                     </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
-            </View>
-
-            <View>
-              <Text className="text-slate-700 font-medium mb-2">Niveau</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {options.levels.map(l => (
-                    <TouchableOpacity 
-                        key={l.id}
-                        onPress={() => setFormData({...formData, academicLevelId: l.id})}
-                        className={`px-3 py-2 rounded-lg border ${formData.academicLevelId === l.id ? 'bg-green-600 border-green-600' : 'bg-slate-50 border-slate-200'}`}
-                    >
-                        <Text className={`text-xs font-bold ${formData.academicLevelId === l.id ? 'text-white' : 'text-slate-600'}`}>{l.name}</Text>
-                    </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View>
-              <Text className="text-slate-700 font-medium mb-2">Mot de passe</Text>
-              <View className="flex-row items-center border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                <Lock size={20} color="#64748b" />
-                <TextInput 
-                  placeholder="••••••••"
-                  secureTextEntry
-                  value={formData.password}
-                  onChangeText={(text) => setFormData({...formData, password: text})}
-                  className="flex-1 ml-3 text-slate-900"
-                />
-              </View>
-            </View>
+            )}
           </View>
 
-          <TouchableOpacity 
+          {/* Niveau */}
+          <View className="mb-4">
+            <Text className="text-slate-700 dark:text-slate-300 font-medium mb-2">Niveau</Text>
+            {!optionsLoading && !optionsError ? (
+              <View className="flex-row flex-wrap gap-2">
+                {options.levels.map((l) => {
+                  const selected = formData.academicLevelId === l.id;
+                  return (
+                    <TouchableOpacity
+                      key={l.id}
+                      onPress={() => update({ academicLevelId: l.id })}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      className={`px-3 py-2 rounded-lg border ${
+                        selected
+                          ? 'bg-green-600 border-green-600'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-bold ${
+                          selected ? 'text-white' : 'text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {l.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
+          </View>
+
+          <FormField
+            label="Mot de passe"
+            icon={Lock}
+            placeholder="••••••••"
+            secureTextEntry
+            value={formData.password}
+            onChangeText={(text) => update({ password: text })}
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            hint={`Au moins ${MIN_PASSWORD_LENGTH} caractères.`}
+          />
+          <FormField
+            label="Confirmer le mot de passe"
+            icon={Lock}
+            placeholder="••••••••"
+            secureTextEntry
+            value={formData.confirmPassword}
+            onChangeText={(text) => update({ confirmPassword: text })}
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+          />
+          <FormField
+            label="Code de parrainage (facultatif)"
+            placeholder="ABC-1234"
+            value={formData.referralCode}
+            onChangeText={(text) => update({ referralCode: text })}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+
+          <TouchableOpacity
             onPress={handleRegister}
             disabled={loading}
-            className={`w-full py-4 rounded-xl items-center shadow-md mb-6 ${loading ? 'bg-slate-300' : 'bg-green-600 shadow-green-200'}`}
+            accessibilityRole="button"
+            className={`w-full py-4 rounded-xl items-center mt-2 mb-6 ${loading ? 'bg-slate-300' : 'bg-green-600'}`}
           >
-            {loading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">S&apos;inscrire</Text>}
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-bold text-lg">S&apos;inscrire</Text>
+            )}
           </TouchableOpacity>
 
           <View className="flex-row justify-center pb-8">
-            <Text className="text-slate-500">Déjà inscrit ? </Text>
-            <TouchableOpacity onPress={() => router.push('/auth/login')}>
-              <Text className="text-green-600 font-bold">Se connecter</Text>
+            <Text className="text-slate-500 dark:text-slate-400">Déjà inscrit ? </Text>
+            <TouchableOpacity onPress={() => router.replace('/auth/login')} accessibilityRole="button">
+              <Text className="text-green-600 dark:text-green-400 font-bold">Se connecter</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }

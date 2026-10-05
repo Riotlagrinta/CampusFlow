@@ -3,9 +3,17 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import api from './api';
+import { logError } from './errors';
 
-export async function registerForPushNotificationsAsync() {
-  let token;
+/**
+ * Demande la permission, récupère le token Expo Push et l'envoie au serveur.
+ * Le token n'est jamais journalisé (il permet d'envoyer des notifications à l'appareil).
+ */
+export async function registerForPushNotificationsAsync(): Promise<string | undefined> {
+  if (!Device.isDevice) {
+    // Les notifications push nécessitent un appareil physique.
+    return undefined;
+  }
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -16,39 +24,29 @@ export async function registerForPushNotificationsAsync() {
     });
   }
 
-  if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      console.log('Permission de notification non accordée!');
-      return;
-    }
-    
-    // Récupération du token Expo
-    token = (await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId,
-    })).data;
-    
-    console.log('Expo Push Token:', token);
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== 'granted') {
+    return undefined;
+  }
 
-    // Envoyer le token au serveur
-    try {
-      await api.patch('/user/profile', { pushToken: token });
-    } catch (error) {
-      console.error("Erreur lors de l'envoi du pushToken au serveur:", error);
-    }
-  } else {
-    console.log('Les notifications nécessitent un appareil physique.');
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+
+  try {
+    await api.patch('/user/profile', { pushToken: token });
+  } catch (error) {
+    logError("Envoi du pushToken au serveur", error);
   }
 
   return token;
 }
 
-// Configuration de la façon dont les notifications sont affichées quand l'app est ouverte
+// Façon dont les notifications sont affichées quand l'application est ouverte.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,

@@ -14,7 +14,7 @@ Plateforme éducative de l'école **DEFITECH** : ressources de cours par filièr
 | Fichiers | Vercel Blob |
 | Messagerie | Gmail (nodemailer) pour les codes de vérification (OTP) et les alertes ; UltraMsg (WhatsApp) optionnel, désactivé par défaut |
 | Mobile | Expo SDK 54, expo-router, NativeWind |
-| Qualité | TypeScript strict, ESLint, Vitest, GitHub Actions |
+| Qualité | TypeScript strict, ESLint, Vitest |
 
 ## Prérequis
 
@@ -157,11 +157,11 @@ Exécutés avec `tsx` contre la base désignée par `DATABASE_URL`. Ils affichen
 | `scripts/setup-defitech-data.ts` | Filières, niveaux et matières de base (idempotent) |
 | `scripts/bulk-import.ts --yes` | Import local depuis `bulk_import/Filière/Niveau/Matière/` (développement) |
 
-## Tests et intégration continue
+## Tests
 
 `npm test` exécute Vitest sur `src/**/*.test.ts` et `scripts/**/*.test.ts` : rate limit, comparaison en temps constant, catalogue d'offres, abonnement (`isPremium`), schémas d'identifiant, interrupteur des paiements et redirection des pages de paiement. Aucun test ne touche à une base ou au réseau (Prisma est simulé).
 
-Le workflow `.github/workflows/ci.yml` exécute sur chaque push vers `main` et chaque pull request : `npm ci`, `prisma validate` et `generate`, `tsc --noEmit`, `eslint`, `vitest run`, `next build --webpack`, avec des variables factices.
+Il n'y a pas d'intégration continue automatique (le workflow GitHub Actions a été retiré). Avant de pousser vers `main`, qui déclenche le déploiement Vercel, lancer à la main : `npm run typecheck`, `npm run lint` et `npm test`.
 
 ## Déploiement sur Vercel
 

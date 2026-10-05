@@ -56,7 +56,7 @@ Passage d'une plateforme de classe à un **ERP Éducatif Institutionnel** pour l
 - [x] Classement réel opérationnel
 - [x] Refonte multi-filières (filières, niveaux, matières, isolation des contenus)
 - [x] Paiement Genius Pay et paiement manuel (idempotent)
-- [x] Tests unitaires (Vitest) et intégration continue (GitHub Actions)
+- [x] Tests unitaires (Vitest), lancés à la main avant chaque push (pas d'intégration continue automatique)
 - [ ] Migrations Prisma versionnées dans le dépôt (baseline de la production à faire, voir `README.md`)
 - [ ] Content-Security-Policy appliquée (actuellement en Report-Only, `CSP_ENFORCE=true` après validation en navigateur)
 - [ ] Contrainte d'unicité sur `Subject` (filière + niveau + nom) : à ajouter après dédoublonnage de la base de production

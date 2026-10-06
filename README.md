@@ -65,6 +65,8 @@ Les filières et niveaux (Génie Logiciel, Licence 1 à 3, etc.) s'initialisent 
 | `ADMIN_WHATSAPP_PHONE` | optionnelle | Numéro qui reçoit les alertes admin par WhatsApp ; sans effet tant que `WHATSAPP_INSTANCE_ID` et `WHATSAPP_TOKEN` ne sont pas définis |
 | `NEXT_PUBLIC_ADMIN_WHATSAPP` | optionnelle | Numéro WhatsApp affiché (boutique, support, à propos) ; exposé au navigateur ; peut rester absente tant que les paiements sont désactivés |
 | `NEXT_PUBLIC_TMONEY_NUMBER`, `NEXT_PUBLIC_FLOOZ_NUMBER` | optionnelles | Numéros du paiement manuel affichés au checkout (section masquée si absents) ; peuvent rester absentes tant que les paiements sont désactivés |
+| `MFA_ENCRYPTION_KEY` | **importante** | Active la **double authentification (TOTP) obligatoire des administrateurs** et chiffre leurs secrets : 32 octets en base64 (`openssl rand -base64 32`). Absente = fonction désactivée, **sauf pour un ADMIN déjà inscrit (refusé)** ; mal formée = droits d'administration suspendus. Distincte de `AUTH_SECRET` (voir [Double authentification](#double-authentification-des-administrateurs)) |
+| `TURNSTILE_SECRET_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | importantes | CAPTCHA Cloudflare Turnstile sur l'inscription et « mot de passe oublié » (voir [Anti-robot](#anti-robot-captcha)). Actif seulement si les **deux** sont définies |
 | `CSP_ENFORCE` | optionnelle | `true` pour appliquer la Content-Security-Policy complète (voir [Sécurité](#sécurité)) |
 | `SEED_*` | optionnelles | Comptes de démonstration du seed (développement uniquement) |
 
@@ -214,12 +216,48 @@ mobile/                     Application Expo
 
 Principes : l'authentification est vérifiée route par route avec `getAuthUser` (jamais d'en-tête d'identité fourni par le client) ; toute séquence lire-tester-écrire sur un quota, un solde ou un statut est une écriture conditionnelle atomique ou une transaction ; les erreurs d'API ont la forme `{ "error": "message" }`.
 
+## Double authentification des administrateurs
+
+Application d'authentification (TOTP, RFC 6238 : Google Authenticator, Microsoft Authenticator, Aegis, 1Password...). Pas de SMS, pas de service externe.
+
+**Principe.** Quand `MFA_ENCRYPTION_KEY` est définie, un compte ADMIN ne garde ses droits que s'il a validé son second facteur **dans la session web en cours**. Sinon `getAuthUser` ([src/lib/session.ts](src/lib/session.ts)) le renvoie avec le rôle `STUDENT` : aucune route d'administration, aucun droit élargi (forum, ressources, planning, périmètre de lecture) ne lui est accessible. Les pages `/admin` redirigent vers `/mfa`. Le mobile (Bearer) n'a pas de second facteur : un ADMIN y est un simple étudiant.
+
+**Activation (une fois par administrateur).**
+1. Définir `MFA_ENCRYPTION_KEY` dans Vercel (`openssl rand -base64 32`, **Sensitive**) et appliquer le SQL [scripts/sql/2026-10-double-authentification.sql](scripts/sql/2026-10-double-authentification.sql) **avant** le déploiement.
+2. Se connecter : la page `/mfa` demande le mot de passe, affiche une clé secrète à saisir dans l'application (une seule fois), puis un code à 6 chiffres pour confirmer.
+3. **Noter les 8 codes de secours** affichés une seule fois (usage unique, stockés sous forme d'empreintes HMAC).
+
+**Protections.** Secret TOTP chiffré en AES-256-GCM (sous-clé HKDF dédiée), lié à l'identifiant du compte ; code accepté une seule fois (anti-rejeu) ; 5 essais par 15 minutes et 10 par jour et par compte, plus un plafond par IP ; preuve de vérification signée avec une sous-clé dédiée (jamais acceptée à la place d'un jeton mobile, et inversement), liée à la session, au compte et à l'activation en cours (un nouveau login, ou une réinitialisation, exige un nouveau code) ; mot de passe redemandé à l'activation ; **alerte email** au titulaire à l'activation et à chaque usage d'un code de secours.
+
+**Clé absente.** Sans `MFA_ENCRYPTION_KEY`, la fonction est désactivée (développement), **sauf pour un ADMIN déjà inscrit** : sans clé on ne peut pas vérifier son code, il est donc refusé plutôt que d'entrer sur mot de passe seul. Définir la clé dans **tous** les environnements Vercel qui partagent la base (Production, Preview).
+
+**Enrôler tout de suite.** L'activation se fait avec le seul mot de passe, la première fois : l'administrateur doit s'inscrire **dès le déploiement**, avant que quiconque ait le temps de le faire à sa place. L'alerte email d'activation signale tout enrôlement inattendu.
+
+**Secours.**
+- *Téléphone perdu* : saisir un code de secours à la place du code à 6 chiffres.
+- *Plus de téléphone ni de codes*, ou *verrouillé par des essais répétés* : réinitialiser le second facteur de ce compte en SQL (requête commentée en bas de [scripts/sql/2026-10-double-authentification.sql](scripts/sql/2026-10-double-authentification.sql) : remise à zéro, levée du verrou des essais, révocation des sessions), puis se reconnecter et le réactiver.
+- *Clé `MFA_ENCRYPTION_KEY` perdue ou changée* : les secrets enregistrés deviennent illisibles. Même procédure SQL pour chaque administrateur. **Ne pas faire tourner cette clé sans nécessité.**
+- *Désactiver volontairement la fonction* : remise à zéro SQL pour tous les administrateurs, puis retirer la clé et redéployer. Retirer la clé seule ne suffit pas (un administrateur inscrit serait refusé).
+
+## Anti-robot (CAPTCHA)
+
+[Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) (gratuit, quasi invisible) protège **l'inscription** et **« mot de passe oublié »** : ce sont les deux routes qui envoient un email à une adresse choisie par l'appelant, donc celles par lesquelles un robot épuiserait le quota quotidien de Gmail.
+
+- **Création des clés** : tableau de bord Cloudflare, *Turnstile*, *Add widget* ; domaine = celui de `NEXT_PUBLIC_APP_URL` ; mode *Managed*. Copier la **clé de site** (publique) dans `NEXT_PUBLIC_TURNSTILE_SITE_KEY` et la **clé secrète** dans `TURNSTILE_SECRET_KEY` (Sensitive), puis redéployer (la clé de site est lue au build).
+- **Domaines du widget** : dans Cloudflare, listez le domaine du site (celui de `NEXT_PUBLIC_APP_URL`) ; le mobile renvoie vers ce même domaine pour s'inscrire.
+- **Ordre des contrôles** : limite par IP, puis CAPTCHA, puis limites par adresse/numéro/identifiant. Ces dernières ne sont consommées qu'après le CAPTCHA, pour qu'un robot sans jeton ne puisse pas épuiser le quota d'une victime précise.
+- **Actif seulement si les deux variables sont définies** ; sans elles, rien n'est exigé. Une panne de configuration (clé secrète refusée par Cloudflare) est journalisée sous `[captcha]` dans les logs Vercel, sans la clé.
+- **Échec fermé** : si Cloudflare est injoignable, la requête est refusée (503) plutôt que de laisser passer les robots.
+- **Mobile** : l'application ne peut pas afficher le widget. Quand le serveur répond `400 { code: "captcha_required" }`, elle propose d'ouvrir la page correspondante du site web.
+
 ## Sécurité
 
 - **Secrets** : jamais dans le dépôt. `AUTH_SECRET` est obligatoire (aucun repli). En cas de fuite d'une clé, la faire tourner puis mettre à jour Vercel.
 - **Comptes** : mots de passe bcrypt, OTP à usage unique avec compteur d'essais, limitation de débit persistante par identifiant et par IP.
 - **Paiement** : le callback Genius Pay est vérifié (signature, montant, statut) et le crédit est idempotent ; les prix viennent uniquement de `src/lib/packs.ts`, jamais du client.
 - **En-têtes** (`next.config.ts`) : `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy`, CORS restreint à `NEXT_PUBLIC_APP_URL`. La politique `Content-Security-Policy` complète est d'abord émise en **Report-Only** (violations journalisées dans la console, rien n'est bloqué) car elle n'a pas encore été validée dans un navigateur (Three.js, Mermaid, aperçu PDF, upload Blob) ; seul un socle (`frame-ancestors`, `base-uri`, `form-action`) est appliqué. `CSP_ENFORCE=true` applique la politique complète.
+- **Administrateurs** : double authentification TOTP obligatoire ; sans elle validée dans la session, un ADMIN est traité comme un étudiant partout (voir ci-dessous).
+- **Anti-robot** : CAPTCHA sur les routes qui envoient un email à une adresse choisie par l'appelant.
 - **Scripts** : refus en production, confirmation `--yes`, aucune donnée personnelle affichée.
 - **Points ouverts (décision du propriétaire)** : `public/sw.js` (régénéré par next-pwa au build) charge un script publicitaire tiers ; la preuve de visionnage d'une publicité-récompense n'est pas vérifiée côté serveur (le serveur ne fait que plafonner et ralentir les récompenses).
 

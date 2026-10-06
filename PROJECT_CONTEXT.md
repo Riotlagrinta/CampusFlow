@@ -56,6 +56,7 @@ Passage d'une plateforme de classe à un **ERP Éducatif Institutionnel** pour l
 - [x] Classement réel opérationnel
 - [x] Refonte multi-filières (filières, niveaux, matières, isolation des contenus)
 - [x] Paiement Genius Pay et paiement manuel (idempotent)
+- [x] Double authentification TOTP obligatoire des administrateurs (`MFA_ENCRYPTION_KEY`) et CAPTCHA Turnstile sur l'inscription et « mot de passe oublié » (`TURNSTILE_*`) : actifs seulement quand leurs variables sont définies
 - [x] Tests unitaires (Vitest), lancés à la main avant chaque push (pas d'intégration continue automatique)
 - [ ] Migrations Prisma versionnées dans le dépôt (baseline de la production à faire, voir `README.md`)
 - [ ] Content-Security-Policy appliquée (actuellement en Report-Only, `CSP_ENFORCE=true` après validation en navigateur)

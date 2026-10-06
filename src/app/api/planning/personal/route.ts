@@ -287,6 +287,12 @@ export async function PUT(req: Request) {
     if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
+    // Un créneau académique appartient à l'admin qui l'a créé : « être propriétaire » ne suffit pas.
+    // Sans ce test, un ADMIN dont le second facteur n'est pas validé (rôle effectif STUDENT) resterait
+    // maître de ces créneaux, visibles par toute une classe.
+    if (existing.isAcademic && !isAdmin) {
+      return NextResponse.json({ error: 'Les créneaux académiques sont réservés aux administrateurs' }, { status: 403 });
+    }
 
     // Un créneau ne passe pas de personnel à académique (ni l'inverse) par une modification
     const isAcademic = existing.isAcademic;
@@ -359,12 +365,16 @@ export async function DELETE(req: Request) {
 
     if (!id || id.length > 100) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
 
-    const schedule = await prisma.personalSchedule.findUnique({ where: { id }, select: { userId: true } });
+    const schedule = await prisma.personalSchedule.findUnique({ where: { id }, select: { userId: true, isAcademic: true } });
     if (!schedule) return NextResponse.json({ error: 'Non trouvé' }, { status: 404 });
 
     // Autoriser si c'est le sien OU si c'est un ADMIN
     if (schedule.userId !== authUser.id && authUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
+    }
+    // Un créneau académique appartient à l'admin qui l'a créé : seul un ADMIN (effectif) le supprime.
+    if (schedule.isAcademic && authUser.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Les créneaux académiques sont réservés aux administrateurs' }, { status: 403 });
     }
 
     await prisma.personalSchedule.deleteMany({ where: { id } });

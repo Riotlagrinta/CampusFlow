@@ -54,6 +54,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ...user,
+      // Rôle effectif : un ADMIN sans second facteur validé apparaît comme étudiant (voir AuthUser).
+      role: authUser.role,
       rank,
       averageScore: Math.round(attempts._avg.score ?? 0),
       quizAttemptsCount: attempts._count._all

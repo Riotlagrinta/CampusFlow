@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     const { limit, cursor } = parsed.data;
     const semester = parsed.data.semester ?? getCurrentSemester();
 
-    const profile = await getScopeProfile(authUser.id);
+    const profile = await getScopeProfile(authUser);
     if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
     const rows = await prisma.quiz.findMany({
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Données invalides' }, { status: 400 });
     const { quizId, answers } = parsed.data;
 
-    const profile = await getScopeProfile(authUser.id);
+    const profile = await getScopeProfile(authUser);
     if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
     // Quiz hors de la filière/niveau de l'utilisateur : traité comme inexistant.

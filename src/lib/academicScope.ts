@@ -10,11 +10,17 @@ export type ScopeProfile = {
   academicLevelId: string | null;
 };
 
-export async function getScopeProfile(userId: string): Promise<ScopeProfile | null> {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true, fieldId: true, academicLevelId: true },
+/**
+ * Profil de périmètre. `user` est l'identité EFFECTIVE (getAuthUser) : son rôle, et non celui de la
+ * base, décide si l'on voit tout (ADMIN) ; un ADMIN sans second facteur validé voit comme un étudiant.
+ * Seules la filière et le niveau sont lus en base.
+ */
+export async function getScopeProfile(user: { id: string; role: string }): Promise<ScopeProfile | null> {
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { fieldId: true, academicLevelId: true },
   });
+  return row ? { role: user.role, fieldId: row.fieldId, academicLevelId: row.academicLevelId } : null;
 }
 
 /** Filières dont l'utilisateur peut voir les contenus (vide si aucune filière renseignée). */

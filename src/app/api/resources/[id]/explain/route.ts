@@ -52,7 +52,7 @@ export async function POST(
 
     const user = await prisma.user.findUnique({
       where: { id: authUser.id },
-      select: { role: true, fieldId: true, academicLevelId: true },
+      select: { fieldId: true, academicLevelId: true },
     });
     if (!user) return NextResponse.json({ error: "Utilisateur introuvable." }, { status: 404 });
 
@@ -65,7 +65,7 @@ export async function POST(
     }
 
     // Isolation par filière/niveau (comme GET /api/resources) ; les ADMIN passent toujours.
-    if (!(await canAccessResource(user, resource))) {
+    if (!(await canAccessResource({ ...user, role: authUser.role }, resource))) {
       return NextResponse.json({ error: "Accès refusé à cette ressource." }, { status: 403 });
     }
 

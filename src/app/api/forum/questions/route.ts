@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
     const { limit, cursor, q } = parsed.data;
 
-    const profile = await getScopeProfile(authUser.id);
+    const profile = await getScopeProfile(authUser);
     if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
     const scope = await questionScopeWhere(profile);

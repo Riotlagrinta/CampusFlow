@@ -119,7 +119,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       rank,
-      role: user.role,
+      // Rôle effectif : un ADMIN sans second facteur validé apparaît comme étudiant (voir AuthUser).
+      role: authUser.role,
+      mfaPending: authUser.mfaPending === true,
       isSubscribed: isPremium(user),
       subscriptionExpiresAt: user.subscriptionExpiresAt,
       stats: [

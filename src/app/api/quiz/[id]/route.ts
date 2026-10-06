@@ -13,7 +13,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const profile = await getScopeProfile(authUser.id);
+    const profile = await getScopeProfile(authUser);
     if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
     // SÉCURITÉ : on ne sélectionne jamais le champ `answer` (bonne réponse) — la correction

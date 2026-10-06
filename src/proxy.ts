@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isAdminPage, isApiPath, isPublicPage, shouldRedirectPaymentsPage } from "@/lib/routeAccess";
 import { isPaymentsEnabled } from "@/lib/payments";
+import { mfaCookieNames, mfaMode, proofMatches, readCookieValue, verifyMfaProof } from "@/lib/mfa/proof";
 
 /**
  * Proxy Next.js 16 (ex-middleware, runtime Node.js) : première barrière pour les PAGES.
@@ -9,7 +10,8 @@ import { isPaymentsEnabled } from "@/lib/payments";
  * - Les pages protégées exigent un cookie de session NextAuth valide, sinon redirection vers /login
  *   (avec `callbackUrl` = chemin ET paramètres d'origine, pour y revenir après connexion).
  * - /admin exige en plus role === "ADMIN" (rôle du JWT ; le contrôle faisant foi reste
- *   `requireAdmin` côté API, qui relit le rôle en base).
+ *   `requireAdmin` côté API, qui relit le rôle en base) et, quand MFA_ENCRYPTION_KEY est définie,
+ *   la preuve du second facteur de cette session (sinon redirection vers /mfa).
  * - /api/* n'est jamais traité ici : chaque route authentifie elle-même via `getAuthUser`
  *   (cookie NextAuth OU Bearer mobile). Le proxy ne lit ni n'écrit aucun en-tête d'identité.
  * - Les contrôles portent sur le chemin NORMALISÉ (décodé, minuscules, sans slash doublé ni « .. »,
@@ -69,6 +71,36 @@ export async function proxy(req: NextRequest) {
     url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
+  }
+
+  // Double authentification : un ADMIN sans preuve valable pour cette session passe par /mfa
+  // (saisie du code, ou activation la première fois). Le proxy ne voit pas la base : il vérifie la
+  // signature, le compte et la session de la preuve ; getAuthUser contrôle en plus l'activation en
+  // cours et reste l'autorité pour les API.
+  if (isAdminPage(pathname) && mfaMode() !== "off") {
+    const secret = process.env.AUTH_SECRET;
+    const claims = await verifyMfaProof(
+      readCookieValue(req.headers.get("cookie"), mfaCookieNames()),
+      secret ? new TextEncoder().encode(secret) : null
+    );
+    const proven =
+      mfaMode() === "on" &&
+      proofMatches(
+        claims,
+        {
+          userId: String(token.id ?? ""),
+          authTime: typeof token.authTime === "number" ? token.authTime : undefined,
+          enabledAtMs: null,
+        },
+        false
+      );
+    if (!proven) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/mfa";
+      url.search = "";
+      url.searchParams.set("next", `/${pathname.replace(/^[/\\]+/, "")}${search}`);
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();

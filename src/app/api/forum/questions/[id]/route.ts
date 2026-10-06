@@ -15,7 +15,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const profile = await getScopeProfile(authUser.id);
+    const profile = await getScopeProfile(authUser);
     if (!profile) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     const scope = await questionScopeWhere(profile);
 

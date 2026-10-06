@@ -250,7 +250,6 @@ export async function POST(req: Request) {
       where: { id: authUser.id },
       select: {
         firstName: true,
-        role: true,
         fieldId: true,
         academicLevelId: true,
         pushToken: true,
@@ -274,7 +273,7 @@ export async function POST(req: Request) {
           select: { type: true, url: true, fieldId: true, levelId: true },
         });
         if (!resource) return fail("Document introuvable.", 404);
-        if (!(await canAccessResource(user, resource))) return fail("Accès refusé à cette ressource.", 403);
+        if (!(await canAccessResource({ ...user, role: authUser.role }, resource))) return fail("Accès refusé à cette ressource.", 403);
 
         const resolved = resolveResourceSource(resource);
         if (!resolved.ok) return fail(resolved.error, resolved.status === 200 ? 400 : resolved.status);

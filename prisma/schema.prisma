@@ -54,6 +54,16 @@ model User {
   // Les sessions émises avant cette date sont refusées (révocation après changement de mot de passe).
   passwordChangedAt DateTime?
 
+  // Double authentification TOTP des administrateurs (voir src/lib/mfa/). Jamais renvoyés par les API.
+  //  - mfaSecret     : secret TOTP chiffré (AES-256-GCM, lié à l'id du compte) ;
+  //  - mfaEnabledAt  : null = pas de second facteur actif (ou activation en cours) ;
+  //  - mfaLastStep   : dernier pas de 30 s accepté (anti-rejeu d'un code intercepté) ;
+  //  - mfaRecovery   : JSON, empreintes HMAC des codes de secours non utilisés.
+  mfaSecret    String?
+  mfaEnabledAt DateTime?
+  mfaLastStep  Int?
+  mfaRecovery  String?
+
   referralCode String? @unique
 
   referredById String?

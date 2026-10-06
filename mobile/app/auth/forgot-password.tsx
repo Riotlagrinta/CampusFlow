@@ -12,7 +12,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, KeyRound, Mail, Lock } from 'lucide-react-native';
 import api from '../../src/services/api';
-import { getErrorMessage, logError } from '../../src/services/errors';
+import { getErrorMessage, isCaptchaRequired, logError } from '../../src/services/errors';
+import { offerWebFallback } from '../../src/services/webFallback';
 import { MIN_PASSWORD_LENGTH, paramToString, validatePassword } from '../../src/utils/format';
 import { goBackOrHome } from '@/components/screen-header';
 import { Screen } from '@/components/screen';
@@ -57,6 +58,10 @@ export default function ForgotPassword() {
       setStep('reset');
     } catch (error) {
       logError('forgot-password', error);
+      if (isCaptchaRequired(error)) {
+        offerWebFallback('/login', "Pour des raisons de sécurité, la récupération du mot de passe se fait depuis la page de connexion du site web (lien « Oublié ? »). Ouvrir le site ?");
+        return;
+      }
       Alert.alert('Erreur', getErrorMessage(error, "Impossible d'envoyer le code."));
     } finally {
       setLoading(false);

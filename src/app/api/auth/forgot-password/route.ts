@@ -1,6 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { captchaFailure, verifyCaptcha } from '@/lib/captcha';
 import { sendEmail } from '@/lib/mail';
 import { deliveryChannelsPhrase, isWhatsAppConfigured, sendWhatsAppMessage } from '@/lib/whatsapp';
 import {
@@ -11,10 +12,15 @@ import {
   identifierSchema,
   identifierWhere,
   rateKey,
+  safeErrorSummary,
   tooManyRequests,
 } from '@/lib/authHelpers';
 
-const forgotSchema = z.object({ identifier: identifierSchema });
+const forgotSchema = z.object({
+  identifier: identifierSchema,
+  // Jeton anti-robot (Cloudflare Turnstile), exigé seulement quand le CAPTCHA est configuré.
+  captchaToken: z.unknown().optional(), // validé par verifyCaptcha (type, longueur)
+});
 
 // Réponse identique que le compte existe ou non. Le message annonce les canaux réels
 // (« par email » seulement tant que WhatsApp n'est pas configuré).
@@ -34,13 +40,28 @@ export async function POST(req: Request) {
     }
     const { identifier } = parsed.data;
 
-    const limit = await checkLimits([
+    // ORDRE : limite par IP, puis anti-robot, puis limites par identifiant. Ces dernières ne sont
+    // consommées qu'après le CAPTCHA : sans cela, trois requêtes sans jeton avec l'identifiant d'une
+    // victime (un administrateur, par exemple) épuiseraient son quota et l'empêcheraient de récupérer son
+    // compte, en boucle toutes les 15 minutes. La réponse ne dépend pas de l'existence du compte.
+    const ipLimit = await checkLimits([
       { key: rateKey('forgot:ip', clientIp(req)), limit: 10, windowMs: 15 * 60 * 1000 },
+    ]);
+    if (!ipLimit.allowed) return tooManyRequests(ipLimit.retryAfterMs);
+
+    const captcha = await verifyCaptcha(parsed.data.captchaToken, clientIp(req));
+    if (!captcha.ok) {
+      const failure = captchaFailure(captcha.reason);
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
+
+    const limit = await checkLimits([
       { key: rateKey('forgot:id', identifierKey(identifier)), limit: 3, windowMs: 15 * 60 * 1000 },
       // Chaque nouveau code remet le compteur d'essais à zéro : on plafonne le nombre de codes par jour.
       { key: rateKey('forgot:day', identifierKey(identifier)), limit: 10, windowMs: 24 * 60 * 60 * 1000 },
     ]);
     if (!limit.allowed) return tooManyRequests(limit.retryAfterMs);
+
 
     // Tout le travail dépendant de l'existence du compte (écriture + envois) est fait après
     // la réponse : le temps de réponse ne permet pas de deviner si l'identifiant existe.
@@ -93,13 +114,13 @@ export async function POST(req: Request) {
           console.error('forgot-password : aucun canal n\'a livré le code', { userId: user.id });
         }
       } catch (error) {
-        console.error('Erreur forgot-password (traitement différé):', error);
+        console.error('Erreur forgot-password (traitement différé):', safeErrorSummary(error));
       }
     });
 
     return NextResponse.json(neutralResponse());
   } catch (error) {
-    console.error('Erreur forgot-password:', error);
+    console.error('Erreur forgot-password:', safeErrorSummary(error));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

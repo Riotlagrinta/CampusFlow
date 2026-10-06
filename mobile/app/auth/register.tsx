@@ -12,7 +12,8 @@ import {
 import { router } from 'expo-router';
 import { Mail, Lock, ArrowLeft, Smartphone, User, Users } from 'lucide-react-native';
 import api from '../../src/services/api';
-import { getErrorMessage, getErrorStatus, logError } from '../../src/services/errors';
+import { getErrorMessage, getErrorStatus, isCaptchaRequired, logError } from '../../src/services/errors';
+import { offerWebFallback } from '../../src/services/webFallback';
 import { setPendingRegistration, type RegistrationPayload } from '../../src/services/pendingRegistration';
 import { MIN_PASSWORD_LENGTH, validatePassword } from '../../src/utils/format';
 import { goBackOrHome } from '@/components/screen-header';
@@ -137,6 +138,10 @@ export default function Register() {
       });
     } catch (error) {
       logError('inscription', error);
+      if (isCaptchaRequired(error)) {
+        offerWebFallback('/register', "Pour des raisons de sécurité, l'inscription se fait depuis le site web. Ouvrir le site ?");
+        return;
+      }
       const message = getErrorMessage(error, 'Impossible de créer le compte.');
       // 502 : le code n'a pas pu être envoyé (e-mail indisponible) ; le même envoi peut être retenté.
       Alert.alert(

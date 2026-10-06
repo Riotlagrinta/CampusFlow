@@ -5,16 +5,17 @@ import { prisma } from '@/lib/prisma';
 import { safeCompare } from '@/lib/rateLimit';
 import {
   BCRYPT_COST,
-  MAX_OTP_ATTEMPTS,
   checkLimits,
   clientIp,
   firstIssue,
   identifierKey,
   identifierSchema,
   identifierWhere,
+  MAX_OTP_ATTEMPTS,
   otpCodeSchema,
   passwordSchema,
   rateKey,
+  safeErrorSummary,
   tooManyRequests,
 } from '@/lib/authHelpers';
 
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Erreur reset-password:', error);
+    console.error('Erreur reset-password:', safeErrorSummary(error));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { captchaFailure, verifyCaptcha } from '@/lib/captcha';
 import { escapeHtml, sendEmail } from '@/lib/mail';
 import { deliveryChannelsPhrase, isWhatsAppConfigured, sendWhatsAppMessage } from '@/lib/whatsapp';
 import {
@@ -18,8 +19,10 @@ import {
   passwordSchema,
   personNameSchema,
   rateKey,
+  safeErrorSummary,
   tooManyRequests,
 } from '@/lib/authHelpers';
+import { checkRateLimitDb } from '@/lib/rateLimit';
 
 const OTP_TTL_MS = 60 * 60 * 1000;
 
@@ -45,6 +48,8 @@ const registerSchema = z.object({
   fieldId: idSchema('Filière'),
   levelId: idSchema('Niveau'),
   referralCode: z.string().trim().max(32).nullish(),
+  // Jeton anti-robot (Cloudflare Turnstile), exigé seulement quand le CAPTCHA est configuré.
+  captchaToken: z.unknown().optional(), // validé par verifyCaptcha (type, longueur)
 });
 
 // Même réponse que le compte existe déjà ou non (pas d'énumération des comptes). Le message annonce
@@ -153,15 +158,29 @@ export async function POST(req: Request) {
     const { email, phone, firstName, lastName, password, fieldId, levelId } = parsed.data;
     const referralCode = parsed.data.referralCode?.toUpperCase() || null;
 
-    // Limites par IP, par email et par numéro : l'inscription déclenche l'envoi de messages
-    // à des adresses/numéros choisis par l'appelant.
-    const limit = await checkLimits([
+    // L'inscription déclenche l'envoi de messages à des adresses/numéros choisis par l'appelant.
+    // ORDRE : limite par IP, puis anti-robot, puis limites par email et par numéro. Ces dernières ne
+    // sont consommées qu'après le CAPTCHA : sans cela, des requêtes sans jeton suffiraient à épuiser
+    // le quota d'une victime précise (son email ou son numéro) et à l'empêcher de s'inscrire.
+    const ipLimit = await checkLimits([
       { key: rateKey('register:ip', clientIp(req)), limit: 10, windowMs: 60 * 60 * 1000 },
+    ]);
+    if (!ipLimit.allowed) {
+      return tooManyRequests(ipLimit.retryAfterMs, "Trop de tentatives d'inscription. Réessayez plus tard.");
+    }
+
+    const captcha = await verifyCaptcha(parsed.data.captchaToken, clientIp(req));
+    if (!captcha.ok) {
+      const failure = captchaFailure(captcha.reason);
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
+
+    const limit = await checkLimits([
       { key: rateKey('register:email', email), limit: 5, windowMs: 60 * 60 * 1000 },
       { key: rateKey('register:phone', phone), limit: 3, windowMs: 60 * 60 * 1000 },
     ]);
     if (!limit.allowed) {
-      return tooManyRequests(limit.retryAfterMs, 'Trop de tentatives d\'inscription. Réessayez plus tard.');
+      return tooManyRequests(limit.retryAfterMs, "Trop de tentatives d'inscription. Réessayez plus tard.");
     }
 
     const [field, level] = await Promise.all([
@@ -285,7 +304,11 @@ export async function POST(req: Request) {
       </div>
     `;
 
+    // L'alerte à l'administrateur double le coût en emails d'une inscription : plafonnée par jour, pour
+    // qu'une vague d'inscriptions ne consomme pas à elle seule le quota quotidien de Gmail.
     const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+    const notifyAdmin =
+      !!createdUserId && !!adminEmail && (await checkRateLimitDb('notify:signup', 20, 24 * 60 * 60 * 1000)).allowed;
     const [whatsappSent, emailSent] = await Promise.all([
       whatsappEnabled
         ? sendWhatsAppMessage(
@@ -295,7 +318,7 @@ export async function POST(req: Request) {
         : Promise.resolve(false),
       sendEmail({ to: email, subject: `${otpCode} est votre code de validation DefiTech Hub`, html: otpEmailHtml }),
       // Notification à l'administrateur : un échec n'a aucune conséquence pour l'utilisateur.
-      createdUserId && adminEmail
+      notifyAdmin && adminEmail
         ? sendEmail({
             to: adminEmail,
             subject: '🚀 Nouvelle pré-inscription sur le Hub',
@@ -325,7 +348,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(neutralResponse());
   } catch (error) {
-    console.error('Erreur inscription:', error);
+    console.error('Erreur inscription:', safeErrorSummary(error));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

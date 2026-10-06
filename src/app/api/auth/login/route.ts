@@ -10,6 +10,7 @@ import {
   identifierSchema,
   identifierWhere,
   rateKey,
+  safeErrorSummary,
   tooManyRequests,
   verifyPassword,
 } from '@/lib/authHelpers';
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error('Erreur API Login:', error);
+    console.error('Erreur API Login:', safeErrorSummary(error));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { User, Mail, Lock, ArrowRight, Loader2, CheckCircle2, Command, BookOpen, GraduationCap, Star, Smartphone } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSound } from '@/hooks/useSound';
+import { CAPTCHA_PENDING_HINT, TurnstileWidget, isCaptchaConfigured, type TurnstileHandle } from '@/components/TurnstileWidget';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -32,6 +33,10 @@ export default function RegisterPage() {
   const [otpCode, setOtpCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  // Jeton anti-robot Cloudflare Turnstile (usage unique, renouvelé après chaque envoi).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstile = useRef<TurnstileHandle>(null);
+  const captchaPending = isCaptchaConfigured && !captchaToken;
 
   useEffect(() => {
     fetch('/api/academic/options')
@@ -90,10 +95,12 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, captchaToken }),
       });
 
       const data = await res.json().catch(() => ({}));
+      // Le jeton est consommé par la requête, réussie ou non : on en demande un nouveau.
+      turnstile.current?.reset();
 
       if (res.ok) {
         setDeliveryNotice(typeof data.message === 'string' ? data.message : '');
@@ -102,6 +109,7 @@ export default function RegisterPage() {
       }
       setError(data.error || 'Une erreur est survenue');
     } catch {
+      turnstile.current?.reset();
       setError('Impossible de contacter le serveur');
     }
     return false;
@@ -117,16 +125,22 @@ export default function RegisterPage() {
       setError('Le mot de passe doit contenir au moins 8 caractères.');
       return;
     }
+    if (captchaPending) {
+      setError('Vérification anti-robot en cours : patientez un instant puis réessayez.');
+      return;
+    }
     setLoading(true);
     const ok = await submitRegistration();
     setLoading(false);
     if (ok) {
       setOtpCode('');
       setShowOTP(true);
+      setCaptchaToken(null); // l'écran du code a son propre widget
     }
   };
 
   const handleResend = async () => {
+    if (captchaPending) return;
     setIsResending(true);
     const ok = await submitRegistration();
     setIsResending(false);
@@ -171,7 +185,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-xl space-y-6">
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
+            <form onSubmit={handleVerifyOTP} method="post" className="space-y-6">
               <div className="space-y-2">
                 <label htmlFor="otp-code" className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Code de validation (6 chiffres)</label>
                 <input
@@ -193,10 +207,11 @@ export default function RegisterPage() {
                 {isVerifying ? <Loader2 className="animate-spin" size={20} /> : 'Activer mon compte'}
               </button>
             </form>
+            <TurnstileWidget ref={turnstile} onToken={setCaptchaToken} action="register-resend" />
             <div className="flex flex-col items-center gap-2 text-[10px] text-zinc-400 uppercase font-bold tracking-widest">
               <p>
                 Pas reçu ?{' '}
-                <button type="button" onClick={handleResend} disabled={isResending} className="text-blue-600 hover:underline disabled:opacity-50">
+                <button type="button" onClick={handleResend} disabled={isResending || captchaPending} className="text-blue-600 hover:underline disabled:opacity-50">
                   {isResending ? 'Envoi...' : 'Renvoyer le code'}
                 </button>
               </p>
@@ -224,7 +239,7 @@ export default function RegisterPage() {
             <p className="text-zinc-500">Rejoignez la communauté Génie Logiciel de DEFITECH.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} method="post" className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label htmlFor="reg-firstName" className="text-xs font-bold uppercase text-zinc-500 ml-1">Prénom</label>
@@ -362,9 +377,12 @@ export default function RegisterPage() {
               </p>
             )}
 
+            <TurnstileWidget ref={turnstile} onToken={setCaptchaToken} action="register" />
+            {captchaPending && <p className="text-[10px] text-zinc-400 text-center">{CAPTCHA_PENDING_HINT}</p>}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || captchaPending}
               className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-xl disabled:opacity-60"
             >
               {loading ? <Loader2 className="animate-spin" size={20} /> : 'Créer mon compte'}

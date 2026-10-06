@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useRef, useState, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ArrowRight, Loader2, Command, ShieldCheck, KeyRound, CheckCircle2, ChevronLeft, Info } from 'lucide-react';
 import Link from 'next/link';
@@ -9,6 +9,7 @@ import { useSound } from '@/hooks/useSound';
 import { signIn } from "next-auth/react";
 import { safeRedirectPath } from '@/lib/safeRedirect';
 import { loginReasonMessage } from '@/lib/loginReason';
+import { CAPTCHA_PENDING_HINT, TurnstileWidget, isCaptchaConfigured, type TurnstileHandle } from '@/components/TurnstileWidget';
 
 type Mode = 'login' | 'forgot' | 'reset';
 
@@ -39,6 +40,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [inactiveAccount, setInactiveAccount] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  // Jeton anti-robot Cloudflare Turnstile pour « mot de passe oublié » (usage unique).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstile = useRef<TurnstileHandle>(null);
+  const captchaPending = isCaptchaConfigured && !captchaToken;
 
   // Formulaire Login (identifiant = email ou téléphone)
   const [formData, setFormData] = useState({
@@ -54,6 +59,7 @@ export default function LoginPage() {
     setError('');
     setInactiveAccount(false);
     setSuccessMessage('');
+    setCaptchaToken(null);
     setMode(next);
   };
 
@@ -82,7 +88,19 @@ export default function LoginPage() {
         }
       } else {
         play('success');
-        router.push(getSafeRedirect());
+        const destination = getSafeRedirect();
+        // Administrateur : le second facteur doit être validé (ou activé la première fois) avant
+        // d'entrer. Tant qu'il ne l'est pas, le serveur le traite comme un simple étudiant.
+        let target = destination;
+        try {
+          const status = await fetch('/api/auth/mfa/status', { cache: 'no-store' });
+          if (status.ok && (await status.json())?.required === true) {
+            target = `/mfa?next=${encodeURIComponent(destination)}`;
+          }
+        } catch {
+          // hors ligne : on continue, le serveur applique de toute façon la règle
+        }
+        router.push(target);
         router.refresh();
       }
     } catch {
@@ -94,6 +112,10 @@ export default function LoginPage() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (captchaPending) {
+      setError('Vérification anti-robot en cours : patientez un instant puis réessayez.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -101,9 +123,11 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: formData.identifier.trim() }),
+        body: JSON.stringify({ identifier: formData.identifier.trim(), captchaToken }),
       });
       const data = await res.json().catch(() => ({}));
+      // Le jeton est consommé par la requête, réussie ou non : on en demande un nouveau.
+      turnstile.current?.reset();
 
       if (res.ok) {
         setMode('reset');
@@ -117,6 +141,7 @@ export default function LoginPage() {
         setError(data.error || 'Une erreur est survenue');
       }
     } catch {
+      turnstile.current?.reset();
       setError('Erreur réseau');
     } finally {
       setLoading(false);
@@ -188,7 +213,7 @@ export default function LoginPage() {
               <motion.form
                 key="login"
                 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-                onSubmit={handleLogin} className="space-y-4"
+                onSubmit={handleLogin} method="post" className="space-y-4"
               >
                 <div className="space-y-2">
                   <label htmlFor="login-identifier" className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">Email ou téléphone</label>
@@ -244,7 +269,7 @@ export default function LoginPage() {
               <motion.form
                 key="forgot"
                 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-                onSubmit={handleForgotPassword} className="space-y-4"
+                onSubmit={handleForgotPassword} method="post" className="space-y-4"
               >
                 <button type="button" onClick={() => switchMode('login')} className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase mb-4 hover:text-zinc-600 transition-colors">
                   <ChevronLeft size={14} /> Retour à la connexion
@@ -263,8 +288,10 @@ export default function LoginPage() {
                     />
                   </div>
                 </div>
+                <TurnstileWidget ref={turnstile} onToken={setCaptchaToken} action="forgot-password" />
+                {captchaPending && <p className="text-[10px] text-zinc-400 text-center">{CAPTCHA_PENDING_HINT}</p>}
                 <button
-                  type="submit" disabled={loading}
+                  type="submit" disabled={loading || captchaPending}
                   className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 disabled:opacity-60"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : 'Envoyer le code'}
@@ -277,7 +304,7 @@ export default function LoginPage() {
               <motion.form
                 key="reset"
                 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-                onSubmit={handleResetPassword} className="space-y-4"
+                onSubmit={handleResetPassword} method="post" className="space-y-4"
               >
                 <button type="button" onClick={() => switchMode('forgot')} className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase mb-2 hover:text-zinc-600 transition-colors">
                   <ChevronLeft size={14} /> Changer d&apos;identifiant

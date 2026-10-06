@@ -54,6 +54,16 @@ const rscNetworkOnly = {
   options: { cacheName: "rsc-network-only" },
 };
 
+// Le widget anti-robot (Cloudflare Turnstile) ne doit jamais être servi depuis un cache : son script et
+// ses défis évoluent et un jeton périmé ou une version figée casserait l'inscription. Les règles par
+// défaut de next-pwa mettraient ce script cross-origin en cache (NetworkFirst, 1 h). Même contrainte
+// de sérialisation : uniquement des globales du service worker.
+const turnstileNetworkOnly = {
+  urlPattern: ({ url }: { url: URL }) => url.hostname === "challenges.cloudflare.com",
+  handler: "NetworkOnly",
+  options: { cacheName: "turnstile-network-only" },
+};
+
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
@@ -64,7 +74,7 @@ const withPWA = withPWAInit({
   // register.js). Désactivé : cette page contient aussi la session.
   dynamicStartUrl: false,
   cacheStartUrl: false,
-  runtimeCaching: [apiNetworkOnly, documentNetworkOnly, rscNetworkOnly, ...defaultRuntimeCaching],
+  runtimeCaching: [turnstileNetworkOnly, apiNetworkOnly, documentNetworkOnly, rscNetworkOnly, ...defaultRuntimeCaching],
 });
 
 // Domaine canonique de l'application : NEXT_PUBLIC_APP_URL (ex. https://mon-domaine.vercel.app).
@@ -96,16 +106,20 @@ const appOrigin = resolveAppOrigin();
 // 'unsafe-inline' est requis par les scripts d'hydratation inline de Next.js (pas de nonce sans
 // proxy dynamique) et par les styles en ligne de framer-motion / Tailwind ; 'unsafe-eval' uniquement en dev.
 const VERCEL_BLOB = "https://*.vercel-storage.com";
+// Cloudflare Turnstile (anti-robot des pages d'inscription et de mot de passe oublié) : le script
+// (script-src) et le cadre du défi (frame-src) suffisent ; connect-src n'est requis que pour la
+// « pré-clearance », non utilisée ici.
+const TURNSTILE = "https://challenges.cloudflare.com";
 
 const cspFull = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com ${TURNSTILE}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: https://lh3.googleusercontent.com https://avatars.githubusercontent.com https://*.r2.dev ${VERCEL_BLOB} https://cdn-icons-png.flaticon.com`,
   "font-src 'self' data:",
   `connect-src 'self' ${VERCEL_BLOB} https://vercel.com https://va.vercel-scripts.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
   `media-src 'self' blob: ${VERCEL_BLOB}`,
-  `frame-src 'self' ${VERCEL_BLOB} https://drive.google.com https://docs.google.com`,
+  `frame-src 'self' ${VERCEL_BLOB} https://drive.google.com https://docs.google.com ${TURNSTILE}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",

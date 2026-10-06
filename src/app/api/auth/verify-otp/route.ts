@@ -3,16 +3,17 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { safeCompare } from '@/lib/rateLimit';
 import {
-  MAX_OTP_ATTEMPTS,
-  MAX_REFERRAL_BONUSES,
-  REFERRAL_BONUS,
   checkLimits,
   clientIp,
   identifierKey,
   identifierSchema,
   identifierWhere,
+  MAX_OTP_ATTEMPTS,
+  MAX_REFERRAL_BONUSES,
   otpCodeSchema,
   rateKey,
+  REFERRAL_BONUS,
+  safeErrorSummary,
   tooManyRequests,
 } from '@/lib/authHelpers';
 
@@ -143,7 +144,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Compte activé avec succès !' });
   } catch (error) {
-    console.error('Erreur verify-otp:', error);
+    console.error('Erreur verify-otp:', safeErrorSummary(error));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -24,6 +24,16 @@ export function isPaymentsDisabled(error: unknown): boolean {
   return !!data && typeof data === 'object' && (data as { code?: unknown }).code === 'payments_disabled';
 }
 
+/**
+ * Vrai quand le serveur exige une vérification anti-robot (400 + code captcha_required). Le CAPTCHA
+ * ne peut être affiché que dans un navigateur : l'application renvoie alors vers le site web.
+ */
+export function isCaptchaRequired(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 400) return false;
+  const data: unknown = error.response.data;
+  return !!data && typeof data === 'object' && (data as { code?: unknown }).code === 'captcha_required';
+}
+
 /** Délai d'attente (en secondes) demandé par le serveur via l'en-tête Retry-After (429). */
 export function getRetryAfterSeconds(error: unknown): number | undefined {
   if (!axios.isAxiosError(error)) return undefined;

@@ -12,7 +12,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ShieldCheck, Mail } from 'lucide-react-native';
 import api from '../../src/services/api';
-import { getErrorMessage, getErrorStatus, logError } from '../../src/services/errors';
+import { getErrorMessage, getErrorStatus, isCaptchaRequired, logError } from '../../src/services/errors';
+import { offerWebFallback } from '../../src/services/webFallback';
 import { getPendingRegistration, setPendingRegistration } from '../../src/services/pendingRegistration';
 import { paramToString } from '../../src/utils/format';
 import { Screen } from '@/components/screen';
@@ -91,6 +92,10 @@ export default function VerifyOtp() {
       Alert.alert('Code renvoyé', 'Un nouveau code vient de vous être envoyé. L’ancien n’est plus valable.');
     } catch (error) {
       logError('renvoi du code', error);
+      if (isCaptchaRequired(error)) {
+        offerWebFallback('/register', "Pour des raisons de sécurité, le renvoi du code se fait depuis le site web. Ouvrir le site ?");
+        return;
+      }
       const message = getErrorMessage(error, "Impossible de renvoyer le code.");
       Alert.alert(
         'Envoi impossible',

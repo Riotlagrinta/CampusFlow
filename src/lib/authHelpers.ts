@@ -156,6 +156,19 @@ export function rateKey(scope: string, value: string): string {
   return `${scope}:${createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
 }
 
+/**
+ * Résumé d'une erreur SANS données. Le message d'une erreur Prisma peut contenir les valeurs de la
+ * requête (code OTP, hash du mot de passe...) : dans les routes d'authentification on ne journalise
+ * jamais l'objet d'erreur, seulement son type et son code.
+ */
+export function safeErrorSummary(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? `${error.name} (${code})` : error.name;
+  }
+  return 'erreur inconnue';
+}
+
 export type LimitCheck = { key: string; limit: number; windowMs: number };
 
 // Applique plusieurs limites à la suite ; s'arrête à la première refusée.
